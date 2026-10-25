@@ -38,6 +38,7 @@
   --ombra:0 1px 2px rgba(0,0,0,.4),0 10px 26px -18px rgba(0,0,0,.85);
   color-scheme:dark;
 }
+[hidden]{display:none!important} /* alcune classi impongono display: hidden deve vincere sempre */
 html,body{min-height:100%}
 body{
   background:var(--carta); color:var(--inchiostro);
@@ -247,3 +248,33 @@ details.risposte[open] summary::before{content:"−"}
 .voce .tempo{font-family:var(--dati);font-size:1.3rem;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){.voce[data-stato="ascolto"] .mic{animation:none}}
 .guidata{font-size:.75rem;font-family:var(--dati);color:var(--giallo)}
+
+/* ---- scelta del profilo con codice (niente email per le ragazze) ---- */
+.nomi{display:grid;gap:14px;margin-top:22px}
+.nomi button{display:flex;align-items:center;gap:18px;text-align:left;border:1px solid var(--bordo);background:var(--rialzo);border-radius:20px;padding:22px 20px;font:inherit;color:inherit;cursor:pointer;box-shadow:var(--ombra);min-height:96px}
+.nomi button:active{transform:scale(.99)}
+.nomi b{display:block;font-family:var(--display);font-size:1.7rem;font-weight:600;line-height:1.1}
+.nomi small{color:var(--inchiostro-2);font-size:.95rem}
+.nomi .iniziale{width:60px;height:60px;flex:none;border-radius:50%;background:var(--tinta);color:var(--su-tinta);display:grid;place-items:center;font:600 1.6rem var(--display)}
+.piede{margin-top:40px;text-align:center}
+button.link{background:none;border:0;color:var(--inchiostro-2);font:500 .85rem var(--testo);text-decoration:underline;cursor:pointer;padding:10px;min-height:44px}
+.codice{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:6px}
+.codice h2{font-size:1.5rem;margin-top:8px}
+.codice .aiuto{margin:4px 0 0}
+.pallini{display:flex;gap:16px;margin:16px 0 4px}
+.pallini i{width:16px;height:16px;border-radius:50%;border:2px solid var(--tinta)}
+.pallini i[data-on="1"]{background:var(--tinta)}
+.pallini.scuoti{animation:scuoti .35s}
+@keyframes scuoti{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@media (prefers-reduced-motion:reduce){.pallini.scuoti{animation:none}}
+.cod-msg{min-height:1.5em;color:var(--rosso);font-size:.95rem;margin:4px 0 10px}
+.tastierino{display:grid;grid-template-columns:repeat(3,72px);gap:10px 22px;justify-content:center}
+.tastierino button{width:72px;height:72px;border-radius:50%;border:1px solid var(--bordo);background:var(--rialzo);color:var(--inchiostro);font:500 1.8rem var(--testo);cursor:pointer;box-shadow:var(--ombra);-webkit-tap-highlight-color:transparent}
+.tastierino button:active{background:var(--tinta-soft)}
+.tastierino button.tenue{border-color:transparent;background:none;box-shadow:none;font-size:.9rem;color:var(--inchiostro-2)}
+.tastierino button.tenue[data-n="canc"]{font-size:1.5rem}
+.tastierino[aria-disabled="true"] button:not(.tenue){opacity:.35}
+.riga-profilo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--bordo);border-radius:12px;padding:12px 14px;background:var(--rialzo);margin-top:8px}
+.riga-profilo b{flex:1 1 120px}
+.riga-profilo button{min-height:38px;padding:8px 12px;font-size:.85rem}
+.iniziale.grande{width:52px;height:52px;flex:none;border-radius:50%;background:var(--tinta);color:var(--su-tinta);display:grid;place-items:center;font:600 1.4rem var(--display)}

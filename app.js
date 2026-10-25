@@ -171,7 +171,7 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
@@ -179,116 +179,255 @@ function vai(v, materia) {
   $("nome-passo").textContent = info[0];
   document.querySelectorAll(".tacche i").forEach((el) => { el.dataset.on = (+el.dataset.t <= info[1]) ? "1" : "0"; });
   $("conta-passo").textContent = info[1] ? ("passo " + info[1] + " di 4") : (profilo ? profilo.nome : "");
-  $("btn-rail-indietro").hidden = (v === "libreria" || v === "profili");
+  $("btn-rail-indietro").hidden = (v === "libreria" || v === "profili" || v === "codice" || v === "impostazioni");
   const chip = $("chip-materia");
   if (materia) { chip.hidden = false; chip.textContent = materia; tinta(document.documentElement, materia); }
-  else if (v === "libreria" || v === "profili") { chip.hidden = true; tinta(document.documentElement, null); }
+  else if (VISTE[v][1] === 0 && v !== "scheda" && v !== "storico") { chip.hidden = true; tinta(document.documentElement, null); }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 /* =================================================================== profili */
-// Ogni studentessa è un utente Supabase distinto. Sullo stesso telefono ogni profilo
-// tiene la sua sessione in una chiave diversa di localStorage: passare dall'una
-// all'altra non chiede la password, e il database separa i dati con le policy RLS.
+// Ogni studentessa è un utente Supabase distinto, creato dalla funzione `profili`
+// quando il genitore aggiunge il profilo dalle impostazioni: email e password le
+// genera il server e le ragazze non le vedono mai. Sul telefono ogni profilo tiene
+// la sua sessione in una chiave diversa di localStorage. Il codice a 4 cifre serve
+// a scegliere il profilo e a non entrare in quello della sorella: lo controlla il
+// database (verifica_pin), con la sessione del profilo scelto.
+
+const MAX_ERRORI = 3, BLOCCO_MS = 60000;
+// Dopo tre codici sbagliati il profilo resta bloccato un minuto.
+function erroreCodice(rec, ora) {
+  const r = { errori: ((rec && rec.errori) || 0) + 1, fino: 0 };
+  if (r.errori >= MAX_ERRORI) { r.errori = 0; r.fino = ora + BLOCCO_MS; }
+  return r;
+}
+function secondiBlocco(rec, ora) { return rec && rec.fino > ora ? Math.ceil((rec.fino - ora) / 1000) : 0; }
 
 function leggiProfili() { try { return JSON.parse(localStorage.getItem("verifiche-profili")) || []; } catch (e) { return []; } }
 function salvaProfili(l) { try { localStorage.setItem("verifiche-profili", JSON.stringify(l)); } catch (e) { /* niente */ } }
+function leggiBlocco(id) { try { return JSON.parse(localStorage.getItem("verifiche-blocco-" + id)) || {}; } catch (e) { return {}; } }
+function salvaBlocco(id, r) { try { localStorage.setItem("verifiche-blocco-" + id, JSON.stringify(r)); } catch (e) { /* niente */ } }
+
+const clients = {};
 function clientPer(chiave) {
-  return window.supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: chiave, persistSession: true, autoRefreshToken: true } });
+  return clients[chiave] || (clients[chiave] = window.supabase.createClient(SB_URL, SB_KEY, {
+    auth: { storageKey: chiave, persistSession: true, autoRefreshToken: true },
+  }));
 }
 
-async function attivaProfilo(p, conPin = true) {
-  const client = clientPer(p.chiave);
-  const { data } = await client.auth.getSession();
-  if (!data.session) { errore($("err-profili"), "La sessione di " + p.nome + " è scaduta: rientra con email e password."); $("box-accesso").open = true; return; }
-  if (conPin) {
-    const { data: libero } = await client.rpc("verifica_pin", { pin: "" });
-    if (libero === false) {
-      const pin = window.prompt("PIN di " + p.nome);
-      if (pin == null) return;
-      const { data: ok } = await client.rpc("verifica_pin", { pin: pin });
-      if (!ok) { errore($("err-profili"), "PIN sbagliato."); return; }
-    }
+function bottoneNome(p, classe) {
+  const b = document.createElement("button"); b.type = "button"; if (classe) b.className = classe;
+  const i = document.createElement("span"); i.className = "iniziale"; i.textContent = p.nome.slice(0, 1).toUpperCase();
+  b.appendChild(i);
+  return b;
+}
+function disegnaProfili() {
+  const lista = leggiProfili();
+  const box = $("scelta-profilo"); box.innerHTML = "";
+  if (!lista.length) box.innerHTML = '<div class="vuoto"><b>Nessun profilo su questo telefono</b>Il genitore li aggiunge da Impostazioni, qui sotto.</div>';
+  lista.forEach((p) => {
+    const b = bottoneNome(p);
+    const t = document.createElement("span"); t.innerHTML = "<b>" + esc(p.nome) + "</b><small>" + esc(p.classe || "") + "</small>";
+    b.appendChild(t); b.onclick = () => apriCodice(p); box.appendChild(b);
+  });
+  // In libreria: i profili del telefono, per passare all'altra (con il suo codice).
+  const r = $("profili"); r.innerHTML = "";
+  lista.forEach((p) => {
+    const b = bottoneNome(p);
+    b.setAttribute("aria-pressed", profilo && p.id === profilo.id ? "true" : "false");
+    b.appendChild(document.createTextNode(p.nome));
+    b.onclick = () => { if (!profilo || p.id !== profilo.id) apriCodice(p); };
+    r.appendChild(b);
+  });
+}
+
+let codiceProfilo = null, codiceDigitato = "", timerBlocco = null;
+function apriCodice(p) {
+  codiceProfilo = p; codiceDigitato = "";
+  $("cod-nome").textContent = p.nome;
+  $("cod-iniziale").textContent = p.nome.slice(0, 1).toUpperCase();
+  $("cod-msg").textContent = "";
+  aggiornaPallini(); mostraBlocco();
+  vai("codice");
+}
+function aggiornaPallini() {
+  $("cod-pallini").querySelectorAll("i").forEach((el, i) => { el.dataset.on = i < codiceDigitato.length ? "1" : "0"; });
+}
+function mostraBlocco() {
+  clearInterval(timerBlocco);
+  const aggiorna = () => {
+    const s = secondiBlocco(leggiBlocco(codiceProfilo.id), Date.now());
+    $("tastierino").setAttribute("aria-disabled", s ? "true" : "false");
+    if (s) $("cod-msg").textContent = "Troppi tentativi. Riprova fra " + s + (s === 1 ? " secondo." : " secondi.");
+    else { clearInterval(timerBlocco); if (/Troppi/.test($("cod-msg").textContent)) $("cod-msg").textContent = ""; }
+  };
+  aggiorna(); timerBlocco = setInterval(aggiorna, 1000);
+}
+function tasto(n) {
+  if (n === "esci") { clearInterval(timerBlocco); vai("profili"); return; }
+  if (secondiBlocco(leggiBlocco(codiceProfilo.id), Date.now())) return;
+  if (n === "canc") codiceDigitato = codiceDigitato.slice(0, -1);
+  else if (codiceDigitato.length < 4) codiceDigitato += n;
+  aggiornaPallini();
+  if (codiceDigitato.length === 4) verificaCodice();
+}
+function sbagliato(msg) {
+  const pal = $("cod-pallini"); pal.classList.remove("scuoti"); void pal.offsetWidth; pal.classList.add("scuoti");
+  $("cod-msg").textContent = msg; codiceDigitato = ""; aggiornaPallini();
+}
+async function verificaCodice() {
+  const p = codiceProfilo, client = clientPer(p.chiave);
+  $("tastierino").setAttribute("aria-disabled", "true");
+  const { data: s } = await client.auth.getSession();
+  if (!s.session) { $("tastierino").setAttribute("aria-disabled", "false"); sbagliato("Questo profilo va ricollegato dal genitore, in Impostazioni."); return; }
+  const { data: ok, error } = await client.rpc("verifica_pin", { pin: codiceDigitato });
+  $("tastierino").setAttribute("aria-disabled", "false");
+  if (error) { sbagliato("Non riesco a controllare il codice: serve la connessione."); return; }
+  if (!ok) {
+    const r = erroreCodice(leggiBlocco(p.id), Date.now()); salvaBlocco(p.id, r);
+    sbagliato(r.fino ? "" : "Codice sbagliato."); mostraBlocco(); return;
   }
+  salvaBlocco(p.id, {});
+  entraProfilo(p, client);
+}
+async function entraProfilo(p, client) {
+  clearInterval(timerBlocco);
   sb = client; profilo = p;
-  try { localStorage.setItem("verifiche-attivo", p.id); } catch (e) { /* niente */ }
   const { data: st } = await sb.from("studenti").select("scelte").eq("id", p.id).maybeSingle();
   if (st && st.scelte) { livello = st.scelte.livello || livello; tipo = st.scelte.tipo || tipo; modalita = st.scelte.modalita || modalita; }
   errore($("err-profili"), "");
   caricaLibreria(); vai("libreria");
 }
 
-function disegnaProfili() {
-  const lista = leggiProfili();
-  const box = $("scelta-profilo"); box.innerHTML = "";
-  lista.forEach((p) => {
-    const b = document.createElement("button"); b.type = "button";
-    b.innerHTML = '<span class="iniziale">' + esc(p.nome.slice(0, 1).toUpperCase()) + "</span><span><b>" + esc(p.nome) + "</b><small>" + esc(p.classe || "") + "</small></span>";
-    b.onclick = () => attivaProfilo(p);
-    box.appendChild(b);
-  });
-  $("box-accesso").open = !lista.length;
-  // In libreria: i profili del telefono come interruttori, per cambiare con un tocco.
-  const r = $("profili"); r.innerHTML = "";
-  lista.forEach((p) => {
-    const b = document.createElement("button"); b.type = "button";
-    b.setAttribute("aria-pressed", profilo && p.id === profilo.id ? "true" : "false");
-    b.innerHTML = '<span class="iniziale">' + esc(p.nome.slice(0, 1).toUpperCase()) + "</span>" + esc(p.nome);
-    b.onclick = () => { if (!profilo || p.id !== profilo.id) attivaProfilo(p); };
-    r.appendChild(b);
-  });
-  const piu = document.createElement("button"); piu.type = "button"; piu.className = "aggiungi"; piu.textContent = "+ profilo";
-  piu.onclick = () => { disegnaProfili(); $("box-accesso").open = true; vai("profili"); };
-  r.appendChild(piu);
-}
+/* ---- impostazioni: solo il genitore, con il suo account, mai salvato sul telefono ---- */
 
-let accessoInCorso = null; // { client, chiave, user } fra login e scelta del nome
-async function accedi() {
-  const email = $("acc-email").value.trim(), password = $("acc-password").value;
-  errore($("err-profili"), "");
-  if (!email || !password) { errore($("err-profili"), "Scrivi email e password del profilo."); return; }
-  const chiave = "sb-verifiche-" + Date.now().toString(36);
-  const client = clientPer(chiave);
-  $("btn-accedi").disabled = true;
+let genitore = null;
+async function genEntra() {
+  const email = $("gen-email").value.trim(), password = $("gen-password").value;
+  errore($("err-imp"), "");
+  if (!email || !password) { errore($("err-imp"), "Scrivi email e password del genitore."); return; }
+  const client = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: false, autoRefreshToken: false, storageKey: "sb-verifiche-genitore" } });
+  $("btn-gen-entra").disabled = true;
   const { data, error } = await client.auth.signInWithPassword({ email, password });
-  $("btn-accedi").disabled = false;
-  if (error) { errore($("err-profili"), "Email o password non corretti."); return; }
-  const uid = data.user.id;
-  if (leggiProfili().some((p) => p.id === uid)) { errore($("err-profili"), "Questo profilo è già su questo telefono."); await client.auth.signOut({ scope: "local" }); return; }
-  $("acc-password").value = "";
-  const { data: st } = await client.from("studenti").select("nome, classe").eq("id", uid).maybeSingle();
-  if (st) return registraProfilo({ id: uid, nome: st.nome, classe: st.classe, chiave });
-  accessoInCorso = { client, chiave, uid };
-  $("box-nome").hidden = false; $("pr-nome").focus();
+  $("btn-gen-entra").disabled = false; $("gen-password").value = "";
+  if (error) { errore($("err-imp"), "Email o password non corretti."); return; }
+  if (!data.user.app_metadata || data.user.app_metadata.ruolo !== "genitore") {
+    await client.auth.signOut({ scope: "local" }); errore($("err-imp"), "Questo account non è segnato come genitore."); return;
+  }
+  genitore = client;
+  $("imp-accesso").hidden = true; $("imp-pannello").hidden = false;
+  disegnaImpostazioni();
 }
-async function salvaNome() {
-  const nome = $("pr-nome").value.trim(), classe = $("pr-classe").value.trim();
-  if (!nome || !accessoInCorso) { errore($("err-profili"), "Scrivi il nome."); return; }
-  const { client, chiave, uid } = accessoInCorso;
-  const { error } = await client.from("studenti").insert({ id: uid, nome, classe: classe || null });
-  if (error) { errore($("err-profili"), "Non sono riuscito a creare il profilo. Riprova."); return; }
-  accessoInCorso = null; $("box-nome").hidden = true;
-  registraProfilo({ id: uid, nome, classe, chiave });
+function genEsci() {
+  if (genitore) genitore.auth.signOut({ scope: "local" });
+  genitore = null;
+  $("imp-accesso").hidden = false; $("imp-pannello").hidden = true;
+  $("gen-email").value = ""; $("gen-password").value = "";
+  ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
+  errore($("err-imp"), ""); disegnaProfili(); vai("profili");
 }
-function registraProfilo(p) {
-  const l = leggiProfili().filter((x) => x.id !== p.id); l.push(p); salvaProfili(l);
-  disegnaProfili(); attivaProfilo(p, false);
+async function funzioneProfili(corpo) {
+  const { data } = await genitore.auth.getSession();
+  const r = await fetch(SB_URL + "/functions/v1/profili", {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: SB_KEY, authorization: "Bearer " + data.session.access_token },
+    body: JSON.stringify(corpo),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.errore || "errore " + r.status);
+  return j;
+}
+const codiceValido = (c) => /^\d{4}$/.test(String(c || ""));
+function chiediCodice(nome) {
+  const c = window.prompt("Codice a 4 cifre per " + nome);
+  if (c == null) return null;
+  if (!codiceValido(c.trim())) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); return null; }
+  return c.trim();
 }
 
-async function esciProfilo() {
-  const p = profilo;
-  await sb.auth.signOut({ scope: "local" });
+// Apre la sessione della studentessa su questo telefono con le credenziali appena
+// generate dal server (mai mostrate) e imposta il suo codice.
+async function collegaSuTelefono(r, codice) {
+  const chiave = "sb-verifiche-" + r.id;
+  const client = clientPer(chiave);
+  const { error } = await client.auth.signInWithPassword({ email: r.email, password: r.password });
+  if (error) throw error;
+  const { error: e2 } = await client.rpc("imposta_pin", { pin: codice });
+  if (e2) throw e2;
+  salvaProfili(leggiProfili().filter((x) => x.id !== r.id).concat([{ id: r.id, nome: r.nome, classe: r.classe || "", chiave }]));
+  salvaBlocco(r.id, {});
+}
+
+async function disegnaImpostazioni() {
+  const tel = $("imp-telefono"); tel.innerHTML = "";
+  const lista = leggiProfili();
+  if (!lista.length) tel.innerHTML = '<p class="legenda">Nessuno ancora.</p>';
+  lista.forEach((p) => {
+    const d = document.createElement("div"); d.className = "riga-profilo";
+    const b = document.createElement("b"); b.textContent = p.nome + (p.classe ? " · " + p.classe : ""); d.appendChild(b);
+    const cc = document.createElement("button"); cc.type = "button"; cc.className = "minore"; cc.textContent = "Cambia codice";
+    cc.onclick = () => cambiaCodice(p);
+    const via = document.createElement("button"); via.type = "button"; via.className = "minore pericolo"; via.textContent = "Togli dal telefono";
+    via.onclick = function () { doppioTocco(this, "Tocca di nuovo: i suoi dati restano salvati", () => togliDalTelefono(p)); };
+    d.appendChild(cc); d.appendChild(via); tel.appendChild(d);
+  });
+  // Profili già creati che su questo telefono non ci sono (per esempio dopo un cambio di telefono).
+  const altri = $("imp-altri"); altri.innerHTML = "";
+  const { data } = await genitore.from("studenti").select("id, nome, classe").order("nome");
+  const mancanti = (data || []).filter((s) => !lista.some((p) => p.id === s.id));
+  if (mancanti.length) {
+    const t = document.createElement("p"); t.className = "occhiello"; t.textContent = "Profili da aprire su questo telefono"; altri.appendChild(t);
+    mancanti.forEach((s) => {
+      const d = document.createElement("div"); d.className = "riga-profilo";
+      const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " · " + s.classe : ""); d.appendChild(b);
+      const ap = document.createElement("button"); ap.type = "button"; ap.className = "minore"; ap.textContent = "Apri qui";
+      ap.onclick = () => apriQui(s);
+      d.appendChild(ap); altri.appendChild(d);
+    });
+  }
+}
+async function creaProfilo() {
+  const nome = $("np-nome").value.trim(), classe = $("np-classe").value.trim(), codice = $("np-codice").value.trim();
+  errore($("err-imp"), "");
+  if (!nome) { errore($("err-imp"), "Scrivi il nome."); return; }
+  if (!codiceValido(codice)) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); return; }
+  if (leggiProfili().some((p) => p.nome.toLowerCase() === nome.toLowerCase())) { errore($("err-imp"), "C'è già un profilo con questo nome su questo telefono."); return; }
+  $("btn-np-crea").disabled = true; attesa($("stato-imp"), ["Creo il profilo di " + nome]);
+  try {
+    const r = await funzioneProfili({ azione: "crea", nome, classe });
+    await collegaSuTelefono(r, codice);
+    ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
+    avviso($("err-imp"), "Profilo di " + nome + " pronto: dalla schermata iniziale tocca il nome e digita il codice.");
+  } catch (e) {
+    errore($("err-imp"), "Non sono riuscito a creare il profilo. Riprova.");
+  }
+  attesa($("stato-imp"), null); $("btn-np-crea").disabled = false;
+  disegnaImpostazioni();
+}
+async function apriQui(s) {
+  const codice = chiediCodice(s.nome); if (!codice) return;
+  attesa($("stato-imp"), ["Apro il profilo di " + s.nome]);
+  try { await collegaSuTelefono(await funzioneProfili({ azione: "collega", studente_id: s.id }), codice); }
+  catch (e) { errore($("err-imp"), "Non sono riuscito ad aprire il profilo. Riprova."); }
+  attesa($("stato-imp"), null); disegnaImpostazioni();
+}
+async function cambiaCodice(p) {
+  const codice = chiediCodice(p.nome); if (!codice) return;
+  const client = clientPer(p.chiave);
+  const { data: s } = await client.auth.getSession();
+  try {
+    if (!s.session) await collegaSuTelefono(await funzioneProfili({ azione: "collega", studente_id: p.id }), codice);
+    else { const { error } = await client.rpc("imposta_pin", { pin: codice }); if (error) throw error; }
+    salvaBlocco(p.id, {});
+    avviso($("err-imp"), "Codice di " + p.nome + " cambiato.");
+  } catch (e) { errore($("err-imp"), "Non sono riuscito a cambiare il codice. Riprova."); }
+}
+async function togliDalTelefono(p) {
+  await clientPer(p.chiave).auth.signOut({ scope: "local" });
   salvaProfili(leggiProfili().filter((x) => x.id !== p.id));
-  try { localStorage.removeItem("verifiche-attivo"); } catch (e) { /* niente */ }
-  sb = null; profilo = null; argomenti = []; sessioni = [];
-  disegnaProfili(); vai("profili");
-}
-
-async function impostaPin() {
-  const pin = window.prompt("Nuovo PIN da 4 a 6 cifre per " + profilo.nome + " (lascia vuoto per annullare)");
-  if (!pin) return;
-  const { error } = await sb.rpc("imposta_pin", { pin: pin.trim() });
-  avviso($("avviso-db"), error ? "Il PIN deve avere da 4 a 6 cifre." : "PIN impostato: lo chiedo quando si passa a questo profilo.");
+  try { localStorage.removeItem("verifiche-blocco-" + p.id); } catch (e) { /* niente */ }
+  if (profilo && profilo.id === p.id) { sb = null; profilo = null; argomenti = []; sessioni = []; }
+  disegnaImpostazioni();
 }
 
 /* =================================================================== modello */
@@ -1135,11 +1274,12 @@ async function salvaProva(es, per) {
 
 function collega() {
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
-  $("btn-accedi").addEventListener("click", accedi);
-  $("acc-password").addEventListener("keydown", (e) => { if (e.key === "Enter") accedi(); });
-  $("btn-salva-nome").addEventListener("click", salvaNome);
-  $("btn-esci").addEventListener("click", function () { doppioTocco(this, "Tocca di nuovo: il profilo resta salvato, esce solo dal telefono", esciProfilo); });
-  $("btn-pin").addEventListener("click", impostaPin);
+  $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
+  $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
+  $("btn-gen-entra").addEventListener("click", genEntra);
+  $("gen-password").addEventListener("keydown", (e) => { if (e.key === "Enter") genEntra(); });
+  $("btn-gen-esci").addEventListener("click", genEsci);
+  $("btn-np-crea").addEventListener("click", creaProfilo);
   $("btn-storico").addEventListener("click", () => {
     if (!sessioni.length) { avviso($("avviso-db"), "Nessuna prova ancora. Lo storico si riempie da solo dalla prima verifica."); return; }
     filtroMat = ""; disegnaStorico(); vai("storico");
@@ -1234,11 +1374,8 @@ async function avvia() {
   collega();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   if (!window.supabase) { errore($("err-profili"), "Serve la connessione a internet per aprire i tuoi argomenti."); vai("profili"); return; }
-  disegnaProfili();
-  const lista = leggiProfili();
-  let attivo = null; try { attivo = localStorage.getItem("verifiche-attivo"); } catch (e) { /* niente */ }
-  const p = lista.find((x) => x.id === attivo);
-  if (p) attivaProfilo(p, false); else vai("profili");
+  // Si parte sempre dai nomi: tocco il nome, digito il codice, entro.
+  disegnaProfili(); vai("profili");
 }
 
 if (typeof document !== "undefined" && document.getElementById && document.getElementById("v-libreria")) {

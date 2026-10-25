@@ -73,3 +73,15 @@ test("domanda guidata: aperta parte dal primo elemento atteso, chiusa rilegge le
   const ch = run(`domandaGuidata({tipo:"chiusa", testo:"Chi?", opzioni:["x","y","z","w"], _ord:[2,0,1,3]})`);
   assert.match(ch, /A: z\. B: x\. C: y\. D: w\./);
 });
+
+test("codice: al terzo errore il profilo resta bloccato un minuto, poi si riparte da zero", () => {
+  const T = 1_000_000;
+  run(`var r1 = erroreCodice({}, ${T}); var r2 = erroreCodice(r1, ${T}); var r3 = erroreCodice(r2, ${T});`);
+  assert.equal(run("r1.errori + ',' + r1.fino"), "1,0");
+  assert.equal(run("r2.errori + ',' + r2.fino"), "2,0");
+  assert.equal(run("r3.errori"), 0);
+  assert.equal(run(`secondiBlocco(r3, ${T})`), 60);
+  assert.equal(run(`secondiBlocco(r3, ${T + 59_500})`), 1);
+  assert.equal(run(`secondiBlocco(r3, ${T + 60_000})`), 0);
+  assert.equal(run(`erroreCodice(r3, ${T + 61_000}).errori`), 1); // dopo il blocco si ricomincia a contare
+});

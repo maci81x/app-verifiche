@@ -34,8 +34,10 @@ const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 // Il controllo verify_jwt della piattaforma ha già validato la firma, ma accetta
-// anche la chiave anonima pubblica: qui si pretende un utente che ha fatto l'accesso.
-function claims(req: Request): { role?: string; sub?: string } {
+// anche la chiave anonima pubblica: qui si pretende una studentessa. Il ruolo sta in
+// app_metadata, che solo il server può scrivere (lo mette la funzione profili):
+// un account nato in qualunque altro modo non consuma la chiave Anthropic.
+function claims(req: Request): { role?: string; sub?: string; app_metadata?: { ruolo?: string } } {
   try {
     const token = req.headers.get("Authorization")!.replace(/^Bearer /i, "");
     const parte = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -145,6 +147,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ errore: "solo POST" }, 405);
   const io = claims(req);
   if (io.role !== "authenticated" || !io.sub) return json({ errore: "non autenticato" }, 401);
+  if (io.app_metadata?.ruolo !== "studente") return json({ errore: "solo le studentesse" }, 403);
 
   const b = await req.json().catch(() => null);
   if (!b || typeof b !== "object") return json({ errore: "richiesta non valida" }, 400);

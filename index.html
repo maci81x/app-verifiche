@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -37,26 +37,56 @@
     <h1>Chi studia<br>adesso?</h1>
     <p class="sotto">Ognuna ha i suoi argomenti, le sue foto e il suo storico. Nessuna vede quelli dell'altra.</p>
   </header>
-  <div class="scelta-profilo" id="scelta-profilo"></div>
-  <details class="extra" id="box-accesso">
-    <summary>Aggiungi un profilo su questo telefono</summary>
-    <label class="etichetta" for="acc-email">Email del profilo</label>
-    <input type="text" id="acc-email" inputmode="email" autocomplete="username" autocapitalize="off">
-    <label class="etichetta" for="acc-password">Password</label>
-    <input type="password" id="acc-password" autocomplete="current-password">
-    <div class="bottoni"><button class="azione" id="btn-accedi">Entra</button></div>
-  </details>
-  <div id="box-nome" hidden>
-    <h2>Come ti chiami?</h2>
-    <p class="aiuto">Serve solo per riconoscere il profilo su questo telefono.</p>
-    <div class="riga-campi">
-      <div><label class="etichetta" for="pr-nome">Nome *</label><input type="text" id="pr-nome" autocomplete="given-name"></div>
-      <div><label class="etichetta" for="pr-classe">Classe</label><input type="text" id="pr-classe" placeholder="2ª media"></div>
-    </div>
-    <div class="bottoni"><button class="azione" id="btn-salva-nome">Comincia</button></div>
-  </div>
+  <div class="nomi" id="scelta-profilo"></div>
   <div id="err-profili"></div>
-  <div id="stato-profili"></div>
+  <p class="piede"><button type="button" class="link" id="btn-impostazioni">Impostazioni</button></p>
+</section>
+
+<!-- ============ CODICE ============ -->
+<section id="v-codice" hidden>
+  <div class="codice">
+    <span class="iniziale grande" id="cod-iniziale"></span>
+    <h2 id="cod-nome"></h2>
+    <p class="aiuto" id="cod-aiuto">Il tuo codice</p>
+    <div class="pallini" id="cod-pallini" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <p class="cod-msg" id="cod-msg" aria-live="assertive"></p>
+    <div class="tastierino" id="tastierino" role="group" aria-label="Tastierino numerico">
+      <button type="button" data-n="1">1</button><button type="button" data-n="2">2</button><button type="button" data-n="3">3</button>
+      <button type="button" data-n="4">4</button><button type="button" data-n="5">5</button><button type="button" data-n="6">6</button>
+      <button type="button" data-n="7">7</button><button type="button" data-n="8">8</button><button type="button" data-n="9">9</button>
+      <button type="button" data-n="esci" class="tenue">Indietro</button><button type="button" data-n="0">0</button><button type="button" data-n="canc" class="tenue" aria-label="Cancella">⌫</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IMPOSTAZIONI (solo genitore) ============ -->
+<section id="v-impostazioni" hidden>
+  <h2>Impostazioni</h2>
+  <div id="imp-accesso">
+    <p class="aiuto">Solo per il genitore: entra con il tuo account. Non resta salvato sul telefono.</p>
+    <label class="etichetta" for="gen-email">Email del genitore</label>
+    <input type="text" id="gen-email" inputmode="email" autocomplete="username" autocapitalize="off">
+    <label class="etichetta" for="gen-password">Password</label>
+    <input type="password" id="gen-password" autocomplete="current-password">
+    <div class="bottoni"><button class="azione" id="btn-gen-entra">Entra</button></div>
+  </div>
+  <div id="imp-pannello" hidden>
+    <p class="occhiello">Profili su questo telefono</p>
+    <div id="imp-telefono"></div>
+    <div id="imp-altri"></div>
+    <p class="occhiello">Nuovo profilo</p>
+    <div class="riga-campi">
+      <div><label class="etichetta" for="np-nome">Nome *</label><input type="text" id="np-nome" autocomplete="off"></div>
+      <div><label class="etichetta" for="np-classe">Classe</label><input type="text" id="np-classe" placeholder="2ª media" autocomplete="off"></div>
+      <div><label class="etichetta" for="np-codice">Codice a 4 cifre *</label><input type="password" id="np-codice" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off"></div>
+    </div>
+    <div class="bottoni">
+      <button class="azione" id="btn-np-crea">Crea il profilo</button>
+      <button class="minore" id="btn-gen-esci">Ho finito</button>
+    </div>
+  </div>
+  <div id="err-imp"></div>
+  <div id="stato-imp"></div>
 </section>
 
 <!-- ============ LIBRERIA ============ -->
@@ -78,8 +108,6 @@
   <div id="lista-argomenti"></div>
   <div id="stato-lib"></div>
   <div class="bottoni">
-    <button class="minore" id="btn-pin">PIN del profilo</button>
-    <button class="minore" id="btn-esci">Togli questo profilo dal telefono</button>
     <button class="minore pericolo" id="btn-svuota" hidden>Svuota tutta la memoria</button>
   </div>
 </section>
@@ -234,6 +262,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
