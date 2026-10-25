@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Verifiche">
+<meta name="theme-color" content="#FCFCFA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Pronta per la verifica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<div class="wrap">
+
+<div class="rail">
+  <div class="tacche"><i data-t="1" data-on="1"></i><i data-t="2"></i><i data-t="3"></i><i data-t="4"></i></div>
+  <div class="nome">
+    <button class="indietro" id="btn-rail-indietro" hidden>Libreria</button>
+    <b id="nome-passo">Libreria</b>
+    <span class="chip" id="chip-materia" hidden></span>
+    <span class="dx" id="conta-passo"></span>
+  </div>
+</div>
+
+<!-- ============ PROFILI ============ -->
+<section id="v-profili" hidden>
+  <header>
+    <div class="quadretti" aria-hidden="true"></div>
+    <h1>Chi studia<br>adesso?</h1>
+    <p class="sotto">Ognuna ha i suoi argomenti, le sue foto e il suo storico. Nessuna vede quelli dell'altra.</p>
+  </header>
+  <div class="scelta-profilo" id="scelta-profilo"></div>
+  <details class="extra" id="box-accesso">
+    <summary>Aggiungi un profilo su questo telefono</summary>
+    <label class="etichetta" for="acc-email">Email del profilo</label>
+    <input type="text" id="acc-email" inputmode="email" autocomplete="username" autocapitalize="off">
+    <label class="etichetta" for="acc-password">Password</label>
+    <input type="password" id="acc-password" autocomplete="current-password">
+    <div class="bottoni"><button class="azione" id="btn-accedi">Entra</button></div>
+  </details>
+  <div id="box-nome" hidden>
+    <h2>Come ti chiami?</h2>
+    <p class="aiuto">Serve solo per riconoscere il profilo su questo telefono.</p>
+    <div class="riga-campi">
+      <div><label class="etichetta" for="pr-nome">Nome *</label><input type="text" id="pr-nome" autocomplete="given-name"></div>
+      <div><label class="etichetta" for="pr-classe">Classe</label><input type="text" id="pr-classe" placeholder="2ª media"></div>
+    </div>
+    <div class="bottoni"><button class="azione" id="btn-salva-nome">Comincia</button></div>
+  </div>
+  <div id="err-profili"></div>
+  <div id="stato-profili"></div>
+</section>
+
+<!-- ============ LIBRERIA ============ -->
+<section id="v-libreria" hidden>
+  <header>
+    <div class="quadretti" aria-hidden="true"></div>
+    <h1>Pronta per<br>la verifica</h1>
+    <p class="sotto">Fotografa quaderno e libro. Ti interrogo su quello che c'è scritto lì, e tengo tutto da parte per i ripassi di fine quadrimestre.</p>
+    <div class="profili" id="profili" role="group" aria-label="Profilo"></div>
+  </header>
+  <div class="sommario" id="sommario"></div>
+  <div class="bottoni">
+    <button class="azione" id="btn-nuovo">Nuovo argomento</button>
+    <button class="minore" id="btn-ripasso">Ripasso del quadrimestre</button>
+    <button class="minore" id="btn-storico">Storico e andamento</button>
+  </div>
+  <div id="avviso-db"></div>
+  <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
+  <div id="lista-argomenti"></div>
+  <div id="stato-lib"></div>
+  <div class="bottoni">
+    <button class="minore" id="btn-pin">PIN del profilo</button>
+    <button class="minore" id="btn-esci">Togli questo profilo dal telefono</button>
+    <button class="minore pericolo" id="btn-svuota" hidden>Svuota tutta la memoria</button>
+  </div>
+</section>
+
+<!-- ============ NUOVO MATERIALE ============ -->
+<section id="v-materiale" hidden>
+  <h2>Il materiale di studio</h2>
+  <p class="aiuto">Fotografa tutte le pagine che servono: quaderno, libro, lavagna. Non c'è un limite, le leggo a gruppi.</p>
+  <label class="scatto" for="foto">
+    <span class="ico" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>
+    </span>
+    <span>
+      <b>Scatta o scegli le foto</b>
+      <small id="conta-foto">Nessuna foto ancora</small>
+    </span>
+    <input type="file" id="foto" accept="image/*" multiple>
+  </label>
+  <div class="miniature" id="miniature"></div>
+  <details class="extra">
+    <summary>Scrivi invece di fotografare</summary>
+    <label class="etichetta" for="testo-manuale">Appunti, riassunto o paragrafo del libro</label>
+    <textarea id="testo-manuale" placeholder="Incolla o scrivi qui il testo da studiare"></textarea>
+  </details>
+  <div class="riga-campi" style="margin-top:16px">
+    <div><label class="etichetta" for="materia">Materia *</label><input type="text" id="materia" placeholder="storia, geografia, scienze" autocomplete="off" list="elenco-materie"><datalist id="elenco-materie"></datalist></div>
+    <div><label class="etichetta" for="argomento">Argomento *</label><input type="text" id="argomento" placeholder="la peste del Trecento" autocomplete="off"></div>
+  </div>
+  <p class="legenda">Servono per ritrovare l'argomento in libreria e per cercarlo fra mesi: non li salto.</p>
+  <div class="bottoni"><button class="azione" id="btn-analizza">Leggi il materiale</button></div>
+  <div id="err-mat"></div>
+  <div id="stato-mat"></div>
+</section>
+
+<!-- ============ CONCETTI ============ -->
+<section id="v-concetti" hidden>
+  <h2 id="t-concetti">I concetti da sapere</h2>
+  <p class="aiuto">Togli quelli che non c'entrano e alza il peso di quelli su cui la prof ha insistito. Il materiale è già salvato in libreria.</p>
+  <div id="lista-concetti"></div>
+  <p class="legenda">I pallini sono il peso del concetto: contano nel calcolo di quanto sei pronta.</p>
+  <div id="opz-concetti"></div>
+  <div class="bottoni">
+    <button class="azione" id="btn-genera">Preparami la verifica</button>
+    <button class="minore" id="btn-salva-basta">Salva e basta</button>
+  </div>
+  <div id="err-con"></div>
+  <div id="stato-con"></div>
+</section>
+
+<!-- ============ SCHEDA ARGOMENTO ============ -->
+<section id="v-scheda" hidden>
+  <h2 id="t-scheda"></h2>
+  <p class="aiuto" id="meta-scheda"></p>
+  <div id="stato-concetti-scheda"></div>
+  <div id="storico-arg"></div>
+  <p class="occhiello">Le foto di questo argomento</p>
+  <div class="miniature" id="foto-scheda"></div>
+  <label class="scatto" for="foto-piu" style="margin-top:12px">
+    <span class="ico" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </span>
+    <span><b>Aggiungi altre foto</b><small>le leggo e le unisco a questo argomento</small></span>
+    <input type="file" id="foto-piu" accept="image/*" multiple>
+  </label>
+  <div id="opz-scheda"></div>
+  <div class="bottoni">
+    <button class="azione" id="btn-ripassa-arg">Interrogami su questo</button>
+    <button class="minore" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
+    <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i concetti</button>
+    <button class="minore pericolo" id="btn-elimina">Elimina argomento</button>
+  </div>
+  <div id="err-scheda"></div>
+  <div id="stato-scheda"></div>
+</section>
+
+<!-- ============ RIPASSO QUADRIMESTRE ============ -->
+<section id="v-ripasso" hidden>
+  <h2>Ripasso del quadrimestre</h2>
+  <p class="aiuto">Pesco dai concetti più deboli di tutti gli argomenti salvati, dando la precedenza ai rossi e a quelli che pesano di più.</p>
+  <p class="occhiello">Materia</p>
+  <div class="livelli" id="scelta-materia"></div>
+  <div id="opz-ripasso"></div>
+  <div class="bottoni"><button class="azione" id="btn-genera-ripasso">Preparami il ripasso</button></div>
+  <div id="err-rip"></div>
+  <div id="stato-rip"></div>
+</section>
+
+<!-- ============ STORICO ============ -->
+<section id="v-storico" hidden>
+  <h2>Storico e andamento</h2>
+  <p class="aiuto">Tutte le prove fatte, dalla più recente. Tocca una riga per rivedere le domande e gli errori di quel giorno.</p>
+  <div id="andamento"></div>
+  <p class="occhiello">Filtra per materia</p>
+  <div id="filtri-storico" class="filtri"></div>
+  <div id="lista-sessioni"></div>
+</section>
+
+<!-- ============ VERIFICA ============ -->
+<section id="v-verifica" hidden>
+  <div class="q-testata"><span id="q-conta"></span><span id="q-tipo"></span></div>
+  <div class="q-barra"><i id="q-prog" style="width:0"></i></div>
+  <p class="q-da" id="q-da" hidden></p>
+  <p class="q-testo" id="q-testo"></p>
+  <div id="q-corpo"></div>
+  <div class="voce" id="voce" hidden aria-live="polite">
+    <span class="mic" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </span>
+    <span class="cosa"><b id="voce-stato"></b><span id="voce-testo"></span></span>
+    <span class="tempo" id="voce-tempo"></span>
+  </div>
+  <div class="bottoni">
+    <button class="azione" id="btn-avanti">Avanti</button>
+    <button class="minore" id="btn-nonso">Non lo so</button>
+    <button class="minore" id="btn-ripeti" hidden>Ripeti la domanda</button>
+    <button class="minore" id="btn-pausa" hidden>Pausa</button>
+  </div>
+  <div id="err-ver"></div>
+  <div id="stato-ver"></div>
+</section>
+
+<!-- ============ ESITO ============ -->
+<section id="v-esito" hidden>
+  <h2>Com'è andata</h2>
+  <p class="aiuto" id="riga-scartate" hidden></p>
+  <div class="quadrante">
+    <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-labelledby="titolo-quadrante">
+      <title id="titolo-quadrante">Indice di prontezza</title>
+      <circle cx="52" cy="52" r="44" fill="none" stroke="var(--bordo)" stroke-width="9"></circle>
+      <circle id="arco" cx="52" cy="52" r="44" fill="none" stroke="var(--tinta)" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 999" transform="rotate(-90 52 52)"></circle>
+      <text id="arco-num" class="num" x="52" y="49" text-anchor="middle" dominant-baseline="middle">—</text>
+      <text class="lab" x="52" y="69" text-anchor="middle">VOTO STIMATO</text>
+    </svg>
+    <div class="testo"><b id="verdetto-t"></b><p id="verdetto-p"></p>
+      <p class="voto-stima"><span id="voto-num"></span></p></div>
+  </div>
+  <p class="occhiello" id="occhiello-concetti">Concetto per concetto</p>
+  <div id="esito-concetti"></div>
+  <details class="risposte" id="box-risposte"><summary>Rivedi le risposte una per una</summary>
+    <div class="bottoni" style="margin:0 0 6px"><button class="minore" id="btn-solo-errori">Mostra solo quelle sbagliate</button></div>
+    <div id="dettaglio"></div>
+  </details>
+  <div id="err-esito"></div>
+  <div class="bottoni">
+    <button class="azione" id="btn-ancora">Rifai la verifica</button>
+    <button class="minore" id="btn-torna-storico" hidden>Torna allo storico</button>
+    <button class="minore" id="btn-torna-lib">Torna alla libreria</button>
+  </div>
+</section>
+
+<p class="nota">Argomenti, foto e risultati restano salvati nel tuo profilo e li ritrovi a fine quadrimestre. Il voto è una stima: dice quanto sei pronta su quello che hai fotografato, non quello che deciderà la prof.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>

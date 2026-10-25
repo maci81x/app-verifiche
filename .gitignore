@@ -1,0 +1,11 @@
+.DS_Store
+*.log
+.env
+.env.local
+supabase/.temp/
+supabase/.branches/
+# clone di terzi capitato qui, non fa parte dell'app
+gods-eye-view/
+# restano solo in locale: specifica e prototipo non vanno nel repo pubblico
+docs/
+prototipo/
