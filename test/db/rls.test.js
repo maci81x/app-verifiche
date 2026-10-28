@@ -187,3 +187,32 @@ prova('una domanda chiusa senza opzioni valide non entra', `
   ${vieta(`insert into sessioni (titolo, materia, livello, tipo, modalita, voto)
            values ('x', 'storia', 'medio', 'chiuse', 'scritta', 6.3)`, 'check_violation', 'voto non al mezzo punto')}
 `);
+
+prova('sblocco dal genitore: richieste e codici altrui restano fuori portata', `
+  reset role;
+  insert into richieste_accesso (codice, segreto_hash) values ('ACD346', 'h');
+  ${[ANNA, GENITORE, null].map((u) => `
+    ${come(u)}
+    ${vieta(`perform * from richieste_accesso`, 'insufficient_privilege', `${u ?? 'anonimo'} legge le richieste di accesso`)}
+    ${vieta(`insert into richieste_accesso (codice, segreto_hash) values ('ACD347', 'h')`,
+      'insufficient_privilege', `${u ?? 'anonimo'} crea una richiesta di accesso`)}
+    ${vieta(`perform imposta_pin_studente('${BEA}', '1111')`, 'insufficient_privilege',
+      `${u ?? 'anonimo'} cambia il codice di Bea`)}`).join('\n')}
+  reset role;
+  set local role service_role;
+  select imposta_pin_studente('${BEA}', '2468');
+  ${vieta(`perform imposta_pin_studente('${BEA}', '12')`, 'raise_exception', 'accettato un codice di due cifre')}
+  ${come(BEA)}
+  ${verifica(`verifica_pin('2468')`, 'il codice impostato dal genitore non vale')}
+  ${verifica(`not verifica_pin('1111')`, 'un codice sbagliato vale')}
+`);
+
+prova('una richiesta approvata deve portare le credenziali, le altre no', `
+  reset role;
+  ${vieta(`insert into richieste_accesso (codice, segreto_hash, stato) values ('ACD348', 'h', 'approvata')`,
+    'check_violation', 'approvata senza credenziali')}
+  ${vieta(`insert into richieste_accesso (codice, segreto_hash, email, password) values ('ACD349', 'h', 'e', 'p')`,
+    'check_violation', 'credenziali su una richiesta ancora in attesa')}
+  ${vieta(`insert into richieste_accesso (codice, segreto_hash) values ('acd34', 'h')`,
+    'check_violation', 'codice in formato sbagliato')}
+`);

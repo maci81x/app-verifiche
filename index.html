@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -39,7 +39,21 @@
   </header>
   <div class="nomi" id="scelta-profilo"></div>
   <div id="err-profili"></div>
-  <p class="piede"><button type="button" class="link" id="btn-impostazioni">Impostazioni</button></p>
+  <div class="bottoni"><button class="minore" id="btn-collega">Collega questo telefono</button></div>
+  <p class="piede"><button type="button" class="link" id="btn-impostazioni">Sono il genitore</button></p>
+</section>
+
+<!-- ============ COLLEGA QUESTO TELEFONO (lo sblocca il genitore dal suo) ============ -->
+<section id="v-collega" hidden>
+  <h2>Collega questo telefono</h2>
+  <p class="aiuto">Fai vedere questo codice al genitore. Sul <b>suo</b> telefono apre l'app, tocca «Sono il genitore» e lo scrive. Qui non serve nessuna email e nessuna password.</p>
+  <div class="codice-accesso" id="acc-codice" aria-live="polite"></div>
+  <p class="aiuto acc-stato" id="acc-stato" aria-live="polite"></p>
+  <div class="bottoni">
+    <button class="azione" id="btn-acc-nuovo" hidden>Nuovo codice</button>
+    <button class="minore" id="btn-acc-annulla">Annulla</button>
+  </div>
+  <div id="err-acc"></div>
 </section>
 
 <!-- ============ CODICE ============ -->
@@ -59,11 +73,11 @@
   </div>
 </section>
 
-<!-- ============ IMPOSTAZIONI (solo genitore) ============ -->
+<!-- ============ AREA GENITORE (dal telefono del genitore) ============ -->
 <section id="v-impostazioni" hidden>
-  <h2>Impostazioni</h2>
+  <h2>Area genitore</h2>
   <div id="imp-accesso">
-    <p class="aiuto">Solo per il genitore: entra con il tuo account. Non resta salvato sul telefono.</p>
+    <p class="aiuto">Da usare sul <b>tuo</b> telefono, non su quello delle ragazze. Entra con il tuo account: non resta salvato.</p>
     <label class="etichetta" for="gen-email">Email del genitore</label>
     <input type="text" id="gen-email" inputmode="email" autocomplete="username" autocapitalize="off">
     <label class="etichetta" for="gen-password">Password</label>
@@ -71,19 +85,29 @@
     <div class="bottoni"><button class="azione" id="btn-gen-entra">Entra</button></div>
   </div>
   <div id="imp-pannello" hidden>
-    <p class="occhiello">Profili su questo telefono</p>
-    <div id="imp-telefono"></div>
-    <div id="imp-altri"></div>
-    <p class="occhiello">Nuovo profilo</p>
-    <div class="riga-campi">
-      <div><label class="etichetta" for="np-nome">Nome *</label><input type="text" id="np-nome" autocomplete="off"></div>
-      <div><label class="etichetta" for="np-classe">Classe</label><input type="text" id="np-classe" placeholder="2ª media" autocomplete="off"></div>
-      <div><label class="etichetta" for="np-codice">Codice a 4 cifre *</label><input type="password" id="np-codice" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off"></div>
+    <p class="occhiello">Sblocca un telefono</p>
+    <p class="aiuto">Sul telefono da sbloccare tocca «Collega questo telefono»: compare un codice di 6 caratteri. Scrivilo qui.</p>
+    <label class="etichetta" for="sb-codice">Codice del telefono</label>
+    <input type="text" id="sb-codice" class="campo-codice" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="9" placeholder="ABC 123">
+    <div class="bottoni"><button class="azione" id="btn-sb-cerca">Cerca</button></div>
+    <div id="sb-richiesta" hidden>
+      <p class="aiuto" id="sb-info"></p>
+      <p class="occhiello">Chi lo userà?</p>
+      <div class="livelli" id="sb-profili"></div>
+      <div class="riga-campi" id="sb-nuovo" hidden>
+        <div><label class="etichetta" for="sb-nome">Nome *</label><input type="text" id="sb-nome" autocomplete="off"></div>
+        <div><label class="etichetta" for="sb-classe">Classe</label><input type="text" id="sb-classe" placeholder="2ª media" autocomplete="off"></div>
+      </div>
+      <label class="etichetta" for="sb-pin" id="sb-pin-etichetta">Codice a 4 cifre</label>
+      <input type="password" id="sb-pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off">
+      <div class="bottoni">
+        <button class="azione" id="btn-sb-ok">Dai l'ok</button>
+        <button class="minore pericolo" id="btn-sb-no">Rifiuta</button>
+      </div>
     </div>
-    <div class="bottoni">
-      <button class="azione" id="btn-np-crea">Crea il profilo</button>
-      <button class="minore" id="btn-gen-esci">Ho finito</button>
-    </div>
+    <p class="occhiello">I profili</p>
+    <div id="imp-profili"></div>
+    <div class="bottoni"><button class="minore" id="btn-gen-esci">Ho finito</button></div>
   </div>
   <div id="err-imp"></div>
   <div id="stato-imp"></div>
@@ -110,6 +134,7 @@
   <div class="bottoni">
     <button class="minore pericolo" id="btn-svuota" hidden>Svuota tutta la memoria</button>
   </div>
+  <p class="piede"><button type="button" class="link" id="btn-togli">Togli il mio profilo da questo telefono</button></p>
 </section>
 
 <!-- ============ NUOVO MATERIALE ============ -->
@@ -262,6 +287,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
