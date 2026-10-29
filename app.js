@@ -423,6 +423,7 @@ async function creaProfilo() {
     await funzioneProfili({ azione: "crea", nome, classe, codice });
     ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
     avviso($("err-imp"), "Profilo di " + nome + " pronto: da qualsiasi telefono tocca il nome e digita il codice.");
+    caricaProfili();
   } catch (e) {
     console.warn("crea profilo:", e);
     errore($("err-imp"), "Non sono riuscito a creare il profilo. Riprova.");

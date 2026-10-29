@@ -10,15 +10,7 @@
 //      Cambia il codice di una figlia collegata a chi chiama e toglie l'eventuale blocco.
 //
 // Chi chiama deve avere app_metadata.ruolo = "genitore" (lo imposta Roby, una volta).
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (corpo: unknown, status = 200) =>
-  new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+import { admin, CODICE, json, CORS } from "../_shared/http.ts";
 
 // La piattaforma (verify_jwt) ha già verificato la firma del token.
 function claims(req: Request): { role?: string; sub?: string; email?: string; app_metadata?: { ruolo?: string } } {
@@ -29,12 +21,6 @@ function claims(req: Request): { role?: string; sub?: string; email?: string; ap
     return {};
   }
 }
-
-const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-
-const CODICE = /^\d{4}$/;
 
 function casuale(n: number) {
   const b = new Uint8Array(n);

@@ -10,21 +10,9 @@
 // qui con un magic link generato e verificato lato server: la password della
 // ragazza non cambia e le sessioni sugli altri telefoni restano valide.
 // Email e password della studentessa non escono mai da questa funzione.
-import { createClient } from "npm:@supabase/supabase-js@2.118.0";
-
-const CORS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const json = (corpo: unknown, status = 200) =>
-  new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+import { admin, CODICE, json, CORS } from "../_shared/http.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PIN = /^\d{4,6}$/;
-const OPZIONI = { auth: { persistSession: false, autoRefreshToken: false } };
-
-const admin = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, OPZIONI);
 
 async function elenco() {
   const { data, error } = await admin().from("studenti").select("id, nome, classe").order("nome");
@@ -34,7 +22,7 @@ async function elenco() {
 
 async function entra(studenteId: unknown, pin: unknown) {
   // Un id o un codice malformato è un codice sbagliato: stessa risposta, nessun indizio.
-  if (typeof studenteId !== "string" || !UUID.test(studenteId) || typeof pin !== "string" || !PIN.test(pin))
+  if (typeof studenteId !== "string" || !UUID.test(studenteId) || typeof pin !== "string" || !CODICE.test(pin))
     return json({ ok: false, attendi: 0 }, 401);
 
   const db = admin();
@@ -53,7 +41,6 @@ async function entra(studenteId: unknown, pin: unknown) {
 
   const { data: link, error: e3 } = await db.auth.admin.generateLink({ type: "magiclink", email: u.user.email });
   if (e3) throw e3;
-  // Client a parte: verifyOtp tiene la sessione aperta nel client che la chiama.
   const { data: s, error: e4 } = await admin().auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
   if (e4) throw e4;
   if (!s.session) throw new Error("sessione non aperta: " + studenteId);
