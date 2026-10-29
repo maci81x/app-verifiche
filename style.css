@@ -277,4 +277,5 @@ button.link{background:none;border:0;color:var(--inchiostro-2);font:500 .85rem v
 .riga-profilo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--bordo);border-radius:12px;padding:12px 14px;background:var(--rialzo);margin-top:8px}
 .riga-profilo b{flex:1 1 120px}
 .riga-profilo button{min-height:38px;padding:8px 12px;font-size:.85rem}
+.riga-profilo .codice-nuovo{width:8.5em;min-height:38px;padding:8px 10px;margin:0;letter-spacing:.2em}
 .iniziale.grande{width:52px;height:52px;flex:none;border-radius:50%;background:var(--tinta);color:var(--su-tinta);display:grid;place-items:center;font:600 1.4rem var(--display)}

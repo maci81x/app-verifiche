@@ -74,14 +74,31 @@ test("domanda guidata: aperta parte dal primo elemento atteso, chiusa rilegge le
   assert.match(ch, /A: z\. B: x\. C: y\. D: w\./);
 });
 
-test("codice: al terzo errore il profilo resta bloccato un minuto, poi si riparte da zero", () => {
-  const T = 1_000_000;
-  run(`var r1 = erroreCodice({}, ${T}); var r2 = erroreCodice(r1, ${T}); var r3 = erroreCodice(r2, ${T});`);
-  assert.equal(run("r1.errori + ',' + r1.fino"), "1,0");
-  assert.equal(run("r2.errori + ',' + r2.fino"), "2,0");
-  assert.equal(run("r3.errori"), 0);
-  assert.equal(run(`secondiBlocco(r3, ${T})`), 60);
-  assert.equal(run(`secondiBlocco(r3, ${T + 59_500})`), 1);
-  assert.equal(run(`secondiBlocco(r3, ${T + 60_000})`), 0);
-  assert.equal(run(`erroreCodice(r3, ${T + 61_000}).errori`), 1); // dopo il blocco si ricomincia a contare
+test("accesso: la risposta del server decide se entrare, aspettare o riprovare", () => {
+  const es = (status, dati) => run(`JSON.stringify(esitoAccesso(${status}, ${JSON.stringify(dati)}))`);
+  assert.equal(es(200, { ok: true, access_token: "a", refresh_token: "r" }),
+    JSON.stringify({ tipo: "dentro", sessione: { access_token: "a", refresh_token: "r" } }));
+  assert.equal(es(401, { ok: false, attendi: 60 }), JSON.stringify({ tipo: "attendi", secondi: 60 }));
+  assert.equal(es(401, { ok: false, attendi: 0 }), JSON.stringify({ tipo: "sbagliato" }));
+  assert.equal(es(200, { ok: true }), JSON.stringify({ tipo: "errore" })); // senza token non si entra
+  assert.equal(es(502, { errore: "x" }), JSON.stringify({ tipo: "errore" }));
+  assert.equal(es(401, null), JSON.stringify({ tipo: "sbagliato" }));
+  assert.equal(run("testoAttesa(60)"), "Troppi tentativi. Riprova fra 60 secondi.");
+  assert.equal(run("testoAttesa(1)"), "Troppi tentativi. Riprova fra 1 secondo.");
+});
+
+test("elenco profili: solo righe valide, ognuna con la sua chiave di sessione; l'ultimo usato in cima", () => {
+  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Mia",classe:"2"},{id:"s",nome:"Samira",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
+  assert.deepEqual(JSON.parse(l), [
+    { id: "b", nome: "Mia", classe: "2", chiave: "sb-verifiche-b" },
+    { id: "s", nome: "Samira", classe: "", chiave: "sb-verifiche-s" },
+  ]);
+  assert.equal(run("profiliDaElenco({errore:'x'})"), null);
+  assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], "s").map((p) => p.id).join()`), "s,b");
+  assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], null).map((p) => p.id).join()`), "b,s");
+});
+
+test("il blocco del codice non si calcola più nel browser", () => {
+  for (const nome of ["erroreCodice", "secondiBlocco", "leggiBlocco", "salvaBlocco", "MAX_ERRORI", "BLOCCO_MS"])
+    assert.equal(run(`typeof ${nome}`), "undefined", nome + " è ancora nel client");
 });

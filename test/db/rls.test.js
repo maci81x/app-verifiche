@@ -187,3 +187,78 @@ prova('una domanda chiusa senza opzioni valide non entra', `
   ${vieta(`insert into sessioni (titolo, materia, livello, tipo, modalita, voto)
            values ('x', 'storia', 'medio', 'chiuse', 'scritta', 6.3)`, 'check_violation', 'voto non al mezzo punto')}
 `);
+
+// ---------------------------------------------------------------- accesso con codice (issue #1)
+// Le funzioni le chiama solo la Edge Function `accedi`/`profili` con la service role.
+const comeServizio = `
+  reset role;
+  select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  set local role service_role;`;
+const accesso = (pin, studente = ANNA) => `accesso_con_pin('${studente}', '${pin}')`;
+const esito = (pin, atteso, messaggio) => verifica(`${accesso(pin)} = '${JSON.stringify(atteso)}'::jsonb`, messaggio);
+
+prova('accesso con codice: giusto entra, sbagliato no, al terzo errore 60 secondi di attesa', `
+  ${comeServizio}
+  ${esito('0000', { ok: false, attendi: 0 }, 'senza PIN chiunque entra nel profilo')}
+  select imposta_pin_di('${ANNA}', '2468');
+  ${esito('2468', { ok: true }, 'il PIN giusto non entra')}
+  ${esito('1357', { ok: false, attendi: 0 }, 'primo errore: niente attesa')}
+  ${esito('1357', { ok: false, attendi: 0 }, 'secondo errore: niente attesa')}
+  ${esito('1357', { ok: false, attendi: 60 }, 'terzo errore: dovrebbero essere 60 secondi')}
+  ${esito('2468', { ok: false, attendi: 60 }, 'durante il blocco anche il PIN giusto deve aspettare')}
+  -- passa il minuto
+  reset role;
+  update public.pin_profili set bloccato_fino = now() - interval '1 second' where user_id = '${ANNA}';
+  ${comeServizio}
+  ${esito('2468', { ok: true }, 'finito il blocco il PIN giusto non entra')}
+  ${verifica(`(select errori = 0 and bloccato_fino is null from pin_profili where user_id = '${ANNA}')`,
+    'il PIN giusto non azzera errori e blocco')}
+`);
+
+prova('accesso con codice: il PIN giusto azzera il conto degli errori', `
+  ${comeServizio}
+  select imposta_pin_di('${ANNA}', '2468');
+  select ${accesso('1111')}; select ${accesso('1111')};
+  ${esito('2468', { ok: true }, 'il PIN giusto non entra')}
+  select ${accesso('1111')}; select ${accesso('1111')};
+  ${verifica(`(select bloccato_fino is null from pin_profili where user_id = '${ANNA}')`,
+    'bloccato dopo due errori: il PIN giusto non aveva azzerato il conto')}
+  ${esito('xx', { ok: false, attendi: 60 }, 'un codice malformato non viene contato come errore')}
+`);
+
+prova("accesso con codice: il blocco di una sorella non tocca l'altra, gli sconosciuti non entrano", `
+  ${comeServizio}
+  select imposta_pin_di('${ANNA}', '2468');
+  select imposta_pin_di('${BEA}', '1357');
+  select ${accesso('0000')}; select ${accesso('0000')}; select ${accesso('0000')};
+  ${verifica(`${accesso('1357', BEA)} = '{"ok":true}'::jsonb`, 'il blocco di Anna ferma anche Bea')}
+  ${verifica(`${accesso('0000', GENITORE)} = '{"ok":false,"attendi":0}'::jsonb`,
+    'il genitore (non è una studentessa) entra con un codice qualsiasi')}
+  ${verifica(`${accesso('0000', 'f0000000-0000-4000-8000-000000000000')} = '{"ok":false,"attendi":0}'::jsonb`,
+    'un id inesistente entra')}
+`);
+
+prova('imposta_pin_di: valida il codice e sblocca il profilo', `
+  ${comeServizio}
+  select imposta_pin_di('${ANNA}', '2468');
+  select ${accesso('0000')}; select ${accesso('0000')}; select ${accesso('0000')};
+  select imposta_pin_di('${ANNA}', '9753');
+  ${esito('9753', { ok: true }, 'il codice nuovo non entra subito: il cambio non toglie il blocco')}
+  ${esito('2468', { ok: false, attendi: 0 }, 'il codice vecchio entra ancora')}
+  ${vieta(`perform imposta_pin_di('${ANNA}', '12')`, 'raise_exception', 'accettato un PIN di due cifre')}
+  ${vieta(`perform imposta_pin_di('${ANNA}', null)`, 'raise_exception', 'accettato un PIN vuoto')}
+  ${vieta(`perform imposta_pin_di('${GENITORE}', '1234')`, 'raise_exception', 'PIN impostato su un utente che non è una studentessa')}
+`);
+
+prova("accesso con codice: l'anonimo e le studentesse non arrivano né alle tabelle né alle funzioni", `
+  ${come(null)}
+  ${vieta(`perform * from studenti`, 'insufficient_privilege', "l'anonimo legge i profili")}
+  ${vieta(`perform * from pin_profili`, 'insufficient_privilege', "l'anonimo legge i PIN")}
+  ${vieta(`perform ${accesso('0000')}`, 'insufficient_privilege', "l'anonimo prova i codici")}
+  ${vieta(`perform imposta_pin_di('${ANNA}', '1234')`, 'insufficient_privilege', "l'anonimo cambia un codice")}
+  ${come(BEA)}
+  ${vieta(`perform ${accesso('0000')}`, 'insufficient_privilege', 'Bea prova i codici di Anna')}
+  ${vieta(`perform imposta_pin_di('${ANNA}', '1234')`, 'insufficient_privilege', 'Bea cambia il codice di Anna')}
+  ${come(GENITORE)}
+  ${vieta(`perform imposta_pin_di('${ANNA}', '1234')`, 'insufficient_privilege', 'il genitore chiama la funzione senza passare dalla Edge Function')}
+`);

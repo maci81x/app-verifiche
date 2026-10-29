@@ -189,24 +189,44 @@ function vai(v, materia) {
 /* =================================================================== profili */
 // Ogni studentessa è un utente Supabase distinto, creato dalla funzione `profili`
 // quando il genitore aggiunge il profilo dalle impostazioni: email e password le
-// genera il server e le ragazze non le vedono mai. Sul telefono ogni profilo tiene
-// la sua sessione in una chiave diversa di localStorage. Il codice a 4 cifre serve
-// a scegliere il profilo e a non entrare in quello della sorella: lo controlla il
-// database (verifica_pin), con la sessione del profilo scelto.
+// genera il server e non escono mai da lì. Da qualsiasi telefono la ragazza tocca
+// il suo nome e digita il codice: la funzione `accedi` controlla il codice (e il
+// blocco dopo tre errori) sul server e restituisce la sessione del profilo, che
+// sul telefono vive in una chiave diversa di localStorage per ogni profilo.
+// localStorage tiene anche una copia dei nomi, solo per disegnare subito la
+// schermata, e l'ultimo profilo usato.
 
-const MAX_ERRORI = 3, BLOCCO_MS = 60000;
-// Dopo tre codici sbagliati il profilo resta bloccato un minuto.
-function erroreCodice(rec, ora) {
-  const r = { errori: ((rec && rec.errori) || 0) + 1, fino: 0 };
-  if (r.errori >= MAX_ERRORI) { r.errori = 0; r.fino = ora + BLOCCO_MS; }
-  return r;
+const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
+const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
+const MSG_NESSUN_PROFILO = "Ancora nessun profilo: il genitore li crea da Impostazioni, qui sotto.";
+
+const chiaveSessione = (id) => "sb-verifiche-" + id;
+
+// Dalla risposta di accedi/elenco ai profili da disegnare: scarta ciò che non è un profilo.
+function profiliDaElenco(dati) {
+  if (!Array.isArray(dati)) return null;
+  return dati
+    .filter((s) => s && typeof s.id === "string" && typeof s.nome === "string" && s.nome.trim())
+    .map((s) => ({ id: s.id, nome: s.nome, classe: s.classe || "", chiave: chiaveSessione(s.id) }));
 }
-function secondiBlocco(rec, ora) { return rec && rec.fino > ora ? Math.ceil((rec.fino - ora) / 1000) : 0; }
+// L'ultimo profilo usato in cima, gli altri nell'ordine del server.
+function ordinaProfili(lista, ultimoId) {
+  const primo = lista.filter((p) => p.id === ultimoId);
+  return primo.concat(lista.filter((p) => p.id !== ultimoId));
+}
+// Risposta di accedi/entra → cosa fare sulla schermata del codice.
+function esitoAccesso(status, dati) {
+  const d = dati || {};
+  if (status === 200 && d.ok && d.access_token && d.refresh_token) return { tipo: "dentro", sessione: { access_token: d.access_token, refresh_token: d.refresh_token } };
+  const s = Math.max(0, Math.ceil(Number(d.attendi) || 0));
+  if (status === 401 && s > 0) return { tipo: "attendi", secondi: s };
+  if (status === 401) return { tipo: "sbagliato" };
+  return { tipo: "errore" };
+}
+function testoAttesa(s) { return "Troppi tentativi. Riprova fra " + s + (s === 1 ? " secondo." : " secondi."); }
 
-function leggiProfili() { try { return JSON.parse(localStorage.getItem("verifiche-profili")) || []; } catch (e) { return []; } }
-function salvaProfili(l) { try { localStorage.setItem("verifiche-profili", JSON.stringify(l)); } catch (e) { /* niente */ } }
-function leggiBlocco(id) { try { return JSON.parse(localStorage.getItem("verifiche-blocco-" + id)) || {}; } catch (e) { return {}; } }
-function salvaBlocco(id, r) { try { localStorage.setItem("verifiche-blocco-" + id, JSON.stringify(r)); } catch (e) { /* niente */ } }
+function leggiLocale(chiave, predefinito) { try { const v = JSON.parse(localStorage.getItem(chiave)); return v == null ? predefinito : v; } catch (e) { return predefinito; } }
+function salvaLocale(chiave, v) { try { localStorage.setItem(chiave, JSON.stringify(v)); } catch (e) { /* niente: è solo una copia */ } }
 
 const clients = {};
 function clientPer(chiave) {
@@ -215,22 +235,30 @@ function clientPer(chiave) {
   }));
 }
 
+// Funzione anonima: solo la chiave pubblica, nessuna sessione.
+async function accedi(corpo) {
+  const r = await fetch(SB_URL + "/functions/v1/accedi", {
+    method: "POST",
+    headers: { "content-type": "application/json", apikey: SB_KEY },
+    body: JSON.stringify(corpo),
+  });
+  return { status: r.status, dati: await r.json().catch(() => null) };
+}
+
 function bottoneNome(p, classe) {
   const b = document.createElement("button"); b.type = "button"; if (classe) b.className = classe;
   const i = document.createElement("span"); i.className = "iniziale"; i.textContent = p.nome.slice(0, 1).toUpperCase();
   b.appendChild(i);
   return b;
 }
-function disegnaProfili() {
-  const lista = leggiProfili();
+function disegnaProfili(lista) {
   const box = $("scelta-profilo"); box.innerHTML = "";
-  if (!lista.length) box.innerHTML = '<div class="vuoto"><b>Nessun profilo su questo telefono</b>Il genitore li aggiunge da Impostazioni, qui sotto.</div>';
   lista.forEach((p) => {
     const b = bottoneNome(p);
     const t = document.createElement("span"); t.innerHTML = "<b>" + esc(p.nome) + "</b><small>" + esc(p.classe || "") + "</small>";
     b.appendChild(t); b.onclick = () => apriCodice(p); box.appendChild(b);
   });
-  // In libreria: i profili del telefono, per passare all'altra (con il suo codice).
+  // In libreria: gli altri profili, per passare all'altra (con il suo codice).
   const r = $("profili"); r.innerHTML = "";
   lista.forEach((p) => {
     const b = bottoneNome(p);
@@ -240,8 +268,26 @@ function disegnaProfili() {
     r.appendChild(b);
   });
 }
+function disegnaProfiliSalvati() {
+  disegnaProfili(ordinaProfili(leggiLocale(CHIAVE_PROFILI, []), leggiLocale(CHIAVE_ULTIMO, null)));
+}
+// Disegna subito la copia locale, poi l'elenco vero dal server.
+async function caricaProfili() {
+  const ultimo = leggiLocale(CHIAVE_ULTIMO, null);
+  disegnaProfiliSalvati();
+  let lista = null;
+  try {
+    const r = await accedi({ azione: "elenco" });
+    lista = r.status === 200 ? profiliDaElenco(r.dati) : null;
+  } catch (e) { console.warn("elenco profili:", e); }
+  if (!lista) { errore($("err-profili"), MSG_RETE_PROFILI); return; }
+  salvaLocale(CHIAVE_PROFILI, lista);
+  disegnaProfili(ordinaProfili(lista, ultimo));
+  if (lista.length) errore($("err-profili"), ""); else avviso($("err-profili"), MSG_NESSUN_PROFILO);
+}
 
-let codiceProfilo = null, codiceDigitato = "", timerBlocco = null;
+// Il blocco dopo tre errori lo decide il server: qui solo il conto alla rovescia.
+let codiceProfilo = null, codiceDigitato = "", timerBlocco = null, bloccoFino = {};
 function apriCodice(p) {
   codiceProfilo = p; codiceDigitato = "";
   $("cod-nome").textContent = p.nome;
@@ -253,19 +299,21 @@ function apriCodice(p) {
 function aggiornaPallini() {
   $("cod-pallini").querySelectorAll("i").forEach((el, i) => { el.dataset.on = i < codiceDigitato.length ? "1" : "0"; });
 }
+const secondiAttesa = (id) => Math.max(0, Math.ceil(((bloccoFino[id] || 0) - Date.now()) / 1000));
 function mostraBlocco() {
   clearInterval(timerBlocco);
   const aggiorna = () => {
-    const s = secondiBlocco(leggiBlocco(codiceProfilo.id), Date.now());
+    const s = codiceProfilo ? secondiAttesa(codiceProfilo.id) : 0;
     $("tastierino").setAttribute("aria-disabled", s ? "true" : "false");
-    if (s) $("cod-msg").textContent = "Troppi tentativi. Riprova fra " + s + (s === 1 ? " secondo." : " secondi.");
+    if (s) $("cod-msg").textContent = testoAttesa(s);
     else { clearInterval(timerBlocco); if (/Troppi/.test($("cod-msg").textContent)) $("cod-msg").textContent = ""; }
   };
   aggiorna(); timerBlocco = setInterval(aggiorna, 1000);
 }
+let controllo = false; // un codice alla volta mentre il server risponde
 function tasto(n) {
-  if (n === "esci") { clearInterval(timerBlocco); vai("profili"); return; }
-  if (secondiBlocco(leggiBlocco(codiceProfilo.id), Date.now())) return;
+  if (n === "esci") { clearInterval(timerBlocco); vai(profilo ? "libreria" : "profili"); return; }
+  if (controllo || secondiAttesa(codiceProfilo.id)) return;
   if (n === "canc") codiceDigitato = codiceDigitato.slice(0, -1);
   else if (codiceDigitato.length < 4) codiceDigitato += n;
   aggiornaPallini();
@@ -275,19 +323,26 @@ function sbagliato(msg) {
   const pal = $("cod-pallini"); pal.classList.remove("scuoti"); void pal.offsetWidth; pal.classList.add("scuoti");
   $("cod-msg").textContent = msg; codiceDigitato = ""; aggiornaPallini();
 }
+// Una sola strada: anche con una sessione già sul telefono il codice lo controlla il server.
 async function verificaCodice() {
-  const p = codiceProfilo, client = clientPer(p.chiave);
-  $("tastierino").setAttribute("aria-disabled", "true");
-  const { data: s } = await client.auth.getSession();
-  if (!s.session) { $("tastierino").setAttribute("aria-disabled", "false"); sbagliato("Questo profilo va ricollegato dal genitore, in Impostazioni."); return; }
-  const { data: ok, error } = await client.rpc("verifica_pin", { pin: codiceDigitato });
-  $("tastierino").setAttribute("aria-disabled", "false");
-  if (error) { sbagliato("Non riesco a controllare il codice: serve la connessione."); return; }
-  if (!ok) {
-    const r = erroreCodice(leggiBlocco(p.id), Date.now()); salvaBlocco(p.id, r);
-    sbagliato(r.fino ? "" : "Codice sbagliato."); mostraBlocco(); return;
-  }
-  salvaBlocco(p.id, {});
+  const p = codiceProfilo;
+  controllo = true; $("tastierino").setAttribute("aria-disabled", "true");
+  let es;
+  try {
+    const r = await accedi({ azione: "entra", studente_id: p.id, pin: codiceDigitato });
+    es = esitoAccesso(r.status, r.dati);
+  } catch (e) { console.warn("accesso:", e); es = { tipo: "rete" }; }
+  controllo = false; $("tastierino").setAttribute("aria-disabled", "false");
+  if (p !== codiceProfilo) return; // nel frattempo è tornata indietro
+
+  if (es.tipo === "attendi") { bloccoFino = { ...bloccoFino, [p.id]: Date.now() + es.secondi * 1000 }; sbagliato(""); mostraBlocco(); return; }
+  if (es.tipo === "sbagliato") { sbagliato("Codice sbagliato."); return; }
+  if (es.tipo !== "dentro") { sbagliato(es.tipo === "rete" ? "Non riesco a controllare il codice: serve la connessione." : "Non riesco a entrare adesso. Riprova fra poco."); return; }
+
+  const client = clientPer(chiaveSessione(p.id));
+  const { error } = await client.auth.setSession(es.sessione);
+  if (error) { console.warn("sessione:", error); sbagliato("Non riesco a entrare adesso. Riprova fra poco."); return; }
+  salvaLocale(CHIAVE_ULTIMO, p.id);
   entraProfilo(p, client);
 }
 async function entraProfilo(p, client) {
@@ -324,7 +379,7 @@ function genEsci() {
   $("imp-accesso").hidden = false; $("imp-pannello").hidden = true;
   $("gen-email").value = ""; $("gen-password").value = "";
   ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
-  errore($("err-imp"), ""); disegnaProfili(); vai("profili");
+  errore($("err-imp"), ""); caricaProfili(); vai(profilo ? "libreria" : "profili");
 }
 async function funzioneProfili(corpo) {
   const { data } = await genitore.auth.getSession();
@@ -338,96 +393,58 @@ async function funzioneProfili(corpo) {
   return j;
 }
 const codiceValido = (c) => /^\d{4}$/.test(String(c || ""));
-function chiediCodice(nome) {
-  const c = window.prompt("Codice a 4 cifre per " + nome);
-  if (c == null) return null;
-  if (!codiceValido(c.trim())) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); return null; }
-  return c.trim();
-}
 
-// Apre la sessione della studentessa su questo telefono con le credenziali appena
-// generate dal server (mai mostrate) e imposta il suo codice.
-async function collegaSuTelefono(r, codice) {
-  const chiave = "sb-verifiche-" + r.id;
-  const client = clientPer(chiave);
-  const { error } = await client.auth.signInWithPassword({ email: r.email, password: r.password });
-  if (error) throw error;
-  const { error: e2 } = await client.rpc("imposta_pin", { pin: codice });
-  if (e2) throw e2;
-  salvaProfili(leggiProfili().filter((x) => x.id !== r.id).concat([{ id: r.id, nome: r.nome, classe: r.classe || "", chiave }]));
-  salvaBlocco(r.id, {});
-}
-
+let figlie = [];
 async function disegnaImpostazioni() {
-  const tel = $("imp-telefono"); tel.innerHTML = "";
-  const lista = leggiProfili();
-  if (!lista.length) tel.innerHTML = '<p class="legenda">Nessuno ancora.</p>';
-  lista.forEach((p) => {
+  const box = $("imp-profili"); box.innerHTML = "";
+  const { data, error } = await genitore.from("studenti").select("id, nome, classe").order("nome");
+  if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Riprova."); return; }
+  figlie = data || [];
+  if (!figlie.length) box.innerHTML = '<p class="legenda">Nessuno ancora.</p>';
+  figlie.forEach((s) => {
     const d = document.createElement("div"); d.className = "riga-profilo";
-    const b = document.createElement("b"); b.textContent = p.nome + (p.classe ? " · " + p.classe : ""); d.appendChild(b);
+    const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " · " + s.classe : ""); d.appendChild(b);
+    const campo = document.createElement("input");
+    campo.type = "password"; campo.inputMode = "numeric"; campo.maxLength = 4; campo.autocomplete = "off";
+    campo.placeholder = "nuovo codice"; campo.className = "codice-nuovo"; campo.setAttribute("aria-label", "Nuovo codice per " + s.nome);
     const cc = document.createElement("button"); cc.type = "button"; cc.className = "minore"; cc.textContent = "Cambia codice";
-    cc.onclick = () => cambiaCodice(p);
-    const via = document.createElement("button"); via.type = "button"; via.className = "minore pericolo"; via.textContent = "Togli dal telefono";
-    via.onclick = function () { doppioTocco(this, "Tocca di nuovo: i suoi dati restano salvati", () => togliDalTelefono(p)); };
-    d.appendChild(cc); d.appendChild(via); tel.appendChild(d);
+    cc.onclick = () => cambiaCodice(s, campo, cc);
+    d.appendChild(campo); d.appendChild(cc); box.appendChild(d);
   });
-  // Profili già creati che su questo telefono non ci sono (per esempio dopo un cambio di telefono).
-  const altri = $("imp-altri"); altri.innerHTML = "";
-  const { data } = await genitore.from("studenti").select("id, nome, classe").order("nome");
-  const mancanti = (data || []).filter((s) => !lista.some((p) => p.id === s.id));
-  if (mancanti.length) {
-    const t = document.createElement("p"); t.className = "occhiello"; t.textContent = "Profili da aprire su questo telefono"; altri.appendChild(t);
-    mancanti.forEach((s) => {
-      const d = document.createElement("div"); d.className = "riga-profilo";
-      const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " · " + s.classe : ""); d.appendChild(b);
-      const ap = document.createElement("button"); ap.type = "button"; ap.className = "minore"; ap.textContent = "Apri qui";
-      ap.onclick = () => apriQui(s);
-      d.appendChild(ap); altri.appendChild(d);
-    });
-  }
 }
 async function creaProfilo() {
   const nome = $("np-nome").value.trim(), classe = $("np-classe").value.trim(), codice = $("np-codice").value.trim();
   errore($("err-imp"), "");
   if (!nome) { errore($("err-imp"), "Scrivi il nome."); return; }
   if (!codiceValido(codice)) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); return; }
-  if (leggiProfili().some((p) => p.nome.toLowerCase() === nome.toLowerCase())) { errore($("err-imp"), "C'è già un profilo con questo nome su questo telefono."); return; }
+  if (figlie.some((p) => p.nome.toLowerCase() === nome.toLowerCase())) { errore($("err-imp"), "C'è già un profilo con questo nome."); return; }
   $("btn-np-crea").disabled = true; attesa($("stato-imp"), ["Creo il profilo di " + nome]);
   try {
-    const r = await funzioneProfili({ azione: "crea", nome, classe });
-    await collegaSuTelefono(r, codice);
+    await funzioneProfili({ azione: "crea", nome, classe, codice });
     ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
-    avviso($("err-imp"), "Profilo di " + nome + " pronto: dalla schermata iniziale tocca il nome e digita il codice.");
+    avviso($("err-imp"), "Profilo di " + nome + " pronto: da qualsiasi telefono tocca il nome e digita il codice.");
   } catch (e) {
+    console.warn("crea profilo:", e);
     errore($("err-imp"), "Non sono riuscito a creare il profilo. Riprova.");
   }
   attesa($("stato-imp"), null); $("btn-np-crea").disabled = false;
   disegnaImpostazioni();
 }
-async function apriQui(s) {
-  const codice = chiediCodice(s.nome); if (!codice) return;
-  attesa($("stato-imp"), ["Apro il profilo di " + s.nome]);
-  try { await collegaSuTelefono(await funzioneProfili({ azione: "collega", studente_id: s.id }), codice); }
-  catch (e) { errore($("err-imp"), "Non sono riuscito ad aprire il profilo. Riprova."); }
-  attesa($("stato-imp"), null); disegnaImpostazioni();
-}
-async function cambiaCodice(p) {
-  const codice = chiediCodice(p.nome); if (!codice) return;
-  const client = clientPer(p.chiave);
-  const { data: s } = await client.auth.getSession();
+async function cambiaCodice(s, campo, btn) {
+  const codice = campo.value.trim();
+  errore($("err-imp"), "");
+  if (!codiceValido(codice)) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); campo.focus(); return; }
+  btn.disabled = true;
   try {
-    if (!s.session) await collegaSuTelefono(await funzioneProfili({ azione: "collega", studente_id: p.id }), codice);
-    else { const { error } = await client.rpc("imposta_pin", { pin: codice }); if (error) throw error; }
-    salvaBlocco(p.id, {});
-    avviso($("err-imp"), "Codice di " + p.nome + " cambiato.");
-  } catch (e) { errore($("err-imp"), "Non sono riuscito a cambiare il codice. Riprova."); }
-}
-async function togliDalTelefono(p) {
-  await clientPer(p.chiave).auth.signOut({ scope: "local" });
-  salvaProfili(leggiProfili().filter((x) => x.id !== p.id));
-  try { localStorage.removeItem("verifiche-blocco-" + p.id); } catch (e) { /* niente */ }
-  if (profilo && profilo.id === p.id) { sb = null; profilo = null; argomenti = []; sessioni = []; }
-  disegnaImpostazioni();
+    await funzioneProfili({ azione: "codice", studente_id: s.id, codice });
+    campo.value = "";
+    bloccoFino = { ...bloccoFino, [s.id]: 0 };
+    avviso($("err-imp"), "Codice di " + s.nome + " cambiato.");
+  } catch (e) {
+    console.warn("cambia codice:", e);
+    errore($("err-imp"), "Non sono riuscito a cambiare il codice. Riprova.");
+  }
+  btn.disabled = false;
 }
 
 /* =================================================================== modello */
@@ -481,7 +498,7 @@ async function caricaLibreria() {
   });
   sessioni = s.data || [];
   argomenti.forEach((x) => { x.ultima = sessioni.find((y) => y.argomento_id === x.id) || null; });
-  disegnaProfili(); disegnaLibreria();
+  disegnaProfiliSalvati(); disegnaLibreria();
 }
 
 function statoArg(a) {
@@ -1375,7 +1392,7 @@ async function avvia() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   if (!window.supabase) { errore($("err-profili"), "Serve la connessione a internet per aprire i tuoi argomenti."); vai("profili"); return; }
   // Si parte sempre dai nomi: tocco il nome, digito il codice, entro.
-  disegnaProfili(); vai("profili");
+  vai("profili"); caricaProfili();
 }
 
 if (typeof document !== "undefined" && document.getElementById && document.getElementById("v-libreria")) {
