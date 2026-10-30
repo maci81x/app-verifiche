@@ -173,21 +173,32 @@ test("arricchire di nuovo sostituisce i nodi dal web di prima, non li accumula",
   assert.ok(!agganciMappa(uno).some((a) => a.titolo === "Primo giro"));
 });
 
-test("«in breve»: la sintesi del concetto resta se regge sugli appunti, sparisce (e si conta) se no (issue #11)", () => {
-  const m = costruisciMappa(ARGOMENTO, { nodi: [
-    { concetto_id: "c1", sintesi: "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II.", figli: [] },
-    { concetto_id: "c2", sintesi: "Il sonetto lo inventò Jacopo da Lentini nel 1240.", figli: [] },
+test("«in breve» a parte (issue #13): la sintesi resta se regge sugli appunti, sparisce (e si conta) se no", async () => {
+  const { sintesiDaRisposta } = await import("../supabase/functions/_shared/mappa.js");
+  const r = sintesiDaRisposta(ARGOMENTO, { sintesi: [
+    { concetto_id: "c1", testo: "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II." },
+    { concetto_id: "c2", testo: "Il sonetto lo inventò Jacopo da Lentini nel 1240." },
+    { concetto_id: "c9", testo: "Concetto che non esiste." },
   ] });
-  assert.equal(m.nodi[0].sintesi, "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II.");
-  assert.equal(m.nodi[1].sintesi, "", "Jacopo e il 1240 non sono negli appunti");
-  assert.equal(m.sintesi_scartate, 1);
-  // Ogni concetto ha il campo, anche senza ramo dal modello: così l'app riconosce le mappe nuove.
-  assert.ok(costruisciMappa(ARGOMENTO, { nodi: [] }).nodi.every((n) => n.sintesi === ""));
+  assert.equal(r.sintesi["uuid-1"], "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II.");
+  assert.equal(r.sintesi["uuid-2"], "", "Jacopo e il 1240 non sono negli appunti");
+  assert.equal(r.scartate, 1);
+  // Ogni concetto ha la sua voce, anche se il modello l'ha saltato.
+  assert.deepEqual(sintesiDaRisposta(ARGOMENTO, { sintesi: [] }).sintesi, { "uuid-1": "", "uuid-2": "" });
+  // Un doppione non sovrascrive la prima risposta e non conta due volte.
+  const dop = sintesiDaRisposta(ARGOMENTO, { sintesi: [{ concetto_id: "c2", testo: "Inventato da Jacopo nel 1240." }, { concetto_id: "c2", testo: "Il sonetto ha 14 versi endecasillabi." }] });
+  assert.equal(dop.sintesi["uuid-2"], "");
+  assert.equal(dop.scartate, 1);
+  // La mappa arriva senza sintesi: si aggiunge dopo.
+  assert.ok(costruisciMappa(ARGOMENTO, { nodi: [] }).nodi.every((n) => !("sintesi" in n)));
 });
 
-test("il prompt della mappa chiede la sintesi per 12-13 anni, solo dal materiale", () => {
-  const p = promptMappa(ARGOMENTO, 10);
-  assert.match(p, /sintesi/);
+test("prompt: la mappa non chiede più la sintesi, la chiede promptSintesi per 12-13 anni e solo dal materiale", async () => {
+  const { promptSintesi } = await import("../supabase/functions/_shared/prompt.js");
+  assert.doesNotMatch(promptMappa(ARGOMENTO, 10), /sintesi/);
+  const p = promptSintesi(ARGOMENTO);
   assert.match(p, /12-13 anni/);
   assert.match(p, /nel materiale non ci sono/);
+  assert.match(p, /"id":"c1"/);
+  assert.match(p, /Scuola poetica siciliana/);
 });

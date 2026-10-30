@@ -1,21 +1,21 @@
 // Avvio offline dell'interfaccia: prima la rete, se manca la copia salvata.
 // I dati (Supabase) e la funzione del modello non passano da qui.
 // Alza la versione a ogni rilascio, insieme a ?v= in index.html.
-const CACHE_NAME = 'app-verifiche-v12';
+const CACHE_NAME = 'app-verifiche-v13';
 const ASSETS = [
   '/app-verifiche/',
   '/app-verifiche/index.html',
-  '/app-verifiche/style.css?v=12',
-  '/app-verifiche/semaforo.js?v=12',
-  '/app-verifiche/app.js?v=12',
-  '/app-verifiche/libreria.js?v=12',
-  '/app-verifiche/stampa.js?v=12',
-  '/app-verifiche/aiuto.js?v=12',
-  '/app-verifiche/mappa-card.js?v=12',
-  '/app-verifiche/figure.js?v=12',
-  '/app-verifiche/formule.js?v=12',
-  '/app-verifiche/esercizi.js?v=12',
-  '/app-verifiche/prova-esercizi.js?v=12',
+  '/app-verifiche/style.css?v=13',
+  '/app-verifiche/semaforo.js?v=13',
+  '/app-verifiche/app.js?v=13',
+  '/app-verifiche/libreria.js?v=13',
+  '/app-verifiche/stampa.js?v=13',
+  '/app-verifiche/aiuto.js?v=13',
+  '/app-verifiche/mappa-card.js?v=13',
+  '/app-verifiche/figure.js?v=13',
+  '/app-verifiche/formule.js?v=13',
+  '/app-verifiche/esercizi.js?v=13',
+  '/app-verifiche/prova-esercizi.js?v=13',
   '/app-verifiche/manifest.json',
   '/app-verifiche/icons/icon-192.png',
   '/app-verifiche/icons/icon-512.png',

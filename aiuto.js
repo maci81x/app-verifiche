@@ -2,7 +2,7 @@
 // Mai come fonte delle domande di verifica: la funzione `domande` non legge né le
 // spiegazioni né i nodi web della mappa, e indice e voto non cambiano.
 // Script classico caricato dopo app.js e stampa.js: usa $, esc, vai, modello, conRiprova,
-// attesa, errore, avviso, messaggioModello, sb, profilo, mappa, corrente, mappaInCorso,
+// attesa, errore, avviso, messaggioModello, sb, profilo, mappa, corrente, iniziaLavoro, finisciLavoro,
 // disegnaMappa, FONTE_WEB, ETICHETTA_WEB.
 
 /* =================================================================== parti pure */
@@ -114,33 +114,33 @@ function bottoneSpiega(c) {
 /* =================================================================== Arricchisci dal web */
 
 const FRASI_ARRICCHISCI = ["Cerco esempi e curiosità sui siti di scuola", "Controllo le fonti", "Aggiungo i nodi alla mappa"];
-let arricchimentoInCorso = null; // argomento_id
 
 async function arricchisciDalWeb() {
   const a = corrente, btn = $("btn-arricchisci");
-  if (!a || !mappa || mappa.argomento_id !== a.id || arricchimentoInCorso === a.id || mappaInCorso === a.id) return;
+  if (!a || !mappa || mappa.argomento_id !== a.id || mappa.provvisoria) return;
   if (senzaRete()) { errore($("err-mappa"), MSG_OFFLINE_WEB); return; }
+  if (!iniziaLavoro(a.id, "arricchisci")) return;
   const generataPrima = mappa.generata;
-  arricchimentoInCorso = a.id; btn.disabled = true; $("btn-rigenera").disabled = true; errore($("err-mappa"), "");
+  btn.disabled = true; $("btn-rigenera").disabled = true; errore($("err-mappa"), "");
   attesa($("stato-mappa"), FRASI_ARRICCHISCI);
   try {
     const r = await conRiprova(() => modello({ azione: "arricchisci", argomento_id: a.id }));
-    if (!r.aggiunti) { if (corrente === a) avviso($("err-mappa"), "Non ho trovato niente di affidabile da aggiungere. La mappa resta com'era."); return; }
+    if (!r.aggiunti) { if (stessoArgomento(corrente, a)) avviso($("err-mappa"), "Non ho trovato niente di affidabile da aggiungere. La mappa resta com'era."); return; }
     // La mappa è cambiata nel frattempo (Rigenera): l'albero arricchito è di quella vecchia, non si salva.
-    if (corrente === a && (!mappa || mappa.generata !== generataPrima)) return;
+    if (stessoArgomento(corrente, a) && (!mappa || mappa.generata !== generataPrima)) return;
     const { error } = await sb.from("mappe").update({ albero: r.albero }).eq("argomento_id", a.id);
-    if (corrente !== a) return;
+    if (!stessoArgomento(corrente, a)) return;
     mappa = { ...mappa, albero: r.albero };
     disegnaMappa();
     if (error) avviso($("err-mappa"), "Non sono riuscito a salvare i nodi nuovi: li vedi adesso, ma la prossima volta vanno cercati di nuovo.");
     else avviso($("err-mappa"), "Ho aggiunto " + r.aggiunti + (r.aggiunti === 1 ? " nodo" : " nodi") + " dal web: li riconosci dall'etichetta. Tocca per leggere e aprire la fonte.");
   } catch (e) {
-    if (corrente === a) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
+    if (stessoArgomento(corrente, a)) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
       ? "Prima serve la mappa: tocca Rigenera."
       : messaggioWeb(e, "Non sono riuscito ad arricchire la mappa. Riprova fra un momento."));
   } finally {
-    arricchimentoInCorso = null;
-    if (corrente === a) { attesa($("stato-mappa"), null); btn.disabled = !mappa; $("btn-rigenera").disabled = false; }
+    finisciLavoro(a.id, "arricchisci");
+    if (stessoArgomento(corrente, a)) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
 }
 

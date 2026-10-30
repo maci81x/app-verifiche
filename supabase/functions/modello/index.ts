@@ -10,7 +10,9 @@
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
-// POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, sintesi, figli }], scartati, tagliati, sintesi_scartate }
+// POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, figli }], scartati, tagliati }
+// POST { azione: "sintesi", argomento_id } → { sintesi: { [concetto_id]: testo o "" }, scartate }
+//      «In breve» dei concetti, chiesto dopo la mappa (issue #13); filtrato con _shared/sintesi.js.
 //      Primo livello = i concetti dell'argomento (stesso id); sotto, sotto-punti ancorati alla trascrizione.
 // POST { azione: "spiega", concetto_id, errore?: { domanda, risposta_alunna, risposta_attesa } }
 //      → { spiegazione, esempio, analogia, fonti: [{ titolo, url }], eta }
@@ -38,14 +40,14 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json-schema";
 import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
-  promptMappa, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
+  promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
 import { eserciziVerificati, FORME, GRANDEZZE, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
-import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
+import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRisposta } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
@@ -154,12 +156,23 @@ const SCHEMA_MAPPA = {
       type: "array",
       items: {
         type: "object",
-        properties: { concetto_id: { type: "string" }, sintesi: { type: "string" }, figli: { type: "array", items: SOTTO_PUNTO } },
-        required: ["concetto_id", "sintesi", "figli"], additionalProperties: false,
+        properties: { concetto_id: { type: "string" }, figli: { type: "array", items: SOTTO_PUNTO } },
+        required: ["concetto_id", "figli"], additionalProperties: false,
       },
     },
   },
   required: ["nodi"], additionalProperties: false,
+} as const;
+// «In breve» (issue #13): chiamata a parte, dopo l'albero.
+const SCHEMA_SINTESI = {
+  type: "object",
+  properties: {
+    sintesi: {
+      type: "array",
+      items: { type: "object", properties: { concetto_id: { type: "string" }, testo: { type: "string" } }, required: ["concetto_id", "testo"], additionalProperties: false },
+    },
+  },
+  required: ["sintesi"], additionalProperties: false,
 } as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -259,7 +272,8 @@ const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_di
 
 let client: Anthropic | undefined;
 // Nessuna riprova automatica: il secondo tentativo lo fa l'app, come nel prototipo.
-async function chiedi(prompt: string, schema: { type: "object" }, immagini: string[] = []) {
+// effort: "low" per i compiti di sola estrazione dove conta la velocità (mappa, sintesi).
+async function chiedi(prompt: string, schema: { type: "object" }, immagini: string[] = [], effort?: "low" | "medium" | "high") {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Definitivo("not_granted");
   client ??= new Anthropic({ maxRetries: 0 });
   try {
@@ -276,7 +290,7 @@ async function chiedi(prompt: string, schema: { type: "object" }, immagini: stri
           { type: "text" as const, text: prompt },
         ],
       }],
-      output_config: { format: jsonSchemaOutputFormat(schema) },
+      output_config: { format: jsonSchemaOutputFormat(schema), ...(effort ? { effort } : {}) },
     });
     if (r.parsed_output == null) throw new Error(`risposta non valida (stop: ${r.stop_reason})`);
     return r.parsed_output as Record<string, unknown>;
@@ -476,11 +490,23 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
-      // Con 25 concetti o più non c'è posto per i sotto-punti, ma il modello serve lo stesso
-      // per le sintesi «in breve» (issue #11).
-      const posti = Math.max(0, MAX_NODI - a.concetti.length);
-      const r = await chiedi(promptMappa(a, posti), SCHEMA_MAPPA);
+      // Solo l'albero, il più in fretta possibile: le sintesi arrivano dopo con l'azione `sintesi`
+      // (issue #13). Con 25 concetti o più la mappa è già piena: niente modello.
+      const posti = MAX_NODI - a.concetti.length;
+      const r = posti > 0 ? await chiedi(promptMappa(a, posti), SCHEMA_MAPPA, [], "low") : { nodi: [] };
       return json(costruisciMappa(a, r));
+    }
+
+    if (b.azione === "sintesi") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      const { data: a, error } = await comeUtente(req).from("argomenti")
+        .select("id, titolo, materia, trascrizione, concetti(id, titolo, descrizione, ancora, peso, ordine)")
+        .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle();
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
+      const r = await chiedi(promptSintesi(a), SCHEMA_SINTESI, [], "low");
+      return json(sintesiDaRisposta(a, r));
     }
 
     if (b.azione === "spiega") {

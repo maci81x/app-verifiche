@@ -167,11 +167,23 @@ export function promptMappa(argomento, sottoPunti) {
     "Ogni sotto-punto e ogni dettaglio ha un titolo brevissimo (al massimo sei parole) e un'ancora: la frase esatta del materiale da cui nasce, copiata parola per parola. Se non trovi la frase nel materiale, non scrivere il nodo.",
     "Non inventare niente che nel materiale non ci sia. Un'informazione vera ma non scritta (un autore, una data, un collegamento che conosci tu) non va aggiunta.",
     "Non ripetere il titolo del concetto nei suoi sotto-punti.",
-    "Per ogni concetto scrivi anche sintesi: «in breve», una o due frasi corte che spiegano il concetto a una ragazza di 12-13 anni (seconda o terza media), con parole semplici. Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti; il server controlla che ci siano e toglie la sintesi se non le trova.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
     "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE),
-    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","sintesi":"","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+  ].join("\n\n");
+}
+
+// «In breve» dei concetti (issue #13): chiamata a parte, dopo la mappa, così la mappa arriva subito.
+export function promptSintesi(argomento) {
+  const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({ id: idBreve(i), titolo: c.titolo, ancora: c.ancora }));
+  return [
+    "Sei un insegnante di scuola media italiana. Per ogni concetto qui sotto scrivi «in breve»: una o due frasi corte che lo spiegano a una ragazza di 12-13 anni (seconda o terza media), con parole semplici.",
+    "Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti: il server controlla che ci siano e toglie la sintesi se non le trova.",
+    "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
+    "Concetti:\n" + JSON.stringify(concetti),
+    "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE),
+    'Rispondi solo con JSON: {"sintesi":[{"concetto_id":"c1","testo":""}]}',
   ].join("\n\n");
 }
 
