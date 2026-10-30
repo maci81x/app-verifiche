@@ -2,6 +2,7 @@
 // tenere. Logica del prototipo (preparaVerifica). JavaScript puro: lo usano la
 // Edge Function e i test.
 import { ancorata, fonteDi } from "./ancoraggio.js";
+import { FONTE_WEB } from "./web.js";
 
 // Mai verificato: priorità alta ma non massima (prototipo).
 export function debolezza(c) {
@@ -12,9 +13,13 @@ export function debolezza(c) {
 // Nel ripasso tiene i 12 concetti più deboli pesati per importanza, come il prototipo.
 // Al modello i concetti arrivano con id brevi (c1, c2...) come nel prototipo: un
 // uuid ricopiato male farebbe scartare una domanda buona.
+// Il web aiuta a studiare ma non entra mai nella verifica (issue #4): un concetto con
+// fonte "web" non arriva al modello, e senza id breve nessuna domanda può citarlo.
+const concettoDagliAppunti = (c) => c.fonte !== FONTE_WEB;
+
 export function preparaPool(argomenti, ripasso) {
   let pool = [];
-  for (const a of argomenti) for (const c of a.concetti || []) pool.push({ a, c, score: debolezza(c) * c.peso });
+  for (const a of argomenti) for (const c of (a.concetti || []).filter(concettoDagliAppunti)) pool.push({ a, c, score: debolezza(c) * c.peso });
   if (ripasso) pool = pool.sort((x, y) => y.score - x.score).slice(0, 12);
   const indice = {};
   pool.forEach((p, i) => { p.breve = "c" + (i + 1); indice[p.breve] = p; });

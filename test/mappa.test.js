@@ -1,7 +1,7 @@
 // Mappa concettuale: l'albero che arriva all'app nasce solo dagli appunti.   node --test test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costruisciMappa, MAX_NODI } from "../supabase/functions/_shared/mappa.js";
+import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, MAX_NODI_WEB } from "../supabase/functions/_shared/mappa.js";
 import { promptMappa } from "../supabase/functions/_shared/prompt.js";
 
 // Testo vero, dalla pagina 24 del libro fotografata il 25 ottobre 2026.
@@ -112,4 +112,63 @@ test("i concetti restano sulla mappa anche se la loro ancora non si ritrova nell
   const m = costruisciMappa({ ...ARGOMENTO, trascrizione: "testo cambiato" }, { nodi: [] });
   assert.deepEqual(m.nodi.map((n) => n.id), ["uuid-1", "uuid-2"]);
   assert.equal(m.scartati, 0);
+});
+
+// ---------------------------------------------------------------- nodi dal web (issue #4)
+const FONTI = [
+  { titolo: "Peste - Treccani", url: "https://www.treccani.it/enciclopedia/peste" },
+  { titolo: "Il sonetto - Focus Junior", url: "https://www.focusjunior.it/sonetto" },
+];
+const albero = () => {
+  const m = costruisciMappa(ARGOMENTO, { nodi: [{ concetto_id: "c2", figli: [nodo("Le strofe", "suddivisi in due quartine e due terzine", [nodo("Undici sillabe", "endecasillabi (cioè di undici sillabe)")])] }] });
+  return { titolo: m.titolo, materia: m.materia, nodi: m.nodi };
+};
+const senzaWeb = (nodi) => nodi.filter((n) => n.fonte !== "web").map((n) => ({ ...n, figli: senzaWeb(n.figli) }));
+const webDi = (nodi) => nodi.flatMap((n) => [...(n.fonte === "web" ? [n] : []), ...webDi(n.figli)]);
+const web = (aggancio, titolo, fonte = 1) => ({ aggancio, titolo, testo: "Due o tre righe su " + titolo + ".", fonte });
+
+test("al modello si offrono come agganci solo concetti e sotto-punti degli appunti, con id brevi", () => {
+  const a = agganciMappa(albero());
+  assert.deepEqual(a.map((x) => [x.breve, x.titolo]), [["n1", "Che cos'è la Scuola siciliana"], ["n2", "Il sonetto"], ["n3", "Le strofe"]]);
+});
+
+test("i nodi dal web si aggiungono senza toccare quelli degli appunti, con fonte web e link", () => {
+  const prima = albero();
+  const r = arricchisciMappa(prima, { nodi: [web("n2", "Petrarca e il sonetto", 2), web("n1", "Federico II", 1)] }, FONTI);
+  assert.deepEqual(senzaWeb(r.albero.nodi), prima.nodi, "i nodi degli appunti sono cambiati");
+  assert.deepEqual(prima, albero(), "l'albero di partenza è stato modificato");
+  const w = webDi(r.albero.nodi);
+  assert.deepEqual(w.map((n) => [n.titolo, n.fonte, n.url]), [
+    ["Federico II", "web", FONTI[0].url],
+    ["Petrarca e il sonetto", "web", FONTI[1].url],
+  ]);
+  assert.equal(r.albero.nodi[1].figli.at(-1).titolo, "Petrarca e il sonetto"); // agganciato al sonetto
+  assert.ok(w.every((n) => n.testo && !n.ancora && n.figli.length === 0));
+  assert.equal(r.aggiunti, 2);
+  assert.deepEqual(r.nodi.map((n) => [n.titolo, n.aggancio, n.fonte]), [["Petrarca e il sonetto", "uuid-2", "web"], ["Federico II", "uuid-1", "web"]]);
+});
+
+test("nodi web: al massimo 6; scartati quelli senza aggancio valido, senza fonte citata o sotto un dettaglio", () => {
+  const r = arricchisciMappa(albero(), { nodi: [
+    web("n9", "Aggancio inesistente"),
+    web("n1", "Fonte inventata", 7),
+    web("n1", "Senza titolo".replace(/.*/, " ")),
+    ...Array.from({ length: 8 }, (_, i) => web(i % 2 ? "n3" : "n1", "Buono " + i)),
+  ] }, FONTI);
+  const w = webDi(r.albero.nodi);
+  assert.equal(w.length, MAX_NODI_WEB);
+  assert.equal(MAX_NODI_WEB, 6);
+  assert.ok(w.every((n) => n.titolo.startsWith("Buono")));
+  assert.equal(r.scartati, 3 + 2); // tre non validi, due oltre il massimo
+  // "Undici sillabe" è un dettaglio (terzo livello): non è un aggancio, la mappa resta a tre livelli
+  assert.ok(!agganciMappa(albero()).some((a) => a.titolo === "Undici sillabe"));
+});
+
+test("arricchire di nuovo sostituisce i nodi dal web di prima, non li accumula", () => {
+  const uno = arricchisciMappa(albero(), { nodi: [web("n1", "Primo giro")] }, FONTI).albero;
+  const due = arricchisciMappa(uno, { nodi: [web("n2", "Secondo giro")] }, FONTI).albero;
+  assert.deepEqual(webDi(due.nodi).map((n) => n.titolo), ["Secondo giro"]);
+  assert.deepEqual(senzaWeb(due.nodi), albero().nodi);
+  // i nodi web di prima non sono agganci per quelli nuovi
+  assert.ok(!agganciMappa(uno).some((a) => a.titolo === "Primo giro"));
 });

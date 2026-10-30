@@ -6,6 +6,7 @@
 // e quelli la cui ancora non regge (stesso filtro al 60% delle domande) vengono
 // scartati insieme ai loro figli.
 import { ancoraRegge, normalizza } from "./ancoraggio.js";
+import { fontiScelte, FONTE_WEB } from "./web.js";
 
 export const MAX_NODI = 25;
 
@@ -95,4 +96,48 @@ export function costruisciMappa(argomento, grezza) {
   const conta = (ns) => ns.reduce((t, n) => t + contaNodi(n), 0);
   tagliati += conta(interi) - conta(nodi);
   return { titolo: argomento.titolo, materia: argomento.materia, nodi, scartati, tagliati };
+}
+
+// ------------------------------------------------------------------ nodi dal web (issue #4)
+// "Arricchisci dal web" aggiunge fino a 6 nodi con fonte "web", ognuno con il suo
+// testo e il link a una fonte citata davvero. Si agganciano solo a concetti e
+// sotto-punti degli appunti (la mappa resta a tre livelli) e non toccano i nodi
+// degli appunti. Arricchire di nuovo sostituisce i nodi web di prima.
+// L'azione `domande` non legge mai la mappa: il web non entra nella verifica.
+export const MAX_NODI_WEB = 6;
+const nodoDagliAppunti = (n) => n && n.fonte !== FONTE_WEB;
+
+// Nodi a cui il modello può agganciare un nodo web, con id brevi n1, n2...
+export function agganciMappa(albero) {
+  const agganci = [];
+  const visita = (nodi, livello) => lista(nodi).filter(nodoDagliAppunti).forEach((n) => {
+    agganci.push({ breve: "n" + (agganci.length + 1), id: n.id, titolo: n.titolo });
+    if (livello < 2) visita(n.figli, livello + 1);
+  });
+  visita(albero && albero.nodi, 1);
+  return agganci;
+}
+
+// grezza: { nodi: [{ aggancio: "n2", titolo, testo, fonte: numero da 1 }] }
+// → { albero, nodi: [{ id, titolo, testo, url, fonte: "web", aggancio: id del nodo }], aggiunti, scartati }
+// fonti: le fonti citate nella ricerca (fontiCitate), nell'ordine dato al modello.
+export function arricchisciMappa(albero, grezza, fonti) {
+  const idDi = {};
+  agganciMappa(albero).forEach((a) => { idDi[a.breve] = a.id; });
+  let scartati = 0;
+  const nuovi = [];
+  lista(grezza && grezza.nodi).forEach((g) => {
+    const padre = idDi[g && g.aggancio], titolo = pulito(g && g.titolo), testo = pulito(g && g.testo);
+    const [fonte] = fontiScelte([g && g.fonte], fonti || []);
+    if (!padre || !titolo || !testo || !fonte || nuovi.length >= MAX_NODI_WEB) { scartati++; return; }
+    nuovi.push({ padre, nodo: { id: "web-" + (nuovi.length + 1), titolo, testo, url: fonte.url, fonte: FONTE_WEB, figli: [] } });
+  });
+  const ricostruisci = (nodi) => lista(nodi).filter(nodoDagliAppunti).map((n) => ({
+    ...n, figli: [...ricostruisci(n.figli), ...nuovi.filter((x) => x.padre === n.id).map((x) => x.nodo)],
+  }));
+  return {
+    albero: { ...albero, nodi: ricostruisci(albero.nodi) },
+    nodi: nuovi.map((x) => ({ ...x.nodo, aggancio: x.padre })), // i nodi nuovi, ognuno con il nodo a cui si aggancia
+    aggiunti: nuovi.length, scartati,
+  };
 }

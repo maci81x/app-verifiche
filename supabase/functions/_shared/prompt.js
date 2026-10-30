@@ -1,4 +1,5 @@
 import { concettiInOrdine, idBreve } from "./mappa.js";
+import { etaDaClasse } from "./web.js";
 
 // Prompt al modello. La base è copiata parola per parola da prototipo/prova-verifiche.html,
 // dove è stata tarata sul campo; le modifiche successive sono segnate con la loro data.
@@ -156,5 +157,72 @@ export function promptMappa(argomento, sottoPunti) {
     "Concetti:\n" + JSON.stringify(concetti),
     "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE_MAPPA),
     'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+  ].join("\n\n");
+}
+
+// ------------------------------------------------------------------ web come aiuto (issue #4)
+// Nuovi, non dal prototipo: da tarare sulla prova vera. Due passi per ogni azione:
+// prima una ricerca con lo strumento web_search (testo libero con citazioni),
+// poi la composizione in JSON, dove il modello sceglie le fonti per numero.
+// Il web non diventa mai una domanda di verifica.
+const NIENTE_VERIFICA = "Non scrivere domande di verifica: questo serve solo a capire meglio, non a interrogare.";
+const perEta = (classe) => etaDaClasse(classe) + " anni (" + (etaDaClasse(classe) === 13 ? "terza" : "seconda") + " media)";
+const elencoFonti = (fonti) => fonti.length
+  ? fonti.map((f, i) => (i + 1) + ". " + f.titolo + " — " + f.url).join("\n")
+  : "(nessuna fonte trovata)";
+function testoErrore(errore) {
+  if (!errore) return "";
+  return "Nella verifica, alla domanda «" + errore.domanda + "» ha risposto «" + (errore.risposta_alunna || "non lo so") +
+    "»; la risposta attesa era «" + errore.risposta_attesa + "».";
+}
+const descriviConcetto = ({ materia, argomento, concetto }) =>
+  "Materia: " + materia + ". Argomento: " + argomento + ".\nConcetto: " + concetto.titolo +
+  (concetto.descrizione ? " — " + concetto.descrizione : "") + "\nNegli appunti c'è scritto: «" + concetto.ancora + "»";
+
+// { materia, argomento, classe, concetto: { titolo, descrizione, ancora }, errore? }
+export function promptRicercaSpiegazione(dati) {
+  return [
+    "Sei un insegnante di scuola media italiana. Un'alunna di " + perEta(dati.classe) + " non ha capito bene un concetto.",
+    descriviConcetto(dati),
+    testoErrore(dati.errore),
+    "Cerca sul web (al massimo tre ricerche) informazioni affidabili che aiutino a spiegarlo meglio: un esempio concreto e un modo semplice per dirlo. Riassumi in poche righe in italiano quello che hai trovato, citando le fonti.",
+    NIENTE_VERIFICA,
+  ].filter(Boolean).join("\n\n");
+}
+
+// { ...come sopra, ricerca: testo della ricerca, fonti: [{ titolo, url }] }
+export function promptSpiegazione(dati) {
+  return [
+    "Sei un insegnante di scuola media italiana. Scrivi per un'alunna di " + perEta(dati.classe) + ", con parole adatte alla sua età.",
+    descriviConcetto(dati),
+    testoErrore(dati.errore),
+    "Parti da quello che c'è negli appunti, poi allarga con quello che è stato trovato sul web. Non sostituire la prof: se il web dice qualcosa di diverso dagli appunti, dillo con delicatezza e consiglia di chiedere alla prof.",
+    dati.errore ? "Parti dall'errore: spiega perché la risposta non andava, senza giudicare." : "",
+    "spiegazione: da 6 a 10 righe, frasi semplici, niente elenchi tecnici. esempio: un esempio concreto, 2 o 3 righe. analogia: un paragone con qualcosa della vita di tutti i giorni, 1 o 2 righe. fonti: i numeri delle fonti che hai usato, dall'elenco qui sotto; se non ne hai usata nessuna, lista vuota.",
+    NIENTE_VERIFICA,
+    "Quello che è stato trovato sul web:\n" + (dati.ricerca || "(niente)"),
+    "Fonti:\n" + elencoFonti(dati.fonti),
+  ].filter(Boolean).join("\n\n");
+}
+
+// { materia, argomento, classe, agganci: [{ breve, titolo }] }
+export function promptRicercaArricchisci(dati) {
+  return [
+    "Sei un insegnante di scuola media italiana. Un'alunna di " + perEta(dati.classe) + " ripassa con una mappa concettuale fatta dai suoi appunti.",
+    "Materia: " + dati.materia + ". Argomento: " + dati.argomento + ".\nNodi della mappa:\n" + dati.agganci.map((a) => a.breve + ": " + a.titolo).join("\n"),
+    "Cerca sul web (al massimo tre ricerche) esempi, curiosità e collegamenti che aiutano a ricordare questi nodi e che negli appunti non ci sono. Riassumi in poche righe in italiano quello che hai trovato, citando le fonti.",
+    NIENTE_VERIFICA,
+  ].join("\n\n");
+}
+
+// { ...come sopra, ricerca, fonti }
+export function promptArricchisci(dati) {
+  return [
+    "Sei un insegnante di scuola media italiana. Aggiungi alla mappa concettuale di un'alunna di " + perEta(dati.classe) + " fino a 6 nodi presi dal web.",
+    "Materia: " + dati.materia + ". Argomento: " + dati.argomento + ".\nNodi della mappa:\n" + dati.agganci.map((a) => a.breve + ": " + a.titolo).join("\n"),
+    "Per ogni nodo nuovo: aggancio = l'id (n1, n2...) del nodo della mappa a cui si collega meglio; titolo brevissimo, al massimo sei parole; testo di 2 o 3 righe semplici; fonte = il numero della fonte da cui viene. Solo cose che stanno nelle fonti, niente che ripeta i nodi che ci sono già.",
+    NIENTE_VERIFICA,
+    "Quello che è stato trovato sul web:\n" + (dati.ricerca || "(niente)"),
+    "Fonti:\n" + elencoFonti(dati.fonti),
   ].join("\n\n");
 }

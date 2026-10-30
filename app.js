@@ -196,15 +196,18 @@ function aCapo(testo, caratteri) {
 }
 
 // Riquadro di un nodo largo `larghezza`: quante lettere ci stanno, le righe e l'altezza.
+const FONTE_WEB = "web", ETICHETTA_WEB = "dal web";
 function misuraNodo(n, livello, larghezza, carattere) {
   const corpo = MAPPA.corpo[livello];
   const utile = larghezza - 2 * MAPPA.px - (livello === 1 ? MAPPA.pallino : 0);
   const caratteri = Math.max(4, Math.floor(utile / (corpo * carattere)));
-  const righe = aCapo(n.titolo, caratteri);
+  // Un nodo arrivato dal web porta sempre l'etichetta, anche in stampa (issue #4).
+  const righe = [...aCapo(n.titolo, caratteri), ...(n.fonte === FONTE_WEB ? [ETICHETTA_WEB] : [])];
   return { caratteri, righe, w: arrotonda(larghezza), h: arrotonda(2 * MAPPA.py + righe.length * corpo * MAPPA.interlinea) };
 }
 const nodoMappa = (n, livello, x, y, m) => ({
   id: n.id || "radice", livello, titolo: n.titolo || "", ancora: n.ancora || "", fonte: n.fonte || "",
+  toccabile: !!(n.ancora || n.url), // al tocco mostra la frase degli appunti, o testo e link del web
   x: arrotonda(x), y: arrotonda(y), w: m.w, h: m.h, righe: m.righe, caratteri: m.caratteri,
 });
 const livelliMappa = (n) => 1 + (n.figli || []).reduce((p, f) => Math.max(p, livelliMappa(f)), 0);
@@ -218,7 +221,7 @@ function mappaVerticale(radice, w, carattere) {
     const nodo = nodoMappa(n, livello, x, y, misuraNodo(n, livello, w - x - MAPPA.margine, carattere));
     nodi.push(nodo);
     // dal bordo basso del padre scende e piega verso il figlio
-    if (padre) linee.push({ livello, d: "M" + arrotonda(padre.x + 9) + " " + arrotonda(padre.y + padre.h) + " V" + arrotonda(nodo.y + nodo.h / 2) + " H" + nodo.x });
+    if (padre) linee.push({ livello, fonte: nodo.fonte, d: "M" + arrotonda(padre.x + 9) + " " + arrotonda(padre.y + padre.h) + " V" + arrotonda(nodo.y + nodo.h / 2) + " H" + nodo.x });
     y = nodo.y + nodo.h + MAPPA.stacco;
     (n.figli || []).forEach((f) => posa(f, livello + 1, nodo));
   };
@@ -245,7 +248,7 @@ function mappaOrizzontale(radice, w, carattere) {
     if (padre) {
       const x1 = arrotonda(padre.x + padre.w), y1 = arrotonda(padre.y + padre.h / 2), y2 = arrotonda(nodo.y + nodo.h / 2);
       const xm = arrotonda((x1 + nodo.x) / 2);
-      linee.push({ livello, d: "M" + x1 + " " + y1 + " C" + xm + " " + y1 + " " + xm + " " + y2 + " " + nodo.x + " " + y2 });
+      linee.push({ livello, fonte: nodo.fonte, d: "M" + x1 + " " + y1 + " C" + xm + " " + y1 + " " + xm + " " + y2 + " " + nodo.x + " " + y2 });
     }
     let t = sopra + (tot - figli) / 2;
     (n.figli || []).forEach((f) => { posa(f, livello + 1, t, nodo); t += misure.get(f).tot + stacco; });
@@ -265,17 +268,19 @@ function layoutMappa(albero, larghezza, carattere = MAPPA.carattere) {
 
 // stati: { [concetto_id]: "rosso" | "giallo" | "verde" | "mai" } per il pallino dei concetti
 function svgMappa(layout, stati) {
-  const parti = layout.linee.map((k) => '<path class="m-linea" data-l="' + k.livello + '" d="' + k.d + '"/>');
+  const conFonte = (f) => (f === FONTE_WEB ? ' data-fonte="web"' : "");
+  const parti = layout.linee.map((k) => '<path class="m-linea" data-l="' + k.livello + '"' + conFonte(k.fonte) + ' d="' + k.d + '"/>');
   layout.nodi.forEach((n) => {
     const corpo = MAPPA.corpo[n.livello], dx = n.livello === 1 ? MAPPA.pallino : 0;
-    const righe = n.righe.map((t, i) => '<tspan x="' + arrotonda(n.x + MAPPA.px + dx) + '" y="' +
+    const etichetta = (i) => n.fonte === FONTE_WEB && i === n.righe.length - 1 ? ' class="m-etichetta"' : "";
+    const righe = n.righe.map((t, i) => '<tspan' + etichetta(i) + ' x="' + arrotonda(n.x + MAPPA.px + dx) + '" y="' +
       arrotonda(n.y + MAPPA.py + corpo * (0.95 + i * MAPPA.interlinea)) + '">' + esc(t) + "</tspan>").join("");
     const pallino = n.livello === 1
       ? '<circle class="m-pallino" data-s="' + esc((stati || {})[n.id] || "mai") + '" cx="' + arrotonda(n.x + MAPPA.px + 4) +
         '" cy="' + arrotonda(n.y + MAPPA.py + corpo * 0.62) + '" r="4.5"/>'
       : "";
-    parti.push('<g class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + n.livello + '"' +
-      (n.ancora ? ' tabindex="0" role="button"' : "") + ' aria-label="' + esc(n.titolo) + '">' +
+    parti.push('<g class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + n.livello + '"' + conFonte(n.fonte) +
+      (n.toccabile ? ' tabindex="0" role="button"' : "") + ' aria-label="' + esc(n.titolo) + '">' +
       '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="10"/>' + pallino +
       '<text style="font-size:' + corpo + 'px">' + righe + "</text></g>");
   });
@@ -327,7 +332,7 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
@@ -1071,7 +1076,7 @@ function disegnaStoricoArgomento(a) {
 // Riapre una prova passata: domande, risposte e semaforo di quel giorno, dal database.
 async function mostraSessione(x, daScheda) {
   const { data, error } = await sb.from("domande")
-    .select("ordine, tipo, testo, opzioni, corretta, risposta_attesa, concetto_titolo, ancora, concetti(ancora, peso), risposte(testo, scelta, punteggio, commento, guidata)")
+    .select("ordine, tipo, testo, opzioni, corretta, risposta_attesa, concetto_id, concetto_titolo, ancora, concetti(ancora, peso), risposte(testo, scelta, punteggio, commento, guidata)")
     .eq("sessione_id", x.id).order("ordine");
   if (error) { avviso($("avviso-db"), "Non riesco ad aprire questa prova. Riprova."); return; }
   disegnaQuadrante(x.indice, Number(x.voto));
@@ -1083,10 +1088,11 @@ async function mostraSessione(x, daScheda) {
   const perC = {};
   (data || []).forEach((d) => {
     const r = (d.risposte || [])[0] || {};
-    const k = d.concetto_titolo, c = perC[k] || (perC[k] = { s: 0, n: 0, ancora: (d.concetti && d.concetti.ancora) || d.ancora });
+    const k = d.concetto_titolo, c = perC[k] || (perC[k] = { s: 0, n: 0, ancora: (d.concetti && d.concetti.ancora) || d.ancora, concetto_id: d.concetto_id });
     c.s += Number(r.punteggio || 0); c.n++;
   });
-  const righe = Object.keys(perC).map((k) => ({ titolo: k, media: perC[k].s / perC[k].n, ancora: perC[k].ancora }))
+  const materia = x.materia === "varie" ? null : x.materia;
+  const righe = Object.keys(perC).map((k) => ({ titolo: k, media: perC[k].s / perC[k].n, ancora: perC[k].ancora, concetto_id: perC[k].concetto_id, materia }))
     .map((r) => ({ ...r, stato: statoDaMedia(r.media) }));
   esitoMostrato = { info: { titolo: x.titolo, materia: x.materia, data: x.data }, dati: { indice: x.indice, voto: Number(x.voto), verdetto: "", righe } };
   disegnaSemaforo(righe.map((r) => ({ ...r })));
@@ -1095,7 +1101,8 @@ async function mostraSessione(x, daScheda) {
     return { n: d.ordine, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
       mia: d.tipo === "chiusa" ? ((d.opzioni || [])[r.scelta] || "— nessuna risposta") : (r.testo || "— nessuna risposta"),
       giusta: d.tipo === "chiusa" ? ((d.opzioni || [])[d.corretta] || "") : (d.risposta_attesa || ""),
-      punti: Number(r.punteggio || 0), commento: r.commento || "", concetto: d.concetto_titolo };
+      punti: Number(r.punteggio || 0), commento: r.commento || "", concetto: d.concetto_titolo,
+      concetto_id: d.concetto_id, ancora: (d.concetti && d.concetti.ancora) || d.ancora, materia };
   });
   soloErrori = false; disegnaDettaglio();
   $("box-risposte").open = true;
@@ -1115,7 +1122,7 @@ let mappa = null; // { argomento_id, albero, generata, scartati } dell'argomento
 let mappaInCorso = null; // argomento_id della mappa che il modello sta preparando
 
 function apriMappa(a, pannello) {
-  corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id; $("btn-stampa").disabled = true;
+  corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id; $("btn-stampa").disabled = true; $("btn-arricchisci").disabled = true;
   $("t-mappa").textContent = a.titolo;
   errore($("err-mappa"), ""); attesa($("stato-mappa"), null);
   $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; $("ancora-mappa").hidden = true;
@@ -1146,9 +1153,10 @@ async function caricaMappa(a) {
 }
 
 async function generaMappa(a) {
-  if (mappaInCorso === a.id) return; // una richiesta al modello per volta
+  // Una richiesta per volta, e mai mentre si arricchisce: l'albero arricchito sovrascriverebbe quello nuovo.
+  if (mappaInCorso === a.id || arricchimentoInCorso === a.id) return;
   const btn = $("btn-rigenera");
-  mappaInCorso = a.id; btn.disabled = true; errore($("err-mappa"), "");
+  mappaInCorso = a.id; btn.disabled = true; $("btn-arricchisci").disabled = true; errore($("err-mappa"), "");
   attesa($("stato-mappa"), FRASI_MAPPA);
   try {
     const r = await conRiprova(() => modello({ azione: "mappa", argomento_id: a.id }));
@@ -1183,19 +1191,20 @@ function disegnaMappa() {
   const stati = statiConcetti(corrente);
   disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car), stati));
   box.dataset.larghezza = String(larghezza);
-  const n = contaNodiMappa(mappa.albero.nodi);
-  $("meta-mappa").textContent = n + " nodi presi dagli appunti · fatta il " + dataIt(mappa.generata) +
+  const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
+  $("meta-mappa").textContent = n + " nodi presi dagli appunti" + (web ? " e " + web + " dal web" : "") + " · fatta il " + dataIt(mappa.generata) +
     (mappa.scartati ? " · " + mappa.scartati + (mappa.scartati === 1 ? " nodo tolto perché" : " nodi tolti perché") + " non si ritrovava negli appunti" : "") +
     ". Tocca un riquadro per vedere la frase degli appunti.";
   $("ancora-mappa").hidden = true;
   $("btn-stampa").disabled = false;
+  $("btn-arricchisci").disabled = arricchimentoInCorso === mappa.argomento_id || mappaInCorso === mappa.argomento_id;
 }
 // { concetto_id: stato } per il pallino dei concetti sulla mappa (anche quella stampata).
 function statiConcetti(a) {
   const stati = {}; a.concetti.forEach((c) => { stati[c.id] = c.stato || "mai"; });
   return stati;
 }
-const contaNodiMappa = (nodi) => (nodi || []).reduce((s, n) => s + 1 + contaNodiMappa(n.figli), 0);
+const contaNodiMappa = (nodi, conta = () => true) => (nodi || []).reduce((s, n) => s + (conta(n) ? 1 : 0) + contaNodiMappa(n.figli, conta), 0);
 
 // Vero se il testo di un riquadro è più largo del riquadro (misura del browser).
 function sborda(box) {
@@ -1213,9 +1222,11 @@ function trovaNodo(nodi, id) {
 function mostraAncora(g) {
   const n = mappa && trovaNodo(mappa.albero.nodi, g.dataset.id), box = $("ancora-mappa");
   $("disegno-mappa").querySelectorAll(".m-nodo.scelto").forEach((x) => x.classList.remove("scelto"));
-  if (!n || !n.ancora) { box.hidden = true; return; }
+  if (!n || !(n.ancora || n.url)) { box.hidden = true; return; }
   g.classList.add("scelto");
-  box.innerHTML = "<b>" + esc(n.titolo) + '</b><span class="citazione">' + esc(n.ancora) + "</span>";
+  box.innerHTML = n.fonte === FONTE_WEB
+    ? "<b>" + esc(n.titolo) + '</b> <span class="etichetta-web">' + ETICHETTA_WEB + "</span><p>" + esc(n.testo) + "</p>" + linkFonte(n)
+    : "<b>" + esc(n.titolo) + '</b><span class="citazione">' + esc(n.ancora) + "</span>";
   box.hidden = false;
 }
 
@@ -1238,6 +1249,7 @@ async function caricaStudiare(a) {
     d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" +
       '<p>Rileggi qui: <span class="citazione">' + esc(x.ancora) + "</span></p>" +
       (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
+    if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);
   });
 }
@@ -1485,7 +1497,7 @@ function disegnaQuadrante(indice, v) {
   arco.setAttribute("stroke", indice >= 75 ? "var(--verde)" : (indice >= 50 ? "var(--giallo)" : "var(--rosso)"));
   $("arco-num").textContent = votoIt(v);
 }
-// righe: [{ titolo, media, stato, ancora, errore_appunti?, da? }], dal più debole
+// righe: [{ titolo, media, stato, ancora, errore_appunti?, da?, concetto_id?, materia? }], dal più debole
 function disegnaSemaforo(righe) {
   const e = $("esito-concetti"); e.innerHTML = "";
   $("occhiello-concetti").hidden = !righe.length;
@@ -1497,6 +1509,8 @@ function disegnaSemaforo(righe) {
     else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + 'Rileggi questo: <span class="citazione">' + esc(x.ancora) + "</span>";
     d.appendChild(p);
     if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = "✎ " + x.errore_appunti; d.appendChild(s); }
+    if (x.concetto_id && x.stato !== "verde")
+      d.appendChild(bottoneSpiega({ concetto_id: x.concetto_id, titolo: x.titolo, ancora: x.ancora, materia: x.materia }));
     e.appendChild(d);
   });
 }
@@ -1517,7 +1531,13 @@ function disegnaDettaglio() {
       "<p><b>Hai risposto:</b> " + esc(x.mia) + "</p>";
     if (x.punti < 8 && x.giusta) h += '<p class="giusta"><b>' + (x.tipo === "chiusa" ? "Era: " : "Ci voleva: ") + "</b>" + esc(x.giusta) + "</p>";
     if (x.commento) h += '<p class="com">' + esc(x.commento) + "</p>";
-    w.innerHTML = h; det.appendChild(w);
+    w.innerHTML = h;
+    // Dopo una risposta sbagliata: la spiegazione parte proprio da quell'errore.
+    if (x.punti < 8 && x.concetto_id) w.appendChild(bottoneSpiega({
+      concetto_id: x.concetto_id, titolo: x.concetto || x.testo, ancora: x.ancora, materia: x.materia,
+      errore: { domanda: x.testo, risposta_alunna: x.mia.startsWith("—") ? "" : x.mia, risposta_attesa: x.giusta },
+    }));
+    det.appendChild(w);
   });
 }
 
@@ -1536,7 +1556,8 @@ async function mostraEsito(per) {
   const concettoDi = {}; argsProva.forEach((a) => a.concetti.forEach((c) => { concettoDi[c.id] = { c, a }; }));
   const righe = es.concetti.filter((x) => concettoDi[x.concetto_id]).map((x) => {
     const { c, a } = concettoDi[x.concetto_id];
-    return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || c.descrizione, errore_appunti: c.errore_appunti, da: modo === "ripasso" ? a.titolo : null };
+    return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || c.descrizione, errore_appunti: c.errore_appunti,
+      da: modo === "ripasso" ? a.titolo : null, concetto_id: c.id, materia: a.materia };
   });
   esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },
     dati: { indice: es.indice, voto: es.voto, verdetto: $("verdetto-t").textContent + " " + $("verdetto-p").textContent, righe } };
@@ -1546,7 +1567,7 @@ async function mostraEsito(per) {
     return { n: i + 1, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
       mia: d.tipo === "chiusa" ? (d.opzioni[r.scelta] || "— nessuna risposta") : (r.testo || "— nessuna risposta"),
       giusta: d.tipo === "chiusa" ? (d.opzioni[d.corretta] || "") : (d.risposta_attesa || ""),
-      punti: p.punti, commento: p.commento, concetto: d.concetto_titolo };
+      punti: p.punti, commento: p.commento, concetto: d.concetto_titolo, concetto_id: d.concetto_id, ancora: d.ancora, materia: d.materia || materiaProva };
   });
   soloErrori = false; disegnaDettaglio();
   $("btn-ancora").hidden = false; $("btn-torna-storico").hidden = true;
@@ -1598,6 +1619,7 @@ function argomentiDelRipasso() {
 
 function collega() {
   collegaStampa();
+  collegaAiuto();
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });

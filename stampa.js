@@ -26,7 +26,9 @@ function testaStampa(tipo, info) {
 function elencoNodi(nodi) {
   if (!nodi || !nodi.length) return "";
   return '<ol class="st-nodi">' + nodi.map((n) => "<li><b>" + esc(n.titolo) + "</b>" +
-    (n.ancora ? '<span class="st-ancora">' + esc(n.ancora) + "</span>" : "") + elencoNodi(n.figli) + "</li>").join("") + "</ol>";
+    (n.fonte === FONTE_WEB
+      ? '<span class="st-ancora">' + ETICHETTA_WEB + ": " + esc(n.testo) + " — " + esc(n.url) + "</span>"
+      : (n.ancora ? '<span class="st-ancora">' + esc(n.ancora) + "</span>" : "")) + elencoNodi(n.figli) + "</li>").join("") + "</ol>";
 }
 
 function corpoMappa({ albero, stati }, carattere) {

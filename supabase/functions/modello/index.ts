@@ -11,6 +11,12 @@
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
 // POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, figli }], scartati, tagliati }
 //      Primo livello = i concetti dell'argomento (stesso id); sotto, sotto-punti ancorati alla trascrizione.
+// POST { azione: "spiega", concetto_id, errore?: { domanda, risposta_alunna, risposta_attesa } }
+//      → { spiegazione, esempio, analogia, fonti: [{ titolo, url }], eta }
+// POST { azione: "arricchisci", argomento_id } → { albero, aggiunti, scartati }
+//      Il web aiuta a studiare e non entra mai nella verifica (_shared/web.js). Ricerca con lo
+//      strumento web_search (al massimo 3 ricerche, solo i siti della lista), poi composizione
+//      in JSON: le fonti si scelgono per numero fra quelle citate davvero.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -21,8 +27,10 @@ import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json
 import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
   promptMappa, DOMANDE_DA_STAMPARE,
+  promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
 } from "../_shared/prompt.js";
-import { costruisciMappa, MAX_NODI } from "../_shared/mappa.js";
+import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
+import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate } from "../_shared/domande.js";
 
@@ -138,7 +146,32 @@ const SCHEMA_MAPPA = {
 } as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const SCHEMA_SPIEGAZIONE = {
+  type: "object",
+  properties: {
+    spiegazione: { type: "string" }, esempio: { type: "string" }, analogia: { type: "string" },
+    fonti: { type: "array", items: { type: "integer" } },
+  },
+  required: ["spiegazione", "esempio", "analogia", "fonti"], additionalProperties: false,
+} as const;
+const SCHEMA_ARRICCHISCI = {
+  type: "object",
+  properties: {
+    nodi: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { aggancio: { type: "string" }, titolo: { type: "string" }, testo: { type: "string" }, fonte: { type: "integer" } },
+        required: ["aggancio", "titolo", "testo", "fonte"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["nodi"], additionalProperties: false,
+} as const;
+const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
+
 class Definitivo extends Error {}
+const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_disponibile: 503, not_granted: 403 };
 
 let client: Anthropic | undefined;
 // Nessuna riprova automatica: il secondo tentativo lo fa l'app, come nel prototipo.
@@ -172,6 +205,36 @@ async function chiedi(prompt: string, schema: { type: "object" }, immagini: stri
 }
 
 const testo = (v: unknown) => (typeof v === "string" ? v : "");
+
+// Ricerca sul web: testo libero con citazioni (le citazioni non vanno insieme alle
+// risposte JSON, per questo la composizione è una seconda chiamata). Se l'API mette in
+// pausa un turno lungo (pause_turn) si rimanda il messaggio così com'è, al massimo 3 volte.
+const GIRI_RICERCA = 3;
+async function cercaSulWeb(prompt: string) {
+  if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Definitivo("not_granted");
+  client ??= new Anthropic({ maxRetries: 0 });
+  let contenuto: Anthropic.ContentBlock[] = [];
+  try {
+    for (let giro = 0; giro < GIRI_RICERCA; giro++) {
+      const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
+      if (contenuto.length) messages.push({ role: "assistant", content: contenuto as Anthropic.ContentBlockParam[] });
+      const r = await client.messages.create({
+        model: MODELLO, max_tokens: 8000, messages,
+        tools: [strumentoRicerca() as Anthropic.WebSearchTool20260209],
+      });
+      contenuto = [...contenuto, ...r.content];
+      if (r.stop_reason !== "pause_turn") break;
+    }
+  } catch (e) {
+    if (e instanceof Anthropic.RateLimitError) throw new Definitivo("rate_limited");
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError)
+      throw new Definitivo("not_granted");
+    // Ricerca web spenta per l'organizzazione o non accettata: lo si dice chiaro all'app.
+    if (e instanceof Anthropic.BadRequestError) { console.error("ricerca web:", e); throw new Definitivo("web_non_disponibile"); }
+    throw e;
+  }
+  return { fonti: fontiCitate(contenuto), ricerca: testoRicerca(contenuto) };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -261,10 +324,54 @@ Deno.serve(async (req) => {
       return json(costruisciMappa(a, r));
     }
 
+    if (b.azione === "spiega") {
+      if (typeof b.concetto_id !== "string" || !UUID.test(b.concetto_id)) return json({ errore: "richiesta non valida" }, 400);
+      const db = comeUtente(req);
+      const [{ data: c, error }, { data: st }] = await Promise.all([
+        db.from("concetti").select("titolo, descrizione, ancora, argomenti(titolo, materia)")
+          .eq("id", b.concetto_id).eq("studente_id", io.sub).maybeSingle(),
+        db.from("studenti").select("classe").eq("id", io.sub).maybeSingle(),
+      ]);
+      if (error) throw error;
+      if (!c) return json({ errore: "concetto non trovato" }, 404);
+      const arg = c.argomenti as unknown as { titolo: string; materia: string };
+      const e = b.errore && typeof b.errore === "object" ? b.errore : null;
+      const dati = {
+        materia: arg.materia, argomento: arg.titolo, classe: st?.classe ?? null,
+        concetto: { titolo: c.titolo, descrizione: c.descrizione, ancora: c.ancora },
+        errore: e && testoBreve(e.domanda) ? {
+          domanda: testoBreve(e.domanda), risposta_alunna: testoBreve(e.risposta_alunna), risposta_attesa: testoBreve(e.risposta_attesa),
+        } : null,
+      };
+      const { fonti, ricerca } = await cercaSulWeb(promptRicercaSpiegazione(dati));
+      const r = await chiedi(promptSpiegazione({ ...dati, ricerca, fonti }), SCHEMA_SPIEGAZIONE);
+      return json(spiegazioneDaRisposta(r, fonti, dati.classe));
+    }
+
+    if (b.azione === "arricchisci") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      const db = comeUtente(req);
+      const [{ data: a, error }, { data: m, error: e2 }, { data: st }] = await Promise.all([
+        db.from("argomenti").select("titolo, materia").eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle(),
+        db.from("mappe").select("albero").eq("argomento_id", b.argomento_id).eq("studente_id", io.sub).maybeSingle(),
+        db.from("studenti").select("classe").eq("id", io.sub).maybeSingle(),
+      ]);
+      if (error) throw error;
+      if (e2) throw e2;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!m) return json({ errore: "nessuna_mappa" }, 422);
+      const agganci = agganciMappa(m.albero);
+      const dati = { materia: a.materia, argomento: a.titolo, classe: st?.classe ?? null, agganci };
+      const { fonti, ricerca } = await cercaSulWeb(promptRicercaArricchisci(dati));
+      // Senza fonti citate non si aggiunge niente: ogni nodo web deve avere il suo link.
+      if (!fonti.length) return json({ albero: m.albero, aggiunti: 0, scartati: 0 });
+      const r = await chiedi(promptArricchisci({ ...dati, ricerca, fonti }), SCHEMA_ARRICCHISCI);
+      return json(arricchisciMappa(m.albero, r, fonti));
+    }
+
     return json({ errore: "azione sconosciuta" }, 400);
   } catch (e) {
-    if (e instanceof Definitivo)
-      return json({ errore: e.message }, e.message === "rate_limited" ? 429 : 403);
+    if (e instanceof Definitivo) return json({ errore: e.message }, STATO_DEFINITIVO[e.message] ?? 403);
     console.error(e);
     return json({ errore: "lettura non riuscita" }, 502);
   }

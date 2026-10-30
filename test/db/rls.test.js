@@ -293,3 +293,33 @@ prova('mappe: una per argomento, la ragazza legge e scrive le sue, il genitore l
   delete from argomenti where id = '${ARG}';
   ${verifica(`${conta('mappe')} = 0`, "la mappa sopravvive all'argomento")}
 `);
+
+// ---------------------------------------------------------------- spiegazioni dal web (issue #4)
+const SPIEGAZIONE = `'{"spiegazione":"x","esempio":"y","analogia":"z","fonti":[]}'`;
+
+prova('spiegazioni: una per concetto, la ragazza legge e scrive le sue, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into spiegazioni (concetto_id, contenuto) values ('${CONC}', ${SPIEGAZIONE});
+  ${verifica(`(select studente_id = '${ANNA}' and generata is not null from spiegazioni)`, 'la spiegazione non è di Anna')}
+  -- Rigenera: sovrascrive la stessa riga
+  insert into spiegazioni (concetto_id, contenuto) values ('${CONC}', '{"spiegazione":"nuova"}')
+    on conflict (concetto_id, studente_id) do update set contenuto = excluded.contenuto, generata = now();
+  ${verifica(`${conta('spiegazioni')} = 1 and (select contenuto->>'spiegazione' = 'nuova' from spiegazioni)`, 'rigenerare non sovrascrive')}
+  ${vieta(`insert into spiegazioni (concetto_id, contenuto) values ('${CONC}', '"testo"')`, 'check_violation', 'il contenuto non è un oggetto')}
+  ${come(BEA)}
+  ${verifica(`${conta('spiegazioni')} = 0`, 'Bea vede la spiegazione di Anna')}
+  ${vieta(`insert into spiegazioni (concetto_id, contenuto) values ('${CONC}', ${SPIEGAZIONE})`,
+    'foreign_key_violation', 'Bea crea una spiegazione sul concetto di Anna')}
+  ${vieta(`insert into spiegazioni (studente_id, concetto_id, contenuto) values ('${ANNA}', '${CONC}', ${SPIEGAZIONE})`,
+    'insufficient_privilege', 'Bea crea una spiegazione a nome di Anna')}
+  ${nessunaRiga(`update spiegazioni set contenuto = '{}'`, 'Bea modifica la spiegazione di Anna')}
+  ${nessunaRiga(`delete from spiegazioni`, 'Bea cancella la spiegazione di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('spiegazioni')} = 1`, 'il genitore non legge la spiegazione della figlia')}
+  ${nessunaRiga(`update spiegazioni set contenuto = '{}'`, 'il genitore modifica la spiegazione')}
+  ${come(null)}
+  ${vieta(`perform * from spiegazioni`, 'insufficient_privilege', "l'anonimo legge le spiegazioni")}
+  ${come(ANNA)}
+  delete from concetti where id = '${CONC}';
+  ${verifica(`${conta('spiegazioni')} = 0`, 'la spiegazione sopravvive al concetto')}
+`);

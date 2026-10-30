@@ -359,3 +359,22 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
   .st-mappa svg.mappa{max-height:240mm;width:100%}
   h2{break-after:avoid;page-break-after:avoid}
 }
+/* Web come aiuto (issue #4): i nodi dal web hanno un colore neutro, distinto dai rami della materia. */
+.m-nodo[data-fonte="web"] rect{fill:var(--rialzo);stroke:var(--inchiostro-2);stroke-width:1;stroke-dasharray:4 3}
+.m-nodo[data-fonte="web"] text{fill:var(--inchiostro-2)}
+.m-etichetta{font-style:italic;font-size:.82em;letter-spacing:.04em}
+.m-linea[data-fonte="web"]{stroke:var(--bordo);stroke-dasharray:4 3}
+.foglio .m-nodo[data-fonte="web"] rect{fill:#fff;stroke:#777}
+.etichetta-web{display:inline-block;font-family:var(--dati);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--inchiostro-2);border:1px dashed var(--inchiostro-2);border-radius:999px;padding:1px 8px;vertical-align:middle}
+.ancora-mappa p{margin:.4em 0 0}
+.fonte-web{font-size:.88rem}
+.fonte-web a,.fonti a{color:var(--tinta);font-weight:600}
+.corpo-spiega{margin-top:14px}
+.spiega-blocco{margin-top:12px}
+.spiega-blocco h3{margin:0 0 4px;font-size:.95rem;font-family:var(--display)}
+.spiega-blocco p{margin:0}
+.fonti{margin:0;padding-left:1.2em}
+.fonti li{margin:4px 0}
+.fonti small{color:var(--inchiostro-2)}
+.spiega-btn{margin-top:10px;min-height:40px;padding:9px 14px;font-size:.88rem}

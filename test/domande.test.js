@@ -89,3 +89,18 @@ test("verifica da stampare: con le miste resta la proporzione chiuse/aperte del 
   assert.match(p("difficile", 15), /15 domande: cinque chiuse difficili e dieci aperte lunghe\. Chiedi cause e conseguenze/);
   assert.match(p("difficile", 20), /20 domande: sette chiuse difficili e tredici aperte lunghe\./);
 });
+
+test("il web non entra mai nella verifica: un concetto con fonte web non produce domande", () => {
+  const web = { id: "uuid-w1", titolo: "La peste in Cina", descrizione: "dal web", ancora: "La peste partì dalla Cina", peso: 3, media: null, fonte: "web" };
+  const arg = { ...ARG, concetti: [...ARG.concetti, web] };
+  for (const ripasso of [false, true]) {
+    const { pool, contesto } = preparaPool([arg], ripasso);
+    assert.ok(!pool.some((p) => p.c.fonte === "web"), "un concetto dal web è finito fra quelli da chiedere");
+    assert.ok(!contesto.some((c) => c.titolo === "La peste in Cina"));
+    assert.equal(pool.length, 2);
+  }
+  // Anche se il modello inventasse una domanda su quel concetto, non passa.
+  const { indice } = preparaPool([arg], false);
+  const r = tieniAncorate([{ id: "d1", concetto_id: "c3", tipo: "aperta", testo: "Da dove partì la peste?", risposta_attesa: "Dalla Cina", elementi: [], ancora: "La peste partì dalla Cina" }], indice, [arg]);
+  assert.equal(r.domande.length, 0);
+});

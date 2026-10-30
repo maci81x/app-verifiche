@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const ctx = vm.createContext({ console, Math, Date, JSON, Promise, setTimeout, clearTimeout, setInterval, clearInterval });
+const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeout, clearTimeout, setInterval, clearInterval });
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), ctx);
 const run = (expr) => vm.runInContext(expr, ctx);
 
 test("curva del voto del prototipo: 0% vale 3, 60% vale 6, 100% vale 10, al mezzo punto", () => {
@@ -250,4 +251,38 @@ test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e a
   assert.match(html, /prontezza 60%/);
   // dal più debole: rosso, giallo, verde
   assert.match(html, /✕[\s\S]*da rifare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
+});
+
+// ---------------------------------------------------------------- web come aiuto (issue #4)
+const CON_WEB = { ...ALBERO, nodi: [{ ...ALBERO.nodi[1], figli: [
+  { id: "web-1", titolo: "Penitenti in processione per le strade delle città", testo: "Camminavano frustandosi.", url: "https://www.treccani.it/x", fonte: "web", figli: [] },
+] }, ALBERO.nodi[0]] };
+
+for (const larghezza of [375, 900]) {
+  test(`mappa con un nodo dal web a ${larghezza}px: etichetta "dal web", colore neutro, dentro il viewBox`, () => {
+    const l = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(CON_WEB)}, ${larghezza}))`));
+    const w = l.nodi.find((n) => n.id === "web-1");
+    assert.equal(w.righe.at(-1), "dal web");
+    assert.ok(w.x + w.w <= l.w && w.y + w.h <= l.h);
+    const svg = run(`svgMappa(layoutMappa(${JSON.stringify(CON_WEB)}, ${larghezza}), {})`);
+    assert.match(svg, /<g class="m-nodo" data-id="web-1" data-l="2" data-fonte="web" tabindex="0" role="button"/);
+    assert.match(svg, /class="m-etichetta"[^>]*>dal web</);
+    assert.match(svg, /<path class="m-linea" data-l="2" data-fonte="web"/);
+    assert.doesNotMatch(svg, /data-id="k2" data-l="1" data-fonte="web"/); // i nodi degli appunti restano com'erano
+  });
+}
+
+test("Spiegamelo meglio: spiegazione, esempio e analogia escapati, fonti cliccabili solo se https", () => {
+  const html = run(`htmlSpiegazione(${JSON.stringify({
+    spiegazione: "Negli appunti <b>c'è</b> scritto...", esempio: "Pensa a una nave.", analogia: "È come un raffreddore.",
+    fonti: [{ titolo: "Peste - Treccani", url: "https://www.treccani.it/enciclopedia/peste" },
+            { titolo: "Trappola", url: "javascript:alert(1)" }],
+  })})`);
+  assert.match(html, /Negli appunti &lt;b&gt;c'è&lt;\/b&gt; scritto/);
+  assert.match(html, /Un esempio[\s\S]*Pensa a una nave/);
+  assert.match(html, /È come[\s\S]*un raffreddore/);
+  assert.match(html, /<a href="https:\/\/www\.treccani\.it\/enciclopedia\/peste" target="_blank" rel="noopener noreferrer">Peste - Treccani<\/a>/);
+  assert.doesNotMatch(html, /javascript:/);
+  assert.match(html, /dal web/);
+  assert.doesNotMatch(run(`htmlSpiegazione({ spiegazione: "x", esempio: "", analogia: "", fonti: [] })`), /Fonti/);
 });

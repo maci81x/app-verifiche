@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="wrap">
@@ -199,6 +199,7 @@
     <div id="ancora-mappa" class="ancora-mappa" aria-live="polite" hidden></div>
     <div class="bottoni">
       <button class="minore" id="btn-rigenera">Rigenera</button>
+      <button class="minore" id="btn-arricchisci" disabled>Arricchisci dal web</button>
       <button class="minore" id="btn-stampa" disabled>Stampa / Salva PDF</button>
     </div>
   </div>
@@ -290,6 +291,22 @@
   </div>
 </section>
 
+<!-- ============ SPIEGAMELO MEGLIO ============ -->
+<!-- Il web aiuta a capire: non diventa mai una domanda di verifica. -->
+<section id="v-spiega" hidden>
+  <p class="occhiello">Spiegamelo meglio</p>
+  <h2 id="t-spiega"></h2>
+  <p class="citazione" id="spiega-ancora"></p>
+  <div id="corpo-spiega" class="corpo-spiega" aria-live="polite"></div>
+  <div id="err-spiega"></div>
+  <div id="stato-spiega"></div>
+  <div class="bottoni">
+    <button class="minore" id="btn-rispiega">Spiegamelo in un altro modo</button>
+    <button class="minore" id="btn-spiega-indietro">Indietro</button>
+  </div>
+  <p class="legenda">La spiegazione parte dai tuoi appunti e aggiunge cose trovate su siti di scuola e di consultazione. Se qualcosa non torna con quello che ha detto la prof, chiedi a lei.</p>
+</section>
+
 <!-- ============ STAMPA ============ -->
 <!-- In stampa si vede solo #doc-stampa: comandi, barra e nota sono nascosti da @media print. -->
 <section id="v-stampa" hidden>
@@ -315,7 +332,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=5"></script>
-<script src="stampa.js?v=5"></script>
+<script src="app.js?v=6"></script>
+<script src="stampa.js?v=6"></script>
+<script src="aiuto.js?v=6"></script>
 </body>
 </html>
