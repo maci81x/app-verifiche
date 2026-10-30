@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <div class="wrap">
@@ -246,8 +246,8 @@
   </div>
   <div id="pannello-mappa" role="tabpanel" aria-labelledby="tab-mappa">
     <p class="aiuto" id="meta-mappa"></p>
+    <p class="legenda-sem" aria-label="Legenda del semaforo"><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span><span class="sem" data-s="giallo"><i aria-hidden="true">▲</i> Quasi</span><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span><span class="sem" data-s="mai"><i aria-hidden="true">○</i> Mai provato</span></p>
     <div id="disegno-mappa"></div>
-    <div id="ancora-mappa" class="ancora-mappa" aria-live="polite" hidden></div>
     <div class="bottoni">
       <button class="minore" id="btn-rigenera">Rigenera</button>
       <button class="minore" id="btn-arricchisci" disabled>Arricchisci dal web</button>
@@ -264,6 +264,11 @@
   <div id="err-mappa"></div>
   <div id="stato-mappa"></div>
 </section>
+
+<!-- Card del nodo della mappa (issue #11): si apre dal basso, è un dialogo -->
+<div id="card-nodo" class="card-velo" hidden>
+  <div class="card-nodo" role="dialog" aria-modal="true" aria-labelledby="card-nodo-titolo" id="card-nodo-corpo"></div>
+</div>
 
 <!-- ============ RIPASSO QUADRIMESTRE ============ -->
 <section id="v-ripasso" hidden>
@@ -383,12 +388,14 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=10"></script>
-<script src="stampa.js?v=10"></script>
-<script src="aiuto.js?v=10"></script>
-<script src="figure.js?v=10"></script>
-<script src="formule.js?v=10"></script>
-<script src="esercizi.js?v=10"></script>
-<script src="prova-esercizi.js?v=10"></script>
+<script src="semaforo.js?v=11"></script>
+<script src="app.js?v=11"></script>
+<script src="stampa.js?v=11"></script>
+<script src="aiuto.js?v=11"></script>
+<script src="mappa-card.js?v=11"></script>
+<script src="figure.js?v=11"></script>
+<script src="formule.js?v=11"></script>
+<script src="esercizi.js?v=11"></script>
+<script src="prova-esercizi.js?v=11"></script>
 </body>
 </html>

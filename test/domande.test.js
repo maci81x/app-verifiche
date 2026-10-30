@@ -116,3 +116,12 @@ test("domande e mappa leggono il materiale fino a 120.000 caratteri, non più 16
   const pm = promptMappa({ titolo: "Capitolo", materia: "storia", trascrizione: lungo, concetti: [] }, 10);
   assert.match(pm, /FINE-CAPITOLO/);
 });
+
+test("prova lampo su un concetto (issue #11): tre domande sullo stesso concetto, nel tipo scelto", async () => {
+  const { promptDomande, DOMANDE_PER_CONCETTO } = await import("../supabase/functions/_shared/prompt.js");
+  assert.equal(DOMANDE_PER_CONCETTO, 3);
+  const base = { livello: "medio", modalita: "scritta", ripasso: false, contesto: [], gia: [], materiale: [{ titolo: "x", trascrizione: "y" }], soloConcetto: true };
+  assert.match(promptDomande({ ...base, tipo: "miste" }), /Prova lampo su un concetto solo: tre domande sullo stesso concetto: due chiuse a quattro opzioni e una aperta breve/);
+  assert.match(promptDomande({ ...base, tipo: "chiuse" }), /tutte a scelta multipla/);
+  assert.doesNotMatch(promptDomande({ ...base, tipo: "miste" }), /^\d+ domande:/m);
+});

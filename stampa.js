@@ -35,7 +35,7 @@ function elencoNodi(nodi) {
 }
 
 function corpoMappa({ albero, stati }, carattere) {
-  return '<div class="st-mappa">' + svgMappa(layoutMappa(albero, LARGHEZZA_MAPPA_STAMPA, carattere), stati || {}) + "</div>" +
+  return '<div class="st-mappa">' + svgMappa(layoutMappa(albero, LARGHEZZA_MAPPA_STAMPA, carattere, stati || {})) + "</div>" +
     '<h2>I nodi e le frasi degli appunti</h2>' + elencoNodi(albero.nodi);
 }
 
@@ -246,7 +246,7 @@ function collegaStampa() {
   $("btn-stampa-indietro").addEventListener("click", esciDaStampa);
   $("btn-prepara-stampa").addEventListener("click", preparaVerificaDaStampare);
   $("btn-stampa").addEventListener("click", () => {
-    if (mappa) apriStampa("mappa", { titolo: corrente.titolo, materia: corrente.materia }, { albero: mappa.albero, stati: statiConcetti(corrente) });
+    if (mappa) apriStampa("mappa", { titolo: corrente.titolo, materia: corrente.materia }, { albero: mappa.albero, stati: statiDellaMappa(corrente) });
   });
   $("btn-stampa-studiare").addEventListener("click", () => {
     if (listaStudiare.length) apriStampa("studiare", { titolo: corrente.titolo, materia: corrente.materia }, listaStudiare);

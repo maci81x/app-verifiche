@@ -5,9 +5,11 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeout, clearTimeout, setInterval, clearInterval });
+vm.runInContext(readFileSync(new URL("../semaforo.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../mappa-card.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../figure.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../formule.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../esercizi.js", import.meta.url), "utf8"), ctx);
@@ -180,10 +182,22 @@ for (const larghezza of [320, 375, 600, 900]) {
       for (let j = i + 1; j < l.nodi.length; j++)
         assert.ok(!sovrapposti(l.nodi[i], l.nodi[j]), `${l.nodi[i].id} copre ${l.nodi[j].id}`);
     assert.equal(l.linee.length, 8); // una per ogni nodo tranne la radice
-    const svg = run(`svgMappa(layoutMappa(${JSON.stringify(ALBERO)}, ${larghezza}), { k1: "rosso" })`);
-    assert.match(svg, new RegExp(`viewBox="0 0 ${larghezza} ${l.h}"`));
+    const conStati = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(ALBERO)}, ${larghezza}, MAPPA.carattere, { k1: "rosso", k2: "verde" }))`));
+    for (const n of conStati.nodi)
+      assert.ok(n.x + n.w <= conStati.w && n.y + n.h <= conStati.h && n.righe.every((r) => r.length <= n.caratteri), `${n.id} con lo stato esce dal riquadro`);
+    const svg = run(`svgMappa(layoutMappa(${JSON.stringify(ALBERO)}, ${larghezza}, MAPPA.carattere, { k1: "rosso", k2: "verde" }))`);
+    assert.match(svg, new RegExp(`viewBox="0 0 ${larghezza} ${conStati.h}"`));
     assert.equal((svg.match(/class="m-nodo/g) || []).length, 9);
-    assert.match(svg, /data-s="rosso"/); // il pallino del concetto
+    // Semaforo con colore (data-s), forma e parola; i sotto-punti prendono lo stato del concetto.
+    assert.match(svg, /data-id="k1" data-l="1" data-s="rosso"/);
+    assert.match(svg, /data-id="k1-1-2" data-l="3" data-s="rosso"/);
+    assert.match(svg, /data-id="k2" data-l="1" data-s="verde"/);
+    assert.match(svg, /data-id="k3" data-l="1" data-s="mai"/);
+    assert.match(svg.replace(/<\/tspan><tspan class="m-stato"[^>]*>/g, " "), /✕ Da ripassare/);
+    assert.match(svg.replace(/<\/tspan><tspan class="m-stato"[^>]*>/g, " "), /● Lo sai/);
+    assert.match(svg, /aria-label="I flagellanti, Lo sai"/);
+    assert.match(svg, /aria-pressed="false"/);
+    assert.doesNotMatch(svg, /data-id="radice"[^>]*data-s=/, "la radice non ha semaforo");
   });
 }
 
@@ -269,7 +283,7 @@ for (const larghezza of [375, 900]) {
     assert.equal(w.righe.at(-1), "dal web");
     assert.ok(w.x + w.w <= l.w && w.y + w.h <= l.h);
     const svg = run(`svgMappa(layoutMappa(${JSON.stringify(CON_WEB)}, ${larghezza}), {})`);
-    assert.match(svg, /<g class="m-nodo" data-id="web-1" data-l="2" data-fonte="web" tabindex="0" role="button"/);
+    assert.match(svg, /<g class="m-nodo" data-id="web-1" data-l="2" data-fonte="web" data-s="web" tabindex="0" role="button" aria-pressed="false"/);
     assert.match(svg, /class="m-etichetta"[^>]*>dal web</);
     assert.match(svg, /<path class="m-linea" data-l="2" data-fonte="web"/);
     assert.doesNotMatch(svg, /data-id="k2" data-l="1" data-fonte="web"/); // i nodi degli appunti restano com'erano
@@ -440,4 +454,64 @@ test("esito degli esercizi da stampare: semaforo per tipo con simbolo e parola, 
   assert.match(html, /0,0\/10 · 1 esercizio/);
   assert.match(html, /Hai scritto: 4\/6 · giusto: 5\/4[\s\S]*Non torna<\/b> · 0\/10/);
   assert.match(html, /Voto della prova /);
+});
+
+// ------------------------------------------------------------------ mappa interattiva (issue #11)
+test("semaforo: sempre forma e parola insieme al colore; stato sconosciuto = mai provato", () => {
+  assert.equal(run(`htmlStato("rosso")`), '<span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span>');
+  assert.equal(run(`htmlStato("verde")`), '<span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span>');
+  assert.match(run(`htmlStato("giallo")`), /▲<\/i> Quasi/);
+  assert.match(run(`htmlStato("boh")`), /data-s="mai"><i aria-hidden="true">○<\/i> Mai provato/);
+  assert.equal(run(`htmlStato("__proto__")`).includes('data-s="mai"'), true);
+});
+
+test("stati dei nodi: i sotto-punti prendono lo stato del concetto, il web resta web", () => {
+  const albero = { nodi: [
+    { id: "c1", fonte: "appunti", figli: [{ id: "c1-1", fonte: "appunti", figli: [{ id: "c1-1-1", fonte: "appunti", figli: [] }, { id: "web-1", fonte: "web", figli: [] }] }] },
+    { id: "c2", fonte: "appunti", figli: [] },
+  ] };
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(statiNodi(${JSON.stringify(albero)}, { c1: "rosso" }))`)),
+    { c1: "rosso", "c1-1": "rosso", "c1-1-1": "rosso", "web-1": "web", c2: "mai" });
+  assert.equal(run(`concettoDelNodo(${JSON.stringify(albero)}, "c1-1-1").id`), "c1");
+  assert.equal(run(`concettoDelNodo(${JSON.stringify(albero)}, "web-1")`), null);
+});
+
+test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione; tutto escapato", () => {
+  const concetto = { id: "c1", titolo: "Le vittime", ancora: "Uccise circa un terzo della popolazione.", fonte: "appunti", sintesi: "La peste uccise una persona su tre.", figli: [] };
+  const html = run(`htmlCardNodo(${JSON.stringify(concetto)}, { concetto: ${JSON.stringify(concetto)}, errore: "negli appunti: un quarto", stato: "rosso" })`);
+  assert.match(html, /<h3 id="card-nodo-titolo">Le vittime<\/h3>/);
+  assert.match(html, /✕<\/i> Da ripassare/);
+  assert.match(html, /Dagli appunti<\/p><blockquote class="quaderno">Uccise circa un terzo della popolazione\.<\/blockquote>/);
+  assert.match(html, /class="avviso-appunti" role="note">.*negli appunti: un quarto/);
+  assert.match(html, /In breve<\/p><p class="in-breve" data-tipo="ok">La peste uccise una persona su tre\.<\/p>/);
+  assert.match(html, /data-azione="prova">Mettiti alla prova<\/button>/);
+  assert.match(html, /data-azione="spiega">Spiegamelo meglio<\/button>/);
+  assert.match(html, /data-azione="chiudi" aria-label="Chiudi">✕/);
+  const cattivo = run(`htmlCardNodo({ titolo: "<img src=x onerror=alert(1)>", ancora: "<script>", fonte: "appunti" }, { stato: "mai" })`);
+  assert.equal(/<img|<script/.test(cattivo), false);
+});
+
+test("card: le mappe vecchie chiedono di rigenerare, quelle nuove senza sintesi sicura lo dicono", () => {
+  const vecchio = { id: "c1", titolo: "T", ancora: "a b", fonte: "appunti", figli: [] };
+  assert.match(run(`htmlCardNodo(${JSON.stringify(vecchio)}, { concetto: ${JSON.stringify(vecchio)}, stato: "mai" })`), /data-tipo="vecchia">Rigenera la mappa per il riassunto\./);
+  const vuoto = { ...vecchio, sintesi: "" };
+  assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota">Per questo concetto non ho un riassunto sicuro/);
+});
+
+test("card di un sotto-punto: la sua ancora, il riassunto e la prova del suo concetto", () => {
+  const c = { id: "c1", titolo: "Le conseguenze", ancora: "Conseguenze", fonte: "appunti", sintesi: "Mancano contadini.", figli: [] };
+  const sp = { id: "c1-2", titolo: "Aumentano i salari", ancora: "i salari aumentano", fonte: "appunti", figli: [] };
+  const html = run(`htmlCardNodo(${JSON.stringify(sp)}, { concetto: ${JSON.stringify(c)}, stato: "giallo" })`);
+  assert.match(html, /<blockquote class="quaderno">i salari aumentano<\/blockquote>/);
+  assert.match(html, /In breve · Le conseguenze/);
+  assert.match(html, /Mettiti alla prova su «Le conseguenze»/);
+});
+
+test("card di un nodo dal web: etichetta, testo e fonte, niente prova", () => {
+  const w = { id: "web-1", titolo: "Quarantena", testo: "Quaranta giorni di isolamento.", url: "https://it.wikipedia.org/wiki/Quarantena", fonte: "web", figli: [] };
+  const html = run(`htmlCardNodo(${JSON.stringify(w)}, { stato: "web" })`);
+  assert.match(html, /etichetta-web">dal web/);
+  assert.match(html, /Quaranta giorni di isolamento\./);
+  assert.match(html, /it\.wikipedia\.org/);
+  assert.doesNotMatch(html, /data-azione="prova"/);
 });
