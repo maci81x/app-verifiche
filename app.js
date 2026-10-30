@@ -818,8 +818,8 @@ function apriScheda(a) {
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato || "mai";
-    d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + (x.media == null ? "—" : Number(x.media).toFixed(1) + "/10") + "</span></h3>" +
-      (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
+    d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + (x.media == null ? "—" : votoIt(Math.round(x.media * 2) / 2) + "/10") + "</span></h3>" +
+      htmlStato(x.stato) + (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
     sc.appendChild(d);
   });
   disegnaStoricoArgomento(a);
@@ -1212,8 +1212,8 @@ async function caricaStudiare(a) {
   statiMappa = { argomento_id: a.id, stati: statiDaLista(listaStudiare) };
   listaStudiare.forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
-    d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" +
-      '<p>Rileggi qui: <span class="citazione">' + esc(x.ancora) + "</span></p>" +
+    d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" + htmlStato(x.stato) +
+      '<p><span class="rileggi">Rileggi: «' + esc(x.ancora) + "»</span></p>" +
       (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
     if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);

@@ -60,9 +60,11 @@ function tintaProfilo(id) {
 
 // «2ª media · 3 da ripassare». Il numero lo conosce solo il telefono su cui è entrata
 // (l'elenco dei profili è pubblico e non deve dire niente dello studio).
+// «2» → «2ª media»; una classe scritta per esteso resta com'è.
+const classeIt = (c) => (/^\s*[123]\s*$/.test(String(c || "")) ? String(c).trim() + "ª media" : String(c || "").trim());
 function sottotitoloProfilo(p, daRipassare) {
   const parti = [];
-  if (p.classe) parti.push(p.classe);
+  if (p.classe) parti.push(classeIt(p.classe));
   if (Number.isInteger(daRipassare)) parti.push(daRipassare ? daRipassare + " da ripassare" : "niente da ripassare");
   return parti.join(" · ");
 }

@@ -46,17 +46,46 @@ function htmlSoluzione(e) {
     '<p class="risultato-es">Risultato: <b>' + esc(e.risultato.valore + (e.risultato.unita ? " " + e.risultato.unita : "")) + "</b></p>";
 }
 
-// c: correzione dal server, più punti finali e vista (soluzione aperta prima). e: l'esercizio.
+// Colore della risposta: verde se giusta, giallo se manca o sbaglia solo l'unità, rosso se no.
+const STATO_ESITO_ES = { giusto: "verde", senza_unita: "giallo", unita_sbagliata: "giallo" };
+const statoEsitoEs = (esito) => STATO_ESITO_ES[esito] || "rosso";
+
+// Righe dei passaggi della ragazza, con il primo errore segnato (cerchiato in rosso dal CSS).
+// Il modello copia il passaggio sbagliato da quello che ha scritto lei: si cerca la riga che
+// lo contiene; se non si trova, il passaggio si mostra da solo, segnato.
+const pulisciRiga = (t) => String(t || "").replace(/\s+/g, " ").trim();
+function righePassaggi(svolgimento, primoErrore) {
+  const righe = String(svolgimento || "").split(/\n+/).map(pulisciRiga).filter(Boolean);
+  const errore = pulisciRiga(primoErrore);
+  const i = errore ? righe.findIndex((r) => r === errore || r.includes(errore) || (r.length > 3 && errore.includes(r))) : -1;
+  if (errore && i < 0) return [...righe.map((t) => ({ t, errore: false })), { t: errore, errore: true }];
+  return righe.map((t, j) => ({ t, errore: j === i }));
+}
+
+// c: correzione dal server, più punti finali, vista (soluzione aperta prima), risposta e
+// svolgimento della ragazza. e: l'esercizio.
 function htmlCorrezione(c, e) {
   const [segno, frase] = ESITI_ES[c.esito] || ESITI_ES.sbagliato;
+  const stato = statoEsitoEs(c.esito);
   const tipoErr = TIPI_ERRORE_IT[c.tipo_errore] || "";
-  let h = '<div class="esito-c" data-s="' + statoDaMedia(c.punti) + '"><h3><span class="pallino"></span>' + segno + " " + esc(frase) +
-    '<span class="voto">' + c.punti + "/10</span></h3>";
+  const giusto = e.risultato.valore + (e.risultato.unita ? " " + e.risultato.unita : "");
+  let h = '<div class="corretto" data-s="' + stato + '">' +
+    '<p class="esito-riga" data-s="' + stato + '"><span aria-hidden="true">' + segno + "</span> " + esc(frase) +
+    ' <span class="punti">' + c.punti + "/10</span></p>" +
+    '<div class="confronto">' +
+    '<div class="box-risp" data-s="' + stato + '"><span class="etich">La tua risposta</span><b>' + esc(c.risposta || "—") + "</b></div>" +
+    '<div class="box-risp" data-s="verde"><span class="etich">Risultato</span><b>' + esc(giusto) + "</b></div></div>";
   if (c.vista) h += '<p class="legenda">Avevi aperto la soluzione prima di correggere: questo esercizio vale al massimo ' + PUNTI_CON_SOLUZIONE + " punti.</p>";
-  if (c.primo_errore) h += '<p>Primo passaggio da rivedere' + (tipoErr ? " (" + esc(tipoErr) + ")" : "") + ':</p><span class="citazione">' + esc(c.primo_errore) + "</span>";
-  if (c.spiegazione) h += '<p class="spiega-es">' + esc(c.spiegazione) + "</p>";
-  if (c.esempio) h += '<p class="occhiello">Un esempio simile</p><p class="esempio-es">' + esc(c.esempio) + "</p>";
-  if (c.punti < 10) h += '<p class="occhiello">Ecco come si fa</p>' + htmlSoluzione(e);
+  const passi = righePassaggi(c.svolgimento, c.primo_errore);
+  if (passi.length) h += '<p class="occhiello">I tuoi passaggi</p><ol class="passi-alunna">' + passi.map((p) =>
+    "<li" + (p.errore ? ' class="errore-cerchiato"><span class="vedi">primo errore</span> ' : ">") + esc(p.t) + "</li>").join("") + "</ol>";
+  if (c.spiegazione || c.esempio) {
+    h += '<div class="box-errore"' + (c.primo_errore ? ' data-errore="si"' : "") + ">" +
+      (tipoErr ? '<span class="etichetta-errore">' + esc(tipoErr) + "</span>" : "") +
+      (c.spiegazione ? '<p class="spiega-es">' + esc(c.spiegazione) + "</p>" : "") +
+      (c.esempio ? '<p class="occhiello">Esempio svolto</p><p class="esempio-es">' + esc(c.esempio) + "</p>" : "") + "</div>";
+  }
+  if (c.punti < 10) h += '<details class="come-si-fa"><summary>Ecco come si fa</summary>' + htmlSoluzione(e) + "</details>";
   return h + "</div>";
 }
 
@@ -183,8 +212,8 @@ function mostraCorrezione(es, cor, analisiMancante) {
   const esito = esitoPerTipo(es, cor.map((c) => c.punti));
   const box = $("esito-es");
   box.innerHTML = '<p class="occhiello">Com\'è andata, per tipo di esercizio</p>' +
-    esito.righe.map((r) => '<div class="esito-c" data-s="' + r.stato + '"><h3><span class="pallino"></span>' + esc(r.titolo) +
-      '<span class="voto">' + votoIt(Math.round(r.media * 2) / 2) + "/10</span></h3><small>" + r.n + (r.n === 1 ? " esercizio" : " esercizi") + "</small></div>").join("") +
+    esito.righe.map((r) => '<div class="esito-c" data-s="' + r.stato + '"><h3>' + esc(r.titolo) +
+      '<span class="voto">' + votoIt(Math.round(r.media * 2) / 2) + "/10</span></h3>" + htmlStato(r.stato) + " <small>" + r.n + (r.n === 1 ? " esercizio" : " esercizi") + "</small></div>").join("") +
     '<p class="legenda">Voto della prova: ' + votoIt(esito.voto) + "." + (analisiMancante ? " I passaggi non sono riuscito a leggerli adesso: i risultati però sono corretti." : "") + "</p>";
   $("btn-correggi-es").hidden = true; $("btn-stampa-esito-es").hidden = false;
   box.scrollIntoView({ behavior: "smooth", block: "start" });

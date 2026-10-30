@@ -237,8 +237,8 @@ test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e anc
     { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
   ]);
   intestazioneOk(html);
-  assert.match(html, /✕[\s\S]*da rifare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*si frustavano/);
-  assert.match(html, /○[\s\S]*mai verificato[\s\S]*Mai chiesto/);
+  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*Rileggi: «[^»]*si frustavano/);
+  assert.match(html, /○ Mai provato[\s\S]*Mai chiesto/);
 });
 
 test("verifica da stampare: prima solo le domande, poi su un'altra pagina il foglio soluzioni con le lettere giuste", () => {
@@ -269,7 +269,7 @@ test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e a
   assert.match(html, /voto stimato 6/i);
   assert.match(html, /prontezza 60%/);
   // dal più debole: rosso, giallo, verde
-  assert.match(html, /✕[\s\S]*da rifare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
+  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
 });
 
 // ---------------------------------------------------------------- web come aiuto (issue #4)
@@ -388,16 +388,20 @@ test("aprire la soluzione prima di correggere vale al massimo 5 punti", () => {
   assert.equal(run("puntiConAiuto(8, false)"), 8);
 });
 
-test("correzione: esito, primo errore citato, spiegazione e svolgimento giusto solo se serve", () => {
-  const giusta = run(`htmlCorrezione({ esito: "giusto", punti: 10 }, ${JSON.stringify(PROVA[0])})`);
-  assert.match(giusta, /data-s="verde"[\s\S]*✓ Giusto[\s\S]*10\/10/);
+test("correzione: risposta e risultato affiancati, passaggi con il primo errore cerchiato, tipo, spiegazione ed esempio", () => {
+  const giusta = run(`htmlCorrezione({ esito: "giusto", punti: 10, risposta: "5/4" }, ${JSON.stringify(PROVA[0])})`);
+  assert.match(giusta, /data-s="verde"[\s\S]*✓<\/span> Giusto[\s\S]*10\/10/);
+  assert.match(giusta, /La tua risposta<\/span><b>5\/4<\/b>[\s\S]*Risultato<\/span><b>5\/4<\/b>/);
   assert.doesNotMatch(giusta, /Ecco come si fa/);
-  const sbagliata = run(`htmlCorrezione({ esito: "sbagliato", punti: 0, primo_errore: "3/4 + 1/2 = 4/6 <b>", tipo_errore: "calcolo",
-    spiegazione: "Hai sommato i denominatori.", esempio: "1/3 + 1/3 = 2/3" }, ${JSON.stringify(PROVA[0])})`);
-  assert.match(sbagliata, /data-s="rosso"/);
-  assert.match(sbagliata, /Primo passaggio da rivedere \(errore di calcolo\)[\s\S]*4\/6 &lt;b&gt;/);
-  assert.match(sbagliata, /Hai sommato i denominatori[\s\S]*Un esempio simile[\s\S]*Ecco come si fa[\s\S]*Risultato: <b>5\/4<\/b>/);
-  assert.match(run(`htmlCorrezione({ esito: "senza_unita", punti: 5, vista: true }, ${JSON.stringify(PROVA[1])})`), /manca l'unità[\s\S]*Avevi aperto la soluzione/);
+  const sbagliata = run(`htmlCorrezione({ esito: "sbagliato", punti: 0, risposta: "4/6", svolgimento: "3/4 + 1/2 = 4/6 <b>\\n4/6 = 2/3",
+    primo_errore: "3/4 + 1/2 = 4/6 <b>", tipo_errore: "calcolo", spiegazione: "Hai sommato i denominatori.", esempio: "1/3 + 1/3 = 2/3" }, ${JSON.stringify(PROVA[0])})`);
+  assert.match(sbagliata, /class="corretto" data-s="rosso"/);
+  assert.match(sbagliata, /class="box-risp" data-s="rosso"><span class="etich">La tua risposta<\/span><b>4\/6<\/b>/);
+  assert.match(sbagliata, /<li class="errore-cerchiato"><span class="vedi">primo errore<\/span> 3\/4 \+ 1\/2 = 4\/6 &lt;b&gt;<\/li><li>4\/6 = 2\/3<\/li>/);
+  assert.match(sbagliata, /etichetta-errore">errore di calcolo[\s\S]*Hai sommato i denominatori[\s\S]*Esempio svolto[\s\S]*Ecco come si fa[\s\S]*Risultato: <b>5\/4<\/b>/);
+  assert.match(run(`htmlCorrezione({ esito: "senza_unita", punti: 5, vista: true }, ${JSON.stringify(PROVA[1])})`), /data-s="giallo"[\s\S]*manca l'unità[\s\S]*Avevi aperto la soluzione/);
+  // Passaggio sbagliato che non si ritrova nelle righe: compare da solo, segnato.
+  assert.match(run(`righePassaggi("a = 1\\nb = 2", "c = 3").map((r) => r.t + (r.errore ? "!" : "")).join("|")`), /^a = 1\|b = 2\|c = 3!$/);
 });
 
 test("prova salvata con i valori già ammessi: domande aperte, livello medio, tipo come concetto, esercizio completo", () => {
@@ -451,7 +455,7 @@ test("esito degli esercizi da stampare: semaforo per tipo con simbolo e parola, 
   const dati = run(`datiEsitoEsercizi(${JSON.stringify(DA_STAMPARE)}, [{ esito: "giusto", punti: 10, risposta: "15 cm" }, { esito: "sbagliato", punti: 0, risposta: "4/6" }])`);
   const html = run(`componiStampa({ tipo: "esito_esercizi", info: { titolo: "Pitagora", materia: "matematica" }, dati: ${JSON.stringify(dati)} })`);
   assert.match(html, /Esito degli esercizi/);
-  assert.match(html, /✕ da rifare<\/span><b>Frazioni<\/b>[\s\S]*● acquisito<\/span><b>Pitagora<\/b>/, "dal tipo peggiore, con simbolo e parola");
+  assert.match(html, /✕ Da ripassare<\/span><b>Frazioni<\/b>[\s\S]*● Lo sai<\/span><b>Pitagora<\/b>/, "dal tipo peggiore, con simbolo e parola");
   assert.match(html, /0,0\/10 · 1 esercizio/);
   assert.match(html, /Hai scritto: 4\/6 · giusto: 5\/4[\s\S]*Non torna<\/b> · 0\/10/);
   assert.match(html, /Voto della prova /);
@@ -551,4 +555,5 @@ test("profili: tinta fissa per id, sottotitolo con classe e da ripassare solo se
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media · niente da ripassare");
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, null)`), "2ª media");
   assert.equal(run(`sottotitoloProfilo({}, null)`), "");
+  assert.equal(run(`sottotitoloProfilo({ classe: "3" }, 2)`), "3ª media · 2 da ripassare");
 });

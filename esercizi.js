@@ -197,7 +197,7 @@ function adattaSchedaEsercizi(a) {
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   (a.tipi || []).forEach((t) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = t.stato || "mai";
-    d.innerHTML = '<h3><span class="pallino"></span>' + esc(t.titolo) + '<span class="voto">' + (t.media == null ? "—" : Number(t.media).toFixed(1) + "/10") + "</span></h3>" +
+    d.innerHTML = "<h3>" + esc(t.titolo) + '<span class="voto">' + (t.media == null ? "—" : votoIt(Math.round(t.media * 2) / 2) + "/10") + "</span></h3>" + htmlStato(t.stato) +
       '<span class="citazione">' + esc(t.ancora) + "</span>";
     sc.appendChild(d);
   });
