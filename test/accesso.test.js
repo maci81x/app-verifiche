@@ -65,7 +65,7 @@ function ambiente(rispostaServer) {
       chiamate.push({ url, corpo, headers: opz.headers });
       const r = await rispostaServer(corpo);
       if (r instanceof Error) throw r;
-      return { status: r.status, json: async () => r.dati };
+      return { status: r.status, ok: r.status >= 200 && r.status < 300, json: async () => r.dati };
     },
   });
   vm.runInContext(SORGENTE, ctx);
@@ -147,4 +147,32 @@ test("Codice: giusto → sessione dal server nel profilo scelto, ricordato come 
   assert.equal(a.run("profilo && profilo.id"), "id-samira");
   assert.equal(JSON.parse(a.memoria["verifiche-ultimo"]), "id-samira");
   assert.equal(a.el("v-libreria").hidden, false);
+});
+
+test("Elimina profilo (issue #14): chiama il server e toglie nome, sessione e conteggio salvati sul telefono", async () => {
+  const amb = ambiente(async (corpo) => (corpo.azione === "elimina" ? { status: 200, dati: { ok: true, foto: 2, resti: {} } } : { status: 200, dati: [] }));
+  amb.memoria["verifiche-profili"] = JSON.stringify([{ id: "s1", nome: "Prova" }, { id: "s2", nome: "Mia" }]);
+  amb.memoria["sb-verifiche-s1"] = "sessione";
+  amb.memoria["verifiche-ripassare-s1"] = "3";
+  amb.memoria["verifiche-ultimo"] = JSON.stringify("s1");
+  amb.run(`genitore = { auth: { getSession: async () => ({ data: { session: { access_token: "t" } } }) },
+    from: () => ({ select: () => ({ order: async () => ({ data: [{ id: "s2", nome: "Mia" }] }) }) }) };`);
+  await amb.run(`eliminaProfilo({ id: "s1", nome: "Prova" }, document.createElement("button"))`);
+  const elimina = amb.chiamate.find((c) => c.corpo.azione === "elimina");
+  assert.ok(elimina && /\/functions\/v1\/profili$/.test(elimina.url));
+  assert.deepEqual(elimina.corpo, { azione: "elimina", studente_id: "s1" });
+  assert.deepEqual(JSON.parse(amb.memoria["verifiche-profili"]).map((p) => p.id), ["s2"]);
+  assert.equal(amb.memoria["sb-verifiche-s1"], undefined);
+  assert.equal(amb.memoria["verifiche-ripassare-s1"], undefined);
+  assert.equal(JSON.parse(amb.memoria["verifiche-ultimo"]), null);
+  assert.match(amb.el("err-imp").innerHTML, /eliminato, con tutti i suoi argomenti e prove/);
+});
+
+test("Elimina profilo: se il server dice di no, i dati locali restano e compare l'errore", async () => {
+  const amb = ambiente(async () => ({ status: 502, dati: { errore: "operazione non riuscita" } }));
+  amb.memoria["verifiche-profili"] = JSON.stringify([{ id: "s1", nome: "Prova" }]);
+  amb.run(`genitore = { auth: { getSession: async () => ({ data: { session: { access_token: "t" } } }) } };`);
+  await amb.run(`eliminaProfilo({ id: "s1", nome: "Prova" }, document.createElement("button"))`);
+  assert.deepEqual(JSON.parse(amb.memoria["verifiche-profili"]).map((p) => p.id), ["s1"]);
+  assert.match(amb.el("err-imp").innerHTML, /Non sono riuscito a eliminare il profilo di Prova/);
 });
