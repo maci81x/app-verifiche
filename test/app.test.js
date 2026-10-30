@@ -402,6 +402,10 @@ test("correzione: risposta e risultato affiancati, passaggi con il primo errore 
   assert.match(run(`htmlCorrezione({ esito: "senza_unita", punti: 5, vista: true }, ${JSON.stringify(PROVA[1])})`), /data-s="giallo"[\s\S]*manca l'unità[\s\S]*Avevi aperto la soluzione/);
   // Passaggio sbagliato che non si ritrova nelle righe: compare da solo, segnato.
   assert.match(run(`righePassaggi("a = 1\\nb = 2", "c = 3").map((r) => r.t + (r.errore ? "!" : "")).join("|")`), /^a = 1\|b = 2\|c = 3!$/);
+  // Spazi e segni di per diversi: si cerchia la riga, non si aggiunge un doppione.
+  assert.equal(run(`righePassaggi("7 × 2 = 15\\n15 + 1 = 16", "7x2=15").map((r) => r.t + (r.errore ? "!" : "")).join("|")`), "7 × 2 = 15!|15 + 1 = 16");
+  // Il passaggio citato con il contesto: vince la riga più lunga che combacia, non quella corta prima.
+  assert.equal(run(`righePassaggi("x = 5\\nx + 3 = 9", "da x = 5 hai scritto x + 3 = 9").filter((r) => r.errore).map((r) => r.t).join()`), "x + 3 = 9");
 });
 
 test("prova salvata con i valori già ammessi: domande aperte, livello medio, tipo come concetto, esercizio completo", () => {
@@ -544,7 +548,8 @@ test("libreria: barra verde/giallo/rosso con le parole per chi non vede i colori
   const h = run(`htmlBarra({ verde: 1, giallo: 1, rosso: 2, mai: 0 })`);
   assert.match(h, /data-s="verde" style="width:25%"/);
   assert.match(h, /data-s="rosso" style="width:50%"/);
-  assert.match(h, /aria-label="1 lo sai, 1 quasi, 2 da ripassare"/);
+  assert.match(h, /<span class="conto" data-s="verde"><i aria-hidden="true">●<\/i> 1<span class="solo-lettore"> lo sai<\/span>/);
+  assert.match(h, /data-s="rosso"><i aria-hidden="true">✕<\/i> 2/);
   assert.equal(run(`htmlBarra({ verde: 0, giallo: 0, rosso: 0, mai: 0 })`), "");
 });
 

@@ -54,10 +54,17 @@ const statoEsitoEs = (esito) => STATO_ESITO_ES[esito] || "rosso";
 // Il modello copia il passaggio sbagliato da quello che ha scritto lei: si cerca la riga che
 // lo contiene; se non si trova, il passaggio si mostra da solo, segnato.
 const pulisciRiga = (t) => String(t || "").replace(/\s+/g, " ").trim();
+const compatta = (t) => String(t || "").replace(/\s+/g, "").replace(/[x·]/g, "×").toLowerCase();
 function righePassaggi(svolgimento, primoErrore) {
   const righe = String(svolgimento || "").split(/\n+/).map(pulisciRiga).filter(Boolean);
-  const errore = pulisciRiga(primoErrore);
-  const i = errore ? righe.findIndex((r) => r === errore || r.includes(errore) || (r.length > 3 && errore.includes(r))) : -1;
+  const errore = pulisciRiga(primoErrore), e = compatta(errore);
+  // Spazi e segni di per (x · ×) non contano; fra le righe che combaciano vince quella più lunga.
+  let i = -1, migliore = 0;
+  if (e) righe.forEach((r, j) => {
+    const c = compatta(r);
+    const quanto = c === e || c.includes(e) ? e.length + c.length : (c.length > 3 && e.includes(c) ? c.length : 0);
+    if (quanto > migliore) { migliore = quanto; i = j; }
+  });
   if (errore && i < 0) return [...righe.map((t) => ({ t, errore: false })), { t: errore, errore: true }];
   return righe.map((t, j) => ({ t, errore: j === i }));
 }

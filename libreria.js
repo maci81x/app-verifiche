@@ -47,8 +47,10 @@ function htmlBarra(conta) {
   if (!tot) return "";
   const parti = STATI_BARRA.filter((k) => conta[k]).map((k) =>
     '<i data-s="' + k + '" style="width:' + (Math.round(conta[k] / tot * 1000) / 10) + '%"></i>').join("");
-  const detto = STATI_BARRA.filter((k) => conta[k]).map((k) => conta[k] + " " + parolaStato(k).toLowerCase()).join(", ");
-  return '<span class="barra-stati" role="img" aria-label="' + esc(detto) + '">' + parti + "</span>";
+  // Sotto la barra i numeri con la forma: il colore non resta mai da solo.
+  const conti = STATI_BARRA.filter((k) => conta[k]).map((k) =>
+    '<span class="conto" data-s="' + k + '"><i aria-hidden="true">' + segnoStato(k) + "</i> " + conta[k] + '<span class="solo-lettore"> ' + esc(parolaStato(k).toLowerCase()) + "</span></span>").join("");
+  return '<span class="barra-stati" aria-hidden="true">' + parti + '</span><span class="conti-stati">' + conti + "</span>";
 }
 
 // Colore del profilo: una tinta fissa ricavata dall'id (sempre la stessa su ogni telefono).
@@ -152,7 +154,7 @@ function disegnaLibreria() {
   som.innerHTML = argomenti.length
     ? '<div class="chips" role="group" aria-label="Riepilogo dei concetti">' + ["verde", "giallo", "rosso"].map((s) => htmlChip(s, tot[s])).join("") + "</div>"
     : "";
-  if (profilo) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
+  if (profilo && libreriaCaricata) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
   disegnaPrimo(daRipassarePrima(argomenti));
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
@@ -166,7 +168,7 @@ function disegnaLibreria() {
     tinta(b, a.materia);
     const c = contaStati(a);
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
-      '<span class="voto-arg" aria-label="' + (a.ultima ? "voto " + votoArgomento(a) : "mai verificato") + '">' + votoArgomento(a) + "</span></div>" +
+      '<span class="voto-arg"><span class="solo-lettore">' + (a.ultima ? "voto " : "mai verificato") + "</span>" + (a.ultima ? votoArgomento(a) : '<span aria-hidden="true">—</span>') + "</span></div>" +
       htmlBarra(c) +
       '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + contaVoci(a) + "</span><span>" + dataIt(a.aggiornato) + "</span></div>";
     b.onclick = () => apriScheda(a);

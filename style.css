@@ -522,3 +522,7 @@ label.scatto.piccolo{padding:12px 14px;margin-top:8px;box-shadow:none}
 .come-si-fa summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;color:var(--tinta)}
 @media print{.barra-fissa{display:none}}
 .st-stato[data-s="verde"]{color:#1F6B45} .st-stato[data-s="giallo"]{color:#7A5806} .st-stato[data-s="rosso"]{color:#A32B20} .st-stato[data-s="mai"]{color:#4A5058}
+.conti-stati{display:flex;gap:12px;font-size:.8rem;font-weight:600;margin:-2px 0 6px}
+.conto i{font-style:normal}
+.conto[data-s="verde"]{color:var(--verde)} .conto[data-s="giallo"]{color:var(--giallo)} .conto[data-s="rosso"]{color:var(--rosso)} .conto[data-s="mai"]{color:var(--grigio)}
+.solo-lettore{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

@@ -309,6 +309,7 @@ let titoloProva = "", materiaProva = "", timer = null;
 let dettaglio = [], soloErrori = false;
 // Ultimo "Cosa studiare" e ultimo esito mostrati: li riusa la stampa (stampa.js).
 let listaStudiare = [], esitoMostrato = null;
+let libreriaCaricata = false; // false se l'ultima lettura della libreria è fallita
 let rossiEsito = []; // concetti rossi dell'ultima prova, per «Ripassa i rossi»
 
 /* =================================================================== utilità DOM */
@@ -641,7 +642,8 @@ async function caricaLibreria() {
     sb.from("sessioni").select("*").order("data", { ascending: false }).limit(500),
   ]);
   attesa($("stato-lib"), null);
-  if (a.error || s.error) { errore($("avviso-db"), "Non riesco ad aprire la libreria. Controlla la connessione e riprova."); }
+  libreriaCaricata = !(a.error || s.error);
+  if (!libreriaCaricata) { errore($("avviso-db"), "Non riesco ad aprire la libreria. Controlla la connessione e riprova."); }
   argomenti = (a.data || []).map((x) => {
     x.concetti = (x.concetti || []).sort((p, q) => p.ordine - q.ordine);
     x.tipi = (x.esercizi_tipi || []).sort((p, q) => p.ordine - q.ordine);
@@ -1476,9 +1478,11 @@ function disegnaQuadrante(indice, v) {
 
 // Frase dell'esito: dice com'è andata e da dove ripartire, senza giudicare.
 function verdettoEsito(es) {
-  if (es.pronta) return ["Sei pronta!", "Un ripasso veloce sui punti gialli e sei a posto."];
+  const rossi = (es.concetti || []).filter((c) => c.stato === "rosso").length;
+  if (es.pronta && !rossi) return ["Sei pronta!", "Un ripasso veloce sui punti gialli e sei a posto."];
   if (es.rossiPesanti) return ["Non ancora, ma sai da dove ripartire.",
     (es.rossiPesanti === 1 ? "C'è un concetto importante" : "Ci sono " + es.rossiPesanti + " concetti importanti") + " da riprendere: comincia dal primo qui sotto."];
+  if (rossi) return ["Ci siamo quasi!", "Riprendi i punti con la ✕ qui sotto, poi rifai la verifica: manca poco."];
   return ["Ci siamo quasi!", "Rileggi i punti gialli e rifai la verifica: manca poco."];
 }
 // righe: [{ titolo, media, stato, ancora, errore_appunti?, da?, concetto_id?, materia? }], dal più debole
@@ -1545,7 +1549,7 @@ async function mostraEsito(per) {
   esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },
     dati: { indice: es.indice, voto: es.voto, verdetto: $("verdetto-t").textContent + " " + $("verdetto-p").textContent, righe } };
   disegnaSemaforo(righe.map((r) => ({ ...r })));
-  rossiEsito = righe.filter((r) => r.stato === "rosso").map((r) => ({ id: r.concetto_id, titolo: r.titolo }));
+  rossiEsito = righe.filter((r) => r.stato === "rosso").sort((x, y) => x.media - y.media).map((r) => ({ id: r.concetto_id, titolo: r.titolo }));
   $("btn-ripassa-rossi").hidden = !rossiEsito.length;
   dettaglio = domande.map((d, i) => {
     const r = risposte[d.id] || {}, p = per[d.id];
@@ -1569,6 +1573,7 @@ function ripassaIRossi() {
   const args = argsProva.filter((a) => a.concetti.some((c) => ids.has(c.id)));
   if (!args.length) return;
   modo = args.length > 1 ? "ripasso" : "argomento";
+  if (args.length === 1) corrente = args[0];
   preparaVerifica(args, $("btn-ripassa-rossi"), $("stato-esito"), $("err-esito"), rossi.length === 1 ? { concetto: rossi[0] } : { concetti: rossi });
 }
 
