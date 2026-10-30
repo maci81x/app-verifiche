@@ -41,7 +41,7 @@ function benFormata(d) {
   return false;
 }
 
-// Tiene solo le domande ben formate e ancorate (filtro al 60%) e le ricollega
+// Tiene solo le domande ben formate e ancorate (filtro di ancoraggio) e le ricollega
 // al concetto e all'argomento veri. Restituisce anche quante ne ha scartate.
 export function tieniAncorate(grezze, indice, argomenti) {
   const fonte = fonteDi(argomenti);

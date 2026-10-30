@@ -3,7 +3,7 @@
 // Radice = l'argomento. Primo livello = i concetti del database, con il loro id,
 // così mappa e semaforo parlano dello stesso oggetto. Sotto, i sotto-punti che il
 // modello ricava dalla trascrizione: ognuno porta un'ancora presa dagli appunti,
-// e quelli la cui ancora non regge (stesso filtro al 60% delle domande) vengono
+// e quelli la cui ancora non regge (stesso filtro di ancoraggio delle domande) vengono
 // scartati insieme ai loro figli.
 import { ancoraRegge, normalizza } from "./ancoraggio.js";
 import { fontiScelte, FONTE_WEB } from "./web.js";

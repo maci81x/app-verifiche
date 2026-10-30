@@ -27,6 +27,8 @@ test("la ricerca è limitata: al massimo 3 ricerche e solo i domini della lista"
   assert.equal(s.name, "web_search");
   assert.equal(s.max_uses, 3);
   assert.deepEqual(s.allowed_domains, DOMINI_CONSENTITI);
+  assert.deepEqual(s.allowed_callers, ["direct"], "ricerca diretta: le citazioni arrivano sul testo");
+  assert.ok(!DOMINI_CONSENTITI.includes("nationalgeographic.it"), "blocca il crawler: farebbe fallire ogni ricerca");
   assert.ok(DOMINI_CONSENTITI.includes("treccani.it") && !DOMINI_CONSENTITI.includes("skuola.net"));
 });
 

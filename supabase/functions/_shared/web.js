@@ -10,6 +10,8 @@
 // deploy di `modello`. Lista approvata il 30/10/2026 e tracciata sulla issue #4.
 // Esclusi apposta i siti di riassunti scritti dagli utenti (skuola.net,
 // studenti.it, docsity.com): la qualità non è controllata.
+// Tolto il 30/10/2026 (issue #10): nationalgeographic.it blocca il crawler di Anthropic e
+// l'API rifiuta l'intera ricerca se un dominio della lista non è raggiungibile.
 export const SITI_CONSENTITI = [
   // enciclopedie e lingua
   ["treccani.it", "Enciclopedia e Vocabolario Treccani"],
@@ -20,7 +22,6 @@ export const SITI_CONSENTITI = [
   ["raiscuola.rai.it", "Rai Scuola: schede e video didattici"],
   ["focusjunior.it", "scienza e storia per 8-14 anni"],
   ["focus.it", "divulgazione scientifica"],
-  ["nationalgeographic.it", "scienze, geografia, natura"],
   ["storicang.it", "Storica National Geographic"],
   // istituti scientifici e dati
   ["ingv.it", "terremoti e vulcani"],
@@ -40,8 +41,11 @@ export const MAX_RICERCHE = 3;
 export const FONTE_WEB = "web";
 
 // Strumento di ricerca per la Claude API: poche ricerche, solo nei siti della lista.
+// allowed_callers "direct" (issue #10): senza, la versione 20260209 cerca da dentro
+// l'esecuzione di codice (filtro dinamico) e il testo finale può arrivare senza le
+// citazioni da cui prendiamo le fonti. Con tre ricerche il filtro dinamico non serve.
 export function strumentoRicerca() {
-  return { type: "web_search_20260209", name: "web_search", max_uses: MAX_RICERCHE, allowed_domains: DOMINI_CONSENTITI };
+  return { type: "web_search_20260209", name: "web_search", max_uses: MAX_RICERCHE, allowed_domains: DOMINI_CONSENTITI, allowed_callers: ["direct"] };
 }
 
 // Vero se l'indirizzo è https e sta su un dominio della lista o su un suo sottodominio.
