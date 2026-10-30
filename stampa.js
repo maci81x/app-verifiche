@@ -7,7 +7,7 @@
 /* =================================================================== composizione (pura) */
 
 // In bianco e nero il colore non basta: ogni stato ha anche un simbolo e una parola.
-const STATI_STAMPA = { rosso: ["✕", "da rifare"], giallo: ["▲", "da ripassare"], verde: ["●", "acquisito"], mai: ["○", "mai verificato"] };
+// Stesse forme e parole dell'app (semaforo.js): ✕ Da ripassare, ▲ Quasi, ● Lo sai, ○ Mai provato.
 const DOCUMENTI_STAMPA = {
   mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Esito della prova",
   esercizi: "Esercizi", esito_esercizi: "Esito degli esercizi",
@@ -16,8 +16,7 @@ const LARGHEZZA_MAPPA_STAMPA = 700; // circa la larghezza utile di un A4, in pix
 const LETTERE = "ABCD";
 
 function statoStampa(stato) {
-  const [simbolo, parola] = STATI_STAMPA[stato] || STATI_STAMPA.mai;
-  return '<span class="st-stato">' + simbolo + " " + parola + "</span>";
+  return '<span class="st-stato" data-s="' + statoValido(stato) + '">' + segnoStato(stato) + " " + parolaStato(stato) + "</span>";
 }
 
 function testaStampa(tipo, info) {
@@ -42,7 +41,7 @@ function corpoMappa({ albero, stati }, carattere) {
 function corpoStudiare(lista) {
   return '<ol class="st-lista">' + lista.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
     "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + testoVolte(x) + "</span>" +
-    '<span class="st-ancora">Rileggi: ' + esc(x.ancora) + "</span>" +
+    '<span class="st-ancora">Rileggi: «' + esc(x.ancora) + "»</span>" +
     (x.errore_appunti ? '<span class="st-nota">✎ ' + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
@@ -75,7 +74,7 @@ function corpoEsito({ indice, voto, verdetto, righe }) {
     '<ol class="st-lista">' + ordinate.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
       "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10</span>" +
       (x.da ? '<span class="st-nota">da ' + esc(x.da) + "</span>" : "") +
-      '<span class="st-ancora">' + (x.stato === "verde" ? "" : "Rileggi: ") + esc(x.ancora) + "</span>" +
+      '<span class="st-ancora">' + (x.stato === "verde" ? esc(x.ancora) : "Rileggi: «" + esc(x.ancora) + "»") + "</span>" +
       (x.errore_appunti ? '<span class="st-nota">✎ ' + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 

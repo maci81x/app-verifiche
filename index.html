@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <div class="wrap">
@@ -93,13 +93,13 @@
 <section id="v-libreria" hidden>
   <header>
     <div class="quadretti" aria-hidden="true"></div>
-    <h1>Pronta per<br>la verifica</h1>
-    <p class="sotto">Fotografa quaderno e libro. Ti interrogo su quello che c'è scritto lì, e tengo tutto da parte per i ripassi di fine quadrimestre.</p>
+    <h1>Cosa ripassiamo<br>oggi?</h1>
+    <p class="sotto">Ti interrogo su quello che c'è scritto nei tuoi appunti, e tengo tutto da parte per i ripassi.</p>
     <div class="profili" id="profili" role="group" aria-label="Profilo"></div>
   </header>
   <div class="sommario" id="sommario"></div>
+  <section class="primo" id="da-ripassare" aria-label="Da ripassare prima" hidden></section>
   <div class="bottoni">
-    <button class="azione" id="btn-nuovo">Nuovo argomento</button>
     <button class="minore" id="btn-ripasso">Ripasso del quadrimestre</button>
     <button class="minore" id="btn-storico">Storico e andamento</button>
   </div>
@@ -110,6 +110,7 @@
   <div class="bottoni">
     <button class="minore pericolo" id="btn-svuota" hidden>Svuota tutta la memoria</button>
   </div>
+  <div class="barra-fissa"><button class="azione" id="btn-nuovo"><span aria-hidden="true">📷</span> Fotografa gli appunti</button></div>
 </section>
 
 <!-- ============ NUOVO MATERIALE ============ -->
@@ -322,26 +323,28 @@
   <h2>Com'è andata</h2>
   <p class="aiuto" id="riga-scartate" hidden></p>
   <div class="quadrante">
-    <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-labelledby="titolo-quadrante">
+    <svg width="132" height="132" viewBox="0 0 104 104" role="img" aria-labelledby="titolo-quadrante">
       <title id="titolo-quadrante">Indice di prontezza</title>
       <circle cx="52" cy="52" r="44" fill="none" stroke="var(--bordo)" stroke-width="9"></circle>
       <circle id="arco" cx="52" cy="52" r="44" fill="none" stroke="var(--tinta)" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 999" transform="rotate(-90 52 52)"></circle>
       <text id="arco-num" class="num" x="52" y="49" text-anchor="middle" dominant-baseline="middle">—</text>
-      <text class="lab" x="52" y="69" text-anchor="middle">VOTO STIMATO</text>
+      <text class="lab" x="52" y="70" text-anchor="middle">VOTO</text>
     </svg>
     <div class="testo"><b id="verdetto-t"></b><p id="verdetto-p"></p>
       <p class="voto-stima"><span id="voto-num"></span></p></div>
   </div>
-  <p class="occhiello" id="occhiello-concetti">Concetto per concetto</p>
+  <p class="occhiello" id="occhiello-concetti">Cosa studiare, in quest'ordine</p>
   <div id="esito-concetti"></div>
   <details class="risposte" id="box-risposte"><summary>Rivedi le risposte una per una</summary>
     <div class="bottoni" style="margin:0 0 6px"><button class="minore" id="btn-solo-errori">Mostra solo quelle sbagliate</button></div>
     <div id="dettaglio"></div>
   </details>
   <div id="err-esito"></div>
-  <div class="bottoni">
-    <button class="azione" id="btn-ancora">Rifai la verifica</button>
-    <button class="minore" id="btn-stampa-esito">Stampa / Salva PDF</button>
+  <div id="stato-esito"></div>
+  <div class="bottoni bottoni-esito">
+    <button class="azione" id="btn-ripassa-rossi" hidden>Ripassa i rossi</button>
+    <button class="minore" id="btn-stampa-esito">Stampa / PDF</button>
+    <button class="minore" id="btn-ancora">Rifai la verifica</button>
     <button class="minore" id="btn-torna-storico" hidden>Torna allo storico</button>
     <button class="minore" id="btn-torna-lib">Torna alla libreria</button>
   </div>
@@ -388,14 +391,15 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=11"></script>
-<script src="app.js?v=11"></script>
-<script src="stampa.js?v=11"></script>
-<script src="aiuto.js?v=11"></script>
-<script src="mappa-card.js?v=11"></script>
-<script src="figure.js?v=11"></script>
-<script src="formule.js?v=11"></script>
-<script src="esercizi.js?v=11"></script>
-<script src="prova-esercizi.js?v=11"></script>
+<script src="semaforo.js?v=12"></script>
+<script src="app.js?v=12"></script>
+<script src="libreria.js?v=12"></script>
+<script src="stampa.js?v=12"></script>
+<script src="aiuto.js?v=12"></script>
+<script src="mappa-card.js?v=12"></script>
+<script src="figure.js?v=12"></script>
+<script src="formule.js?v=12"></script>
+<script src="esercizi.js?v=12"></script>
+<script src="prova-esercizi.js?v=12"></script>
 </body>
 </html>
