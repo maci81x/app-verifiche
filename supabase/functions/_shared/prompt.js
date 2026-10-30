@@ -1,4 +1,5 @@
 import { concettiInOrdine, idBreve } from "./mappa.js";
+import { FORME } from "./generati.js";
 import { etaDaClasse } from "./web.js";
 
 // Prompt al modello. La base è copiata parola per parola da prototipo/prova-verifiche.html,
@@ -253,3 +254,30 @@ export function promptEserciziTipi(materia, titolo, testo, esistenti = []) {
     'Rispondi solo con JSON: {"tipi":[{"titolo":"","ancora":"","difficolta":2,"figura":false}]}',
   ].filter(Boolean).join("\n\n");
 }
+
+// Esercizi simili ai tipi confermati (issue #5, fetta #7).
+// { materia, titolo, classe, quanti, tipi: [{ breve, titolo, ancora, difficolta, figura }] }
+// Le forme e i nomi delle misure sono quelli che il client sa disegnare (generati.js).
+export function promptEserciziGenera(dati) {
+  const forme = Object.entries(FORME).map(([f, misure]) => "- " + f + ": " + misure.join(", ")).join("\n");
+  return [
+    "Sei un insegnante di matematica di scuola media italiana. Prepara " + dati.quanti + " esercizi per un'alunna di " + perEta(dati.classe) + ", simili a quelli del suo libro.",
+    "Tipi di esercizio confermati dall'alunna, ognuno con un esercizio vero del libro come modello:\n" +
+      JSON.stringify(dati.tipi.map((t) => ({ id: t.breve, titolo: t.titolo, esempio: t.ancora, difficolta: t.difficolta, figura: t.figura }))),
+    "Distribuisci gli esercizi fra i tipi in modo più uniforme possibile. Ogni esercizio deve somigliare al suo modello (stessa struttura, stessa difficoltà) ma con numeri diversi. Numeri adatti all'età: risultati interi, frazioni semplici o decimali con al massimo due cifre.",
+    "Una sola domanda per esercizio, con un solo risultato finale. Niente problemi con testo lungo da interpretare, niente geometria analitica: dati espliciti.",
+    "Per ogni esercizio:\n" +
+      "- tipo: l'id del tipo (t1, t2...);\n" +
+      "- testo: la consegna, come sul libro;\n" +
+      "- dati: i dati in breve (per esempio «base 12 cm; altezza 5 cm»), vuoto per le espressioni;\n" +
+      "- figura: se serve una figura geometrica, forma e misure da etichettare; altrimenti forma \"nessuna\" e misure vuote. Per la misura da trovare scrivi \"?\" come valore. Forme e nomi delle misure ammessi:\n" + forme + "\n" +
+      "- passaggi: lo svolgimento passo per passo, ognuno con una frase breve e la formula in LaTeX (per esempio \\frac{3}{4}, 5^{2}, \\sqrt{36}, \\cdot);\n" +
+      "- risultato: valore (solo il numero, con la virgola, oppure una frazione come 7/12; niente unità dentro il valore) e unità di misura (vuota se non c'è);\n" +
+      "- verifica: un'espressione che ricalcola il risultato partendo dai numeri dei dati, scritta con solo numeri (decimali col punto), + - * / ^, sqrt() e parentesi tonde. Niente lettere, niente %, niente π (usa 3.14 sia nella verifica sia nel risultato), niente risultati intermedi: niente eval, il server la ricalcola e scarta l'esercizio se non coincide con il risultato.",
+    "Controlla tu stesso ogni conto prima di rispondere.",
+    dati.materia ? "Materia: " + dati.materia : "",
+    dati.titolo ? "Argomento: " + dati.titolo : "",
+    'Rispondi solo con JSON: {"esercizi":[{"tipo":"t1","testo":"","dati":"","figura":{"forma":"nessuna","misure":[]},"passaggi":[{"testo":"","formula":""}],"risultato":{"valore":"","unita":""},"verifica":""}]}',
+  ].filter(Boolean).join("\n\n");
+}
+

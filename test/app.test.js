@@ -8,6 +8,8 @@ const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeo
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../figure.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../formule.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../esercizi.js", import.meta.url), "utf8"), ctx);
 const run = (expr) => vm.runInContext(expr, ctx);
 
@@ -318,4 +320,32 @@ test("lettura degli esercizi vuota se non c'è testo o se tutti i gruppi erano i
   assert.equal(run(`lettoVuoto([])`), true);
   assert.equal(run(`lettoVuoto([GRUPPO_ILLEGGIBILE, GRUPPO_ILLEGGIBILE])`), true);
   assert.equal(run(`lettoVuoto([GRUPPO_ILLEGGIBILE, "45) 3/4 + 1/2 ="])`), false);
+});
+
+// ---------------------------------------------------------------- esercizi simili (issue #5, fetta #7)
+
+const ESERCIZIO = {
+  tipo: "Teorema di <Pitagora>", testo: "Calcola l'ipotenusa con i cateti di 9 cm e 12 cm.", dati: "cateti 9 cm e 12 cm",
+  figura: { forma: "triangolo_rettangolo", misure: [{ nome: "cateto1", valore: "12 cm" }, { nome: "ipotenusa", valore: "?" }] },
+  passaggi: [{ testo: "Applico Pitagora", formula: "\\sqrt{9^{2} + 12^{2}}" }], risultato: { valore: "15", unita: "cm" },
+};
+
+test("esercizio: consegna, dati e figura in vista; passaggi e risultato solo dentro la soluzione", () => {
+  const html = run(`htmlEsercizio(${JSON.stringify(ESERCIZIO)}, 2)`);
+  assert.match(html, /Esercizio 3 · Teorema di &lt;Pitagora&gt;/);
+  assert.match(html, /<svg [^>]*class="figura"/);
+  const [fuori, dentro] = html.split("<details>");
+  assert.doesNotMatch(fuori, /15 cm|Applico/, "la soluzione non si vede prima di chiederla");
+  assert.match(dentro, /Mostra la soluzione/);
+  assert.match(dentro, /Applico Pitagora[\s\S]*data-latex="\\sqrt\{9\^\{2\} \+ 12\^\{2\}\}"[^>]*>√\(9² \+ 12²\)/);
+  assert.match(dentro, /Risultato: <b>15 cm<\/b>/);
+  const senza = run(`htmlEsercizio(${JSON.stringify({ ...ESERCIZIO, figura: null, dati: "", risultato: { valore: "3/4", unita: "" } })}, 0)`);
+  assert.doesNotMatch(senza, /<svg|Dati:/);
+  assert.match(senza, /Risultato: <b>3\/4<\/b>/);
+});
+
+test("nota sugli esercizi scartati dal ricalcolo", () => {
+  assert.equal(run("notaScartatiEsercizi(0)"), "");
+  assert.match(run("notaScartatiEsercizi(1)"), /^1 esercizio l'ho tolto/);
+  assert.match(run("notaScartatiEsercizi(3)"), /^3 esercizi li ho tolti/);
 });

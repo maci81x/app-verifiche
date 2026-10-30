@@ -387,3 +387,18 @@ label.tipo-es input{width:22px;height:22px;flex:none;margin-top:2px;accent-color
 label.tipo-es b{display:block;font-size:1.02rem}
 label.tipo-es small{display:block;color:var(--inchiostro-2);font-size:.86rem;margin-top:2px}
 label.tipo-es .citazione{overflow-wrap:anywhere}
+
+/* Esercizi simili (issue #5, fetta #7) */
+.esercizio{border:1px solid var(--bordo);border-radius:14px;padding:14px 16px;margin-top:12px;background:var(--rialzo)}
+.esercizio .occhiello{margin:0 0 6px}
+.esercizio .consegna{font-size:1.05rem;margin:0}
+.dati-es{color:var(--inchiostro-2);font-size:.9rem;margin:6px 0 0}
+.figura-es{margin:10px auto 0;max-width:320px;color:var(--inchiostro)}
+.figura-es svg{display:block;width:100%;height:auto;overflow:visible}
+.esercizio details{margin-top:10px}
+.esercizio summary{cursor:pointer;color:var(--tinta);font-weight:600;min-height:44px;display:flex;align-items:center}
+.passaggi{margin:6px 0 0;padding-left:22px}
+.passaggi li{margin:6px 0}
+.riga-formula{display:block;margin-top:2px;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:.95rem}
+.riga-formula .katex{font-size:1.05em}
+.risultato-es{margin:8px 0 0}

@@ -1,15 +1,17 @@
 // Avvio offline dell'interfaccia: prima la rete, se manca la copia salvata.
 // I dati (Supabase) e la funzione del modello non passano da qui.
 // Alza la versione a ogni rilascio, insieme a ?v= in index.html.
-const CACHE_NAME = 'app-verifiche-v7';
+const CACHE_NAME = 'app-verifiche-v8';
 const ASSETS = [
   '/app-verifiche/',
   '/app-verifiche/index.html',
-  '/app-verifiche/style.css?v=7',
-  '/app-verifiche/app.js?v=7',
-  '/app-verifiche/stampa.js?v=7',
-  '/app-verifiche/aiuto.js?v=7',
-  '/app-verifiche/esercizi.js?v=7',
+  '/app-verifiche/style.css?v=8',
+  '/app-verifiche/app.js?v=8',
+  '/app-verifiche/stampa.js?v=8',
+  '/app-verifiche/aiuto.js?v=8',
+  '/app-verifiche/figure.js?v=8',
+  '/app-verifiche/formule.js?v=8',
+  '/app-verifiche/esercizi.js?v=8',
   '/app-verifiche/manifest.json',
   '/app-verifiche/icons/icon-192.png',
   '/app-verifiche/icons/icon-512.png',

@@ -20,6 +20,10 @@
 // POST { azione: "esercizi_tipi", materia, titolo, testo, esistenti?: [titoli] } → { tipi, scartati }
 //      Matematica (issue #5): tipi di esercizio con un esercizio vero come ancora;
 //      quelli la cui ancora non si ritrova nella trascrizione vengono scartati qui.
+// POST { azione: "esercizi_genera", argomento_id, quanti: 5|10, tipi?: [uuid] } → { esercizi, scartati }
+//      Esercizi simili ai tipi confermati (letti dal database con i permessi della studentessa).
+//      Ognuno entra solo se la sua `verifica`, ricalcolata qui (_shared/calcolo.js), coincide
+//      con il risultato dichiarato; gli altri si scartano e si contano.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -31,9 +35,10 @@ import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
   promptMappa, DOMANDE_DA_STAMPARE,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
-  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi,
+  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
+import { eserciziVerificati, FORME, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
@@ -187,6 +192,41 @@ const SCHEMA_TIPI = {
   },
   required: ["tipi"], additionalProperties: false,
 } as const;
+const STRINGA = { type: "string" } as const;
+// Lo schema elenca gli id brevi dei tipi della richiesta: il modello non può inventarne altri.
+const schemaEsercizi = (brevi: string[]) => ({
+  type: "object",
+  properties: {
+    esercizi: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: brevi }, testo: STRINGA, dati: STRINGA,
+          figura: {
+            type: "object",
+            properties: {
+              forma: { type: "string", enum: [...Object.keys(FORME), "nessuna"] },
+              misure: {
+                type: "array",
+                items: { type: "object", properties: { nome: STRINGA, valore: STRINGA }, required: ["nome", "valore"], additionalProperties: false },
+              },
+            },
+            required: ["forma", "misure"], additionalProperties: false,
+          },
+          passaggi: {
+            type: "array",
+            items: { type: "object", properties: { testo: STRINGA, formula: STRINGA }, required: ["testo", "formula"], additionalProperties: false },
+          },
+          risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+          verifica: STRINGA,
+        },
+        required: ["tipo", "testo", "dati", "figura", "passaggi", "risultato", "verifica"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["esercizi"], additionalProperties: false,
+} as const);
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
 
 class Definitivo extends Error {}
@@ -294,6 +334,37 @@ Deno.serve(async (req) => {
       const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean).slice(0, 50) : [];
       const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti), SCHEMA_TIPI);
       return json(tipiAncorati(r.tipi as unknown[], materiale, esistenti));
+    }
+
+    if (b.azione === "esercizi_genera") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id) || !QUANTI.includes(b.quanti))
+        return json({ errore: "richiesta non valida" }, 400);
+      const scelti = Array.isArray(b.tipi) ? b.tipi.filter((x: unknown) => typeof x === "string" && UUID.test(x)).slice(0, 50) : [];
+      const db = comeUtente(req);
+      const [{ data: a, error }, { data: st }] = await Promise.all([
+        db.from("argomenti").select("titolo, materia, esercizi_tipi(id, titolo, ancora, difficolta, figura, ordine)")
+          .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle(),
+        db.from("studenti").select("classe").eq("id", io.sub).maybeSingle(),
+      ]);
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      const tipi = [...(a.esercizi_tipi || [])].sort((x, y) => x.ordine - y.ordine)
+        .filter((t) => !scelti.length || scelti.includes(t.id));
+      if (!tipi.length) return json({ errore: "nessun_tipo" }, 422);
+      const brevi = tipi.map((_, i) => "t" + (i + 1));
+      const perBreve = Object.fromEntries(tipi.map((t, i) => [brevi[i], { id: t.id, titolo: t.titolo }]));
+      const elenco = tipi.map((t, i) => ({ breve: brevi[i], titolo: t.titolo, ancora: t.ancora, difficolta: t.difficolta, figura: t.figura }));
+      // A gruppi di cinque, in parallelo: una risposta sola con 15 esercizi svolti è troppo lunga.
+      // Ogni gruppo parte da un tipo diverso, così la distribuzione non si ripete uguale.
+      const gruppi = Array.from({ length: b.quanti / PER_CHIAMATA }, (_, g) =>
+        chiedi(promptEserciziGenera({
+          materia: a.materia, titolo: a.titolo, classe: st?.classe ?? null, quanti: quantiDaChiedere(PER_CHIAMATA),
+          tipi: [...elenco.slice(g % elenco.length), ...elenco.slice(0, g % elenco.length)],
+        }), schemaEsercizi(brevi)));
+      const risposte = await Promise.all(gruppi);
+      const esito = eserciziVerificati(risposte.flatMap((r) => r.esercizi as unknown[]), perBreve, b.quanti);
+      if (!esito.esercizi.length) return json({ errore: "nessun_verificato", scartati: esito.scartati }, 422);
+      return json(esito);
     }
 
     if (b.azione === "domande") {

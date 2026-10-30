@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <div class="wrap">
@@ -177,6 +177,30 @@
   <div id="err-tipi"></div>
 </section>
 
+<!-- ============ ESERCIZI SIMILI ============ -->
+<section id="v-esercizi" hidden>
+  <h2 id="t-esercizi">Esercizi</h2>
+  <div id="prep-esercizi">
+    <p class="aiuto">Scegli i tipi di esercizio e quanti ne vuoi. Te li preparo simili a quelli del libro, e ogni risultato lo ricontrollo con un calcolo prima di dartelo.</p>
+    <p class="occhiello">Tipi di esercizio</p>
+    <div id="scelta-tipi-es"></div>
+    <p class="occhiello">Quanti esercizi?</p>
+    <div class="livelli">
+      <label><input type="radio" name="quanti-es" value="5" checked><b>5</b><small>un giro veloce</small></label>
+      <label><input type="radio" name="quanti-es" value="10"><b>10</b><small>per allenarti bene</small></label>
+    </div>
+    <div class="bottoni"><button class="azione" id="btn-genera-es">Preparali</button></div>
+  </div>
+  <div id="lista-es"></div>
+  <p class="legenda" id="nota-scartati-es"></p>
+  <div class="bottoni">
+    <button class="minore" id="btn-altri-es" hidden>Preparane altri</button>
+    <button class="minore" id="btn-es-indietro">Torna all'argomento</button>
+  </div>
+  <div id="err-es"></div>
+  <div id="stato-es"></div>
+</section>
+
 <!-- ============ SCHEDA ARGOMENTO ============ -->
 <section id="v-scheda" hidden>
   <h2 id="t-scheda"></h2>
@@ -194,6 +218,7 @@
   </label>
   <div id="opz-scheda"></div>
   <div class="bottoni">
+    <button class="azione" id="btn-esercizi" hidden>Preparami degli esercizi</button>
     <button class="azione" id="btn-ripassa-arg">Interrogami su questo</button>
     <button class="minore" id="btn-mappa">Mappa</button>
     <button class="minore" id="btn-studiare">Cosa studiare</button>
@@ -353,9 +378,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=7"></script>
-<script src="stampa.js?v=7"></script>
-<script src="aiuto.js?v=7"></script>
-<script src="esercizi.js?v=7"></script>
+<script src="app.js?v=8"></script>
+<script src="stampa.js?v=8"></script>
+<script src="aiuto.js?v=8"></script>
+<script src="figure.js?v=8"></script>
+<script src="formule.js?v=8"></script>
+<script src="esercizi.js?v=8"></script>
 </body>
 </html>

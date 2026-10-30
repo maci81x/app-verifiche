@@ -5,6 +5,7 @@
 // Script classico caricato dopo app.js: usa $, esc, vai, modello, conRiprova, trascrivi,
 // conservaFoto, ridimensiona, attesa, passoAttesa, errore, avviso, messaggioModello,
 // caricaLibreria, apriScheda, slugMateria, sb, foto, argomenti, corrente, GRUPPO_ILLEGGIBILE.
+// Dalla fetta #7 usa anche svgFigura (figure.js) e formulaHtml, caricaKatex, rendiFormule (formule.js).
 
 /* =================================================================== parti pure */
 
@@ -27,6 +28,29 @@ function righeTipi(argomentoId, tipi, scelti, primoOrdine = 0) {
   return tipi.filter((_, i) => scelti[i]).map((t, i) => ({
     argomento_id: argomentoId, titolo: t.titolo, ancora: t.ancora, difficolta: t.difficolta, figura: !!t.figura, ordine: primoOrdine + i,
   }));
+}
+
+// Una scheda di esercizio: consegna, dati, figura; passaggi e risultato solo dentro
+// "Mostra la soluzione", così non si vedono finché la ragazza non li chiede.
+function htmlEsercizio(e, i) {
+  const risultato = e.risultato.valore + (e.risultato.unita ? " " + e.risultato.unita : "");
+  const passaggi = (e.passaggi || []).map((p) =>
+    "<li>" + esc(p.testo) + (p.formula ? '<span class="riga-formula">' + formulaHtml(p.formula) + "</span>" : "") + "</li>").join("");
+  return '<article class="esercizio">' +
+    '<p class="occhiello">Esercizio ' + (i + 1) + " · " + esc(e.tipo) + "</p>" +
+    '<p class="consegna">' + esc(e.testo) + "</p>" +
+    (e.dati ? '<p class="dati-es">Dati: ' + esc(e.dati) + "</p>" : "") +
+    (e.figura ? '<div class="figura-es">' + svgFigura(e.figura) + "</div>" : "") +
+    "<details><summary>Mostra la soluzione</summary>" +
+    (passaggi ? '<ol class="passaggi">' + passaggi + "</ol>" : "") +
+    '<p class="risultato-es">Risultato: <b>' + esc(risultato) + "</b></p></details></article>";
+}
+
+// Quanti esercizi il controllo dei conti ha tolto, detto in breve.
+function notaScartatiEsercizi(n) {
+  if (!n) return "";
+  return n === 1 ? "1 esercizio l'ho tolto perché il risultato non tornava al ricalcolo."
+    : n + " esercizi li ho tolti perché il risultato non tornava al ricalcolo.";
 }
 
 /* =================================================================== scelta Teoria / Esercizi */
@@ -166,6 +190,7 @@ const BOTTONI_TEORIA = ["btn-ripassa-arg", "btn-mappa", "btn-studiare", "btn-sta
 function adattaSchedaEsercizi(a) {
   const es = conEsercizi(a);
   $("btn-ritrova-tipi").hidden = !es || !!(a.tipi || []).length || !a.trascrizione;
+  $("btn-esercizi").hidden = !es || !(a.tipi || []).length;
   if (!es) return;
   BOTTONI_TEORIA.forEach((id) => { $(id).hidden = true; });
   $("meta-scheda").textContent = a.materia + " · esercizi · " + contaVoci(a) + " · salvato il " + dataIt(a.creato);
@@ -178,7 +203,65 @@ function adattaSchedaEsercizi(a) {
   });
 }
 
+/* =================================================================== esercizi simili */
+
+let eserciziDi = null, eserciziMostrati = []; // li riusano correzione (#8) e stampa (#9)
+
+function apriEsercizi(a) {
+  eserciziDi = a;
+  $("t-esercizi").textContent = a.titolo;
+  const box = $("scelta-tipi-es"); box.innerHTML = "";
+  (a.tipi || []).forEach((t) => {
+    const l = document.createElement("label"); l.className = "tipo-es";
+    l.innerHTML = '<input type="checkbox" checked value="' + esc(t.id) + '"><span><b>' + esc(t.titolo) + "</b></span>";
+    box.appendChild(l);
+  });
+  $("prep-esercizi").hidden = false; $("btn-altri-es").hidden = true;
+  $("lista-es").innerHTML = ""; $("nota-scartati-es").textContent = "";
+  errore($("err-es"), "");
+  vai("esercizi", a.materia);
+  caricaKatex(); // in anticipo: quando arrivano gli esercizi probabilmente è già pronto
+}
+
+// Come conRiprova, ma senza ripetere una generazione intera quando la risposta è già un
+// esito (nessun tipo, nessun esercizio con i conti giusti): lì decide la ragazza se riprovare.
+const ESITI_DEFINITIVI = ["nessun_tipo", "nessun_verificato"];
+async function conRiprovaEsercizi(f) {
+  try { return await f(); } catch (e) {
+    if (e instanceof Definitivo || (e.dati && ESITI_DEFINITIVI.includes(e.dati.errore))) throw e;
+    await new Promise((r) => setTimeout(r, ATTESA_RIPROVA));
+    return f();
+  }
+}
+
+async function generaEsercizi() {
+  const a = eserciziDi, btn = $("btn-genera-es"), st = $("stato-es");
+  const tipi = [...document.querySelectorAll("#scelta-tipi-es input:checked")].map((c) => c.value);
+  const quanti = Number((document.querySelector('input[name="quanti-es"]:checked') || {}).value) || 5;
+  if (!tipi.length) { errore($("err-es"), "Scegli almeno un tipo di esercizio."); return; }
+  errore($("err-es"), ""); btn.disabled = true;
+  attesa(st, ["Preparo gli esercizi", "Controllo i conti uno per uno", "Disegno le figure"]);
+  try {
+    const r = await conRiprovaEsercizi(() => modello({ azione: "esercizi_genera", argomento_id: a.id, quanti, tipi }));
+    eserciziMostrati = r.esercizi;
+    $("lista-es").innerHTML = r.esercizi.map(htmlEsercizio).join("");
+    $("nota-scartati-es").textContent = notaScartatiEsercizi(r.scartati);
+    $("prep-esercizi").hidden = true; $("btn-altri-es").hidden = false;
+    caricaKatex().then((ok) => { if (ok) rendiFormule($("lista-es")); });
+  } catch (e) {
+    errore($("err-es"), messaggioModello(e, e.dati && e.dati.errore === "nessun_verificato"
+      ? "Non sono riuscito a preparare esercizi con i conti giusti. Riprova: ogni volta escono esercizi nuovi."
+      : "Non sono riuscito a preparare gli esercizi. Riprova fra un momento."));
+  } finally {
+    attesa(st, null); btn.disabled = false;
+  }
+}
+
 function collegaEsercizi() {
+  $("btn-esercizi").addEventListener("click", () => apriEsercizi(corrente));
+  $("btn-genera-es").addEventListener("click", generaEsercizi);
+  $("btn-altri-es").addEventListener("click", () => { $("prep-esercizi").hidden = false; $("btn-altri-es").hidden = true; });
+  $("btn-es-indietro").addEventListener("click", () => { if (eserciziDi) apriScheda(argomenti.find((x) => x.id === eserciziDi.id) || eserciziDi); });
   $("materia").addEventListener("input", aggiornaSceltaPercorso);
   $("btn-conferma-tipi").addEventListener("click", confermaTipi);
   $("btn-tipi-indietro").addEventListener("click", () => { if (tipiDi) apriScheda(argomenti.find((x) => x.id === tipiDi.id) || tipiDi); });
