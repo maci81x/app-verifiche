@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-const SORGENTE = readFileSync(new URL("../app.js", import.meta.url), "utf8");
+// semaforo.js prima di app.js, libreria.js dopo (disegno dei profili), come in index.html.
+const SORGENTE = ["semaforo.js", "app.js", "libreria.js"].map((f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n;\n");
 
 // Quel tanto di DOM che usano le schermate di accesso.
 function elemento(tag = "div") {

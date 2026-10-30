@@ -7,6 +7,7 @@ import vm from "node:vm";
 const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeout, clearTimeout, setInterval, clearInterval });
 vm.runInContext(readFileSync(new URL("../semaforo.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../libreria.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../mappa-card.js", import.meta.url), "utf8"), ctx);
@@ -514,4 +515,40 @@ test("card di un nodo dal web: etichetta, testo e fonte, niente prova", () => {
   assert.match(html, /Quaranta giorni di isolamento\./);
   assert.match(html, /it\.wikipedia\.org/);
   assert.doesNotMatch(html, /data-azione="prova"/);
+});
+
+// ------------------------------------------------------------------ libreria e profili (issue #12)
+const LIB = [
+  { id: "a1", titolo: "La peste", materia: "storia", aggiornato: "2026-10-20", concetti: [
+    { id: "c1", stato: "rosso", peso: 2, ordine: 0 }, { id: "c2", stato: "rosso", peso: 3, ordine: 1 }, { id: "c3", stato: "verde" }, { id: "c4" }] },
+  { id: "a2", titolo: "I Comuni", materia: "storia", aggiornato: "2026-10-25", concetti: [{ id: "d1", stato: "giallo" }, { id: "d2", stato: "rosso" }] },
+  { id: "a3", titolo: "Frazioni", materia: "matematica", percorso: "esercizi", concetti: [], tipi: [{ id: "t1", stato: "verde" }, { id: "t2", stato: "giallo" }] },
+];
+test("libreria: riepilogo dei concetti per stato, anche dei tipi di esercizio", () => {
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(riepilogoStati(${JSON.stringify(LIB)}))`)), { verde: 2, giallo: 2, rosso: 3, mai: 1 });
+  assert.deepEqual(JSON.parse(run(`JSON.stringify(contaStati(${JSON.stringify(LIB[2])}))`)), { verde: 1, giallo: 1, rosso: 0, mai: 0 });
+});
+
+test("libreria: da ripassare prima è l'argomento con più rossi; nessuno se è tutto verde", () => {
+  assert.equal(run(`daRipassarePrima(${JSON.stringify(LIB)}).id`), "a1");
+  assert.equal(run(`daRipassarePrima([{ id: "x", concetti: [{ stato: "verde" }] }])`), null);
+  // prova lampo: il rosso che pesa di più
+  assert.equal(run(`concettoPiuDebole(${JSON.stringify(LIB[0])}).id`), "c2");
+});
+
+test("libreria: barra verde/giallo/rosso con le parole per chi non vede i colori", () => {
+  const h = run(`htmlBarra({ verde: 1, giallo: 1, rosso: 2, mai: 0 })`);
+  assert.match(h, /data-s="verde" style="width:25%"/);
+  assert.match(h, /data-s="rosso" style="width:50%"/);
+  assert.match(h, /aria-label="1 lo sai, 1 quasi, 2 da ripassare"/);
+  assert.equal(run(`htmlBarra({ verde: 0, giallo: 0, rosso: 0, mai: 0 })`), "");
+});
+
+test("profili: tinta fissa per id, sottotitolo con classe e da ripassare solo se noto", () => {
+  assert.equal(run(`tintaProfilo("abc")`), run(`tintaProfilo("abc")`));
+  assert.ok(run(`tintaProfilo("abc")`) >= 0 && run(`tintaProfilo("abc")`) < 360);
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media · 3 da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media · niente da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, null)`), "2ª media");
+  assert.equal(run(`sottotitoloProfilo({}, null)`), "");
 });

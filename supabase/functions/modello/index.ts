@@ -5,7 +5,7 @@
 // POST { azione: "concetti", materia, titolo, testo, pagine, esistenti?: [titoli] } → { concetti, ... }
 //      I concetti la cui ancora non regge sul testo (filtro di ancoraggio, _shared/ancoraggio.js) vengono scartati qui.
 // POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante?, concetto_id? } → { domande, scartate }
-//      concetto_id (con un solo argomento): prova lampo di 3 domande su quel concetto («Mettiti alla prova»).
+//      concetti: [uuid] (o concetto_id): solo quei concetti; con uno solo, prova lampo di 3 domande.
 //      quante (10, 15 o 20) solo per la verifica da stampare; senza, il numero dipende dal livello.
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
@@ -83,6 +83,7 @@ const comeUtente = (req: Request) =>
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+const MAX_CONCETTI_SCELTI = 12;
 const LIVELLI = ["semplice", "medio", "difficile"], TIPI = ["miste", "chiuse", "aperte"], MODALITA = ["scritta", "orale"];
 
 const CONCETTO = {
@@ -409,10 +410,16 @@ Deno.serve(async (req) => {
 
     if (b.azione === "domande") {
       const ids = Array.isArray(b.argomenti) ? b.argomenti.filter((x: unknown) => typeof x === "string").slice(0, 200) : [];
-      const soloConcetto = b.concetto_id == null ? null : (typeof b.concetto_id === "string" && UUID.test(b.concetto_id) ? b.concetto_id : false);
+      // concetti (o concetto_id): solo quei concetti. Uno solo = prova lampo di 3 domande
+      // («Mettiti alla prova», issue #11); più d'uno = «Ripassa i rossi» (issue #12).
+      const grezzi = b.concetti != null ? b.concetti : (b.concetto_id != null ? [b.concetto_id] : null);
+      const filtro = grezzi == null ? null
+        : (Array.isArray(grezzi) && grezzi.length >= 1 && grezzi.length <= MAX_CONCETTI_SCELTI &&
+           grezzi.every((x: unknown) => typeof x === "string" && UUID.test(x)) ? new Set(grezzi as string[]) : false);
+      const soloConcetto = !!filtro && filtro.size === 1;
       if (!ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita) ||
-          (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)) || soloConcetto === false ||
-          (soloConcetto && (ids.length !== 1 || b.ripasso || b.quante != null)))
+          (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)) || filtro === false ||
+          (filtro && (b.ripasso || b.quante != null)))
         return json({ errore: "richiesta non valida" }, 400);
       const db = comeUtente(req);
       // studente_id = chi chiama: il genitore legge gli argomenti ma non prepara prove.
@@ -421,12 +428,11 @@ Deno.serve(async (req) => {
         .in("id", ids).eq("studente_id", io.sub);
       if (error) throw error;
       if (!argomenti?.length) return json({ errore: "argomento non trovato" }, 404);
-      // «Mettiti alla prova» (issue #11): solo il concetto toccato sulla mappa. Il materiale
-      // resta tutto, così il filtro di ancoraggio lavora come sempre.
-      const scelti = soloConcetto
-        ? argomenti.map((a: any) => ({ ...a, concetti: (a.concetti || []).filter((c: any) => c.id === soloConcetto) }))
+      // Solo i concetti scelti. Il materiale resta tutto, così il filtro di ancoraggio lavora come sempre.
+      const scelti = filtro
+        ? argomenti.map((a: any) => ({ ...a, concetti: (a.concetti || []).filter((c: any) => filtro.has(c.id)) }))
         : argomenti;
-      if (soloConcetto && !scelti[0].concetti.length) return json({ errore: "concetto non trovato" }, 404);
+      if (filtro && !scelti.some((a: any) => a.concetti.length)) return json({ errore: "concetto non trovato" }, 404);
       const { pool, indice, contesto } = preparaPool(scelti, !!b.ripasso);
       if (!pool.length) return json({ errore: "nessun_concetto" }, 422);
 
@@ -439,7 +445,7 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
-        quante: b.quante, soloConcetto: !!soloConcetto,
+        quante: b.quante, soloConcetto,
       }), SCHEMA_DOMANDE);
       const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
       // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.

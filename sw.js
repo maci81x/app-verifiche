@@ -8,6 +8,7 @@ const ASSETS = [
   '/app-verifiche/style.css?v=11',
   '/app-verifiche/semaforo.js?v=11',
   '/app-verifiche/app.js?v=11',
+  '/app-verifiche/libreria.js?v=11',
   '/app-verifiche/stampa.js?v=11',
   '/app-verifiche/aiuto.js?v=11',
   '/app-verifiche/mappa-card.js?v=11',

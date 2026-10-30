@@ -309,6 +309,7 @@ let titoloProva = "", materiaProva = "", timer = null;
 let dettaglio = [], soloErrori = false;
 // Ultimo "Cosa studiare" e ultimo esito mostrati: li riusa la stampa (stampa.js).
 let listaStudiare = [], esitoMostrato = null;
+let rossiEsito = []; // concetti rossi dell'ultima prova, per «Ripassa i rossi»
 
 /* =================================================================== utilità DOM */
 
@@ -418,32 +419,7 @@ async function accedi(corpo) {
   return { status: r.status, dati: await r.json().catch(() => null) };
 }
 
-function bottoneNome(p, classe) {
-  const b = document.createElement("button"); b.type = "button"; if (classe) b.className = classe;
-  const i = document.createElement("span"); i.className = "iniziale"; i.textContent = p.nome.slice(0, 1).toUpperCase();
-  b.appendChild(i);
-  return b;
-}
-function disegnaProfili(lista) {
-  const box = $("scelta-profilo"); box.innerHTML = "";
-  lista.forEach((p) => {
-    const b = bottoneNome(p);
-    const t = document.createElement("span"); t.innerHTML = "<b>" + esc(p.nome) + "</b><small>" + esc(p.classe || "") + "</small>";
-    b.appendChild(t); b.onclick = () => apriCodice(p); box.appendChild(b);
-  });
-  // In libreria: gli altri profili, per passare all'altra (con il suo codice).
-  const r = $("profili"); r.innerHTML = "";
-  lista.forEach((p) => {
-    const b = bottoneNome(p);
-    b.setAttribute("aria-pressed", profilo && p.id === profilo.id ? "true" : "false");
-    b.appendChild(document.createTextNode(p.nome));
-    b.onclick = () => { if (!profilo || p.id !== profilo.id) apriCodice(p); };
-    r.appendChild(b);
-  });
-}
-function disegnaProfiliSalvati() {
-  disegnaProfili(ordinaProfili(leggiLocale(CHIAVE_PROFILI, []), leggiLocale(CHIAVE_ULTIMO, null)));
-}
+// Disegno dei profili e della libreria: libreria.js (issue #12).
 // Disegna subito la copia locale, poi l'elenco vero dal server.
 async function caricaProfili() {
   const ultimo = leggiLocale(CHIAVE_ULTIMO, null);
@@ -675,41 +651,6 @@ async function caricaLibreria() {
   sessioni = s.data || [];
   argomenti.forEach((x) => { x.ultima = sessioni.find((y) => y.argomento_id === x.id) || null; });
   disegnaProfiliSalvati(); disegnaLibreria();
-}
-
-function statoArg(a) {
-  if (!a.ultima) return "mai";
-  const i = a.ultima.indice;
-  return i >= 75 ? "verde" : (i >= 50 ? "giallo" : "rosso");
-}
-function disegnaLibreria() {
-  const som = $("sommario"), lista = $("lista-argomenti");
-  const deboli = argomenti.filter((a) => statoArg(a) === "rosso" || statoArg(a) === "giallo").length;
-  const mai = argomenti.filter((a) => !a.ultima).length;
-  som.innerHTML = "";
-  if (argomenti.length) {
-    [[argomenti.length, "argomenti salvati", ""], [deboli, "da ripassare", deboli ? "rosso" : "verde"], [mai, "mai verificati", "giallo"]].forEach((t) => {
-      const d = document.createElement("div"); d.className = "tess"; if (t[2]) d.dataset.s = t[2];
-      d.innerHTML = "<b>" + t[0] + "</b><span>" + t[1] + "</span>"; som.appendChild(d);
-    });
-  }
-  lista.innerHTML = "";
-  $("occhiello-lib").hidden = !argomenti.length;
-  $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
-  if (!argomenti.length) {
-    lista.innerHTML = '<div class="vuoto"><b>Qui non c\'è ancora niente</b>Fotografa il primo argomento: da quel momento resta in libreria, con le sue foto, e lo ritrovi per i ripassi.</div>';
-    return;
-  }
-  argomenti.forEach((a) => {
-    const b = document.createElement("button"); b.className = "scheda"; b.type = "button";
-    tinta(b, a.materia);
-    const st = statoArg(a);
-    b.innerHTML = '<div class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
-      '<span class="stato-pill" data-s="' + st + '">' + (a.ultima ? a.ultima.indice + "%" : "mai verificato") + "</span></div>" +
-      '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + contaVoci(a) + "</span><span>" + a.foto.length + " foto</span><span>" + dataIt(a.aggiornato) + "</span></div>";
-    b.onclick = () => apriScheda(a);
-    lista.appendChild(b);
-  });
 }
 
 /* =================================================================== nuovo argomento */
@@ -1113,6 +1054,7 @@ async function mostraSessione(x, daScheda) {
     .map((r) => ({ ...r, stato: statoDaMedia(r.media) }));
   esitoMostrato = { info: { titolo: x.titolo, materia: x.materia, data: x.data }, dati: { indice: x.indice, voto: Number(x.voto), verdetto: "", righe } };
   disegnaSemaforo(righe.map((r) => ({ ...r })));
+  rossiEsito = []; $("btn-ripassa-rossi").hidden = true; // una prova dello storico non si ripassa da qui
   dettaglio = (data || []).map((d) => {
     const r = (d.risposte || [])[0] || {};
     return { n: d.ordine, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
@@ -1280,7 +1222,8 @@ async function caricaStudiare(a) {
 
 /* =================================================================== preparazione della prova */
 
-// extra.concetto: prova lampo di 3 domande su quel concetto («Mettiti alla prova» dalla mappa).
+// extra.concetto: prova lampo di 3 domande su quel concetto («Mettiti alla prova», «Prova lampo»).
+// extra.concetti: verifica solo su quei concetti («Ripassa i rossi» dall'esito).
 async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
   errore(elErr, ""); btn.disabled = true;
   attesa(elStato, modo === "ripasso"
@@ -1288,11 +1231,12 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
     : ["Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti", "Scarto quelle campate in aria"]);
   if (!args.some((a) => a.concetti.length)) { attesa(elStato, null); btn.disabled = false; errore(elErr, "Non ci sono concetti su cui interrogarti."); return; }
   ({ titolo: titoloProva, materia: materiaProva } = titoloEMateria(args, modo === "ripasso"));
-  const lampo = extra.concetto || null;
+  const lampo = extra.concetto || null, solo = lampo ? [lampo] : (extra.concetti || null);
   if (lampo) titoloProva += " · " + lampo.titolo;
+  else if (solo) titoloProva += " · ripasso dei rossi";
   try {
-    const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso", livello, tipo, modalita,
-      ...(lampo ? { concetto_id: lampo.id } : {}) });
+    const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso" && !solo, livello, tipo, modalita,
+      ...(solo ? { concetti: solo.map((c) => c.id) } : {}) });
     // Prova lampo chiesta da un argomento che nel frattempo ha lasciato: non la si apre.
     if (lampo && args.length === 1 && corrente !== args[0]) { attesa(elStato, null); btn.disabled = false; return; }
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
@@ -1521,22 +1465,33 @@ async function correggi() {
   await mostraEsito(per);
 }
 
+// Anello di prontezza: l'arco dice quanto manca, il voto al centro lo dice in numero.
 function disegnaQuadrante(indice, v) {
   const r = 44, giro = 2 * Math.PI * r, arco = $("arco");
   arco.setAttribute("stroke-dasharray", (giro * indice / 100).toFixed(1) + " " + giro.toFixed(1));
   arco.setAttribute("stroke", indice >= 75 ? "var(--verde)" : (indice >= 50 ? "var(--giallo)" : "var(--rosso)"));
   $("arco-num").textContent = votoIt(v);
+  $("titolo-quadrante").textContent = "Prontezza " + indice + "%, voto stimato " + votoIt(v);
+}
+
+// Frase dell'esito: dice com'è andata e da dove ripartire, senza giudicare.
+function verdettoEsito(es) {
+  if (es.pronta) return ["Sei pronta!", "Un ripasso veloce sui punti gialli e sei a posto."];
+  if (es.rossiPesanti) return ["Non ancora, ma sai da dove ripartire.",
+    (es.rossiPesanti === 1 ? "C'è un concetto importante" : "Ci sono " + es.rossiPesanti + " concetti importanti") + " da riprendere: comincia dal primo qui sotto."];
+  return ["Ci siamo quasi!", "Rileggi i punti gialli e rifai la verifica: manca poco."];
 }
 // righe: [{ titolo, media, stato, ancora, errore_appunti?, da?, concetto_id?, materia? }], dal più debole
 function disegnaSemaforo(righe) {
   const e = $("esito-concetti"); e.innerHTML = "";
   $("occhiello-concetti").hidden = !righe.length;
-  righe.sort((a, b) => a.media - b.media).forEach((x) => {
+  righe.sort((a, b) => a.media - b.media).forEach((x, i) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
-    d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + x.media.toFixed(1) + "/10</span></h3>";
+    d.innerHTML = '<h3><span class="ordine">' + (i + 1) + "</span>" + esc(x.titolo) + '<span class="voto">' + votoIt(Math.round(x.media * 2) / 2) + "/10</span></h3>" +
+      htmlStato(x.stato);
     const p = document.createElement("p");
-    if (x.stato === "verde") p.textContent = "Acquisito.";
-    else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + 'Rileggi questo: <span class="citazione">' + esc(x.ancora) + "</span>";
+    if (x.stato === "verde") p.textContent = "Lo sai: basta un'occhiata prima della verifica.";
+    else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + '<span class="rileggi">Rileggi: «' + esc(x.ancora) + "»</span>";
     d.appendChild(p);
     if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = "✎ " + x.errore_appunti; d.appendChild(s); }
     if (x.concetto_id && x.stato !== "verde")
@@ -1576,9 +1531,7 @@ async function mostraEsito(per) {
   const es = calcolaEsito(domande, punti);
   disegnaQuadrante(es.indice, es.voto);
   $("voto-num").textContent = "prontezza " + es.indice + "% · livello " + livello + " · " + (modalita === "orale" ? "interrogazione" : "verifica scritta") + " · " + dataOraIt(new Date().toISOString());
-  if (es.pronta) { $("verdetto-t").textContent = "Sei pronta."; $("verdetto-p").textContent = "Un ripasso veloce sui punti gialli e sei a posto."; }
-  else if (es.rossiPesanti) { $("verdetto-t").textContent = "Non ancora."; $("verdetto-p").textContent = "Ci sono " + es.rossiPesanti + " concetti importanti da rifare da capo, non da ripassare."; }
-  else { $("verdetto-t").textContent = "Ci siamo quasi."; $("verdetto-p").textContent = "Rivedi i punti gialli e rifai la verifica."; }
+  [$("verdetto-t").textContent, $("verdetto-p").textContent] = verdettoEsito(es);
   const rs = $("riga-scartate");
   if (scartate) { rs.hidden = false; rs.textContent = "Ho scartato " + scartate + (scartate === 1 ? " domanda perché non era ancorata" : " domande perché non erano ancorate") + " agli appunti."; }
   else rs.hidden = true;
@@ -1592,6 +1545,8 @@ async function mostraEsito(per) {
   esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },
     dati: { indice: es.indice, voto: es.voto, verdetto: $("verdetto-t").textContent + " " + $("verdetto-p").textContent, righe } };
   disegnaSemaforo(righe.map((r) => ({ ...r })));
+  rossiEsito = righe.filter((r) => r.stato === "rosso").map((r) => ({ id: r.concetto_id, titolo: r.titolo }));
+  $("btn-ripassa-rossi").hidden = !rossiEsito.length;
   dettaglio = domande.map((d, i) => {
     const r = risposte[d.id] || {}, p = per[d.id];
     return { n: i + 1, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
@@ -1604,6 +1559,17 @@ async function mostraEsito(per) {
   vai("esito", modo === "ripasso" ? null : argsProva[0].materia);
   try { await salvaProva(es, per); }
   catch (e) { errore($("err-esito"), "Non sono riuscito a salvare questa prova nello storico. Il risultato qui sopra resta valido."); }
+}
+
+// «Ripassa i rossi»: una verifica solo sui concetti rossi della prova appena fatta (al massimo 12).
+function ripassaIRossi() {
+  const rossi = rossiEsito.filter((r) => r.id).slice(0, 12);
+  if (!rossi.length) return;
+  const ids = new Set(rossi.map((r) => r.id));
+  const args = argsProva.filter((a) => a.concetti.some((c) => ids.has(c.id)));
+  if (!args.length) return;
+  modo = args.length > 1 ? "ripasso" : "argomento";
+  preparaVerifica(args, $("btn-ripassa-rossi"), $("stato-esito"), $("err-esito"), rossi.length === 1 ? { concetto: rossi[0] } : { concetti: rossi });
 }
 
 // Prova nello storico: sessione, domande e risposte, e stato aggiornato di ogni concetto.
@@ -1664,6 +1630,7 @@ function collega() {
     filtroMat = ""; disegnaStorico(); vai("storico");
   });
   $("btn-torna-lib").addEventListener("click", () => { disegnaLibreria(); vai("libreria"); });
+  $("btn-ripassa-rossi").addEventListener("click", ripassaIRossi);
   $("btn-torna-storico").addEventListener("click", () => { disegnaStorico(); vai("storico"); });
 
   $("btn-nuovo").addEventListener("click", () => {
