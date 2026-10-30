@@ -2,7 +2,7 @@
 // Mai come fonte delle domande di verifica: la funzione `domande` non legge né le
 // spiegazioni né i nodi web della mappa, e indice e voto non cambiano.
 // Script classico caricato dopo app.js e stampa.js: usa $, esc, vai, modello, conRiprova,
-// attesa, errore, avviso, messaggioModello, sb, profilo, mappa, corrente, mappaInCorso,
+// attesa, errore, avviso, messaggioModello, sb, profilo, mappa, corrente, iniziaLavoro, finisciLavoro,
 // disegnaMappa, FONTE_WEB, ETICHETTA_WEB.
 
 /* =================================================================== parti pure */
@@ -114,14 +114,14 @@ function bottoneSpiega(c) {
 /* =================================================================== Arricchisci dal web */
 
 const FRASI_ARRICCHISCI = ["Cerco esempi e curiosità sui siti di scuola", "Controllo le fonti", "Aggiungo i nodi alla mappa"];
-let arricchimentoInCorso = null; // argomento_id
 
 async function arricchisciDalWeb() {
   const a = corrente, btn = $("btn-arricchisci");
-  if (!a || !mappa || mappa.argomento_id !== a.id || mappa.provvisoria || arricchimentoInCorso === a.id || mappaInCorso === a.id || sintesiInCorso === a.id) return;
+  if (!a || !mappa || mappa.argomento_id !== a.id || mappa.provvisoria) return;
   if (senzaRete()) { errore($("err-mappa"), MSG_OFFLINE_WEB); return; }
+  if (!iniziaLavoro(a.id, "arricchisci")) return;
   const generataPrima = mappa.generata;
-  arricchimentoInCorso = a.id; btn.disabled = true; $("btn-rigenera").disabled = true; errore($("err-mappa"), "");
+  btn.disabled = true; $("btn-rigenera").disabled = true; errore($("err-mappa"), "");
   attesa($("stato-mappa"), FRASI_ARRICCHISCI);
   try {
     const r = await conRiprova(() => modello({ azione: "arricchisci", argomento_id: a.id }));
@@ -139,7 +139,7 @@ async function arricchisciDalWeb() {
       ? "Prima serve la mappa: tocca Rigenera."
       : messaggioWeb(e, "Non sono riuscito ad arricchire la mappa. Riprova fra un momento."));
   } finally {
-    arricchimentoInCorso = null;
+    finisciLavoro(a.id, "arricchisci");
     if (corrente === a) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
 }

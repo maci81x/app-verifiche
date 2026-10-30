@@ -32,7 +32,7 @@ function htmlCardNodo(n, ctx) {
     '<p class="occhiello">Dagli appunti</p><blockquote class="quaderno">' + esc(n.ancora) + "</blockquote>" +
     (ctx.errore ? '<p class="avviso-appunti" role="note"><span aria-hidden="true">✎</span> ' + esc(ctx.errore) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? " · " + esc(c.titolo) : "") + "</p>" +
-    '<p class="in-breve" data-tipo="' + s.tipo + '"' + (s.tipo === "attesa" ? ' aria-live="polite"' : "") + ">" + esc(s.testo) + "</p>" +
+    '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +
     (ctx.senzaConcetto ? '<p class="legenda">Questo concetto non c\'è più nell\'argomento: rigenera la mappa.</p>'
       : '<div class="bottoni card-azioni">' +
         '<button type="button" class="azione" data-azione="prova">Mettiti alla prova' + (sotto ? " su «" + esc(c.titolo) + "»" : "") + "</button>" +
@@ -56,7 +56,7 @@ function apriCardNodo(g) {
   const dalDb = concetto && (corrente.concetti || []).find((c) => c.id === concetto.id);
   const box = $("card-nodo"), dentro = $("card-nodo-corpo");
   dentro.innerHTML = htmlCardNodo(n, { concetto, errore: dalDb && dalDb.errore_appunti, stato: g.dataset.s, senzaConcetto: !!concetto && !dalDb,
-    sintesiInArrivo: sintesiInCorso === mappa.argomento_id });
+    sintesiInArrivo: lavoroSu(mappa.argomento_id) === "sintesi" || !!mappa.provvisoria });
   g.setAttribute("aria-pressed", "true");
   nodoAperto = { g, n, concetto, dalDb };
   box.hidden = false;
@@ -124,7 +124,7 @@ function collegaCardNodo() {
 // La mappa arriva prima, senza sintesi; le sintesi si chiedono dopo, in background, e si
 // salvano nell'albero. Una generazione per argomento alla volta: mappa, sintesi o arricchisci.
 
-let sintesiInCorso = null; // argomento_id
+// Il lavoro "sintesi" sta nel registro di app.js (lavoriMappa): uno per argomento alla volta.
 
 // Albero da disegnare subito, prima del modello: radice e concetti (già nel database).
 function alberoProvvisorio(a) {
@@ -136,39 +136,41 @@ function alberoProvvisorio(a) {
 const mancanoSintesi = (albero) => ((albero && albero.nodi) || []).some((n) => n.fonte !== "web" && typeof n.sintesi !== "string");
 
 // Albero nuovo con le sintesi sui concetti: { [concetto_id]: testo }. Non tocca quello di partenza.
+// I concetti che il server non conosce più (tolti dall'argomento) prendono "": così una mappa
+// con un concetto cancellato non richiede il riassunto a ogni apertura.
 function conSintesi(albero, sintesi) {
-  return { ...albero, nodi: (albero.nodi || []).map((n) => (Object.hasOwn(sintesi, n.id) ? { ...n, sintesi: String(sintesi[n.id] || "") } : n)) };
+  return { ...albero, nodi: (albero.nodi || []).map((n) => (n.fonte === "web" ? n
+    : { ...n, sintesi: Object.hasOwn(sintesi, n.id) ? String(sintesi[n.id] || "") : (typeof n.sintesi === "string" ? n.sintesi : "") })) };
 }
 
 async function generaSintesi(a) {
-  if (!a || sintesiInCorso === a.id || mappaInCorso === a.id || arricchimentoInCorso === a.id) return;
-  sintesiInCorso = a.id;
-  if (corrente === a) aggiornaBottoniMappa();
+  if (!a || senzaRete() || !iniziaLavoro(a.id, "sintesi")) return;
+  if (stessoArgomento(corrente, a)) { aggiornaBottoniMappa(); aggiornaInBreveAperto(); }
   try {
     const r = await conRiprova(() => modello({ azione: "sintesi", argomento_id: a.id }));
     // Si parte dall'albero salvato: è quello che vale, anche se nel frattempo ha cambiato argomento.
-    const { data, error } = await sb.from("mappe").select("albero").eq("argomento_id", a.id).maybeSingle();
-    if (error || !data) return;
+    const { data, error } = await sb.from("mappe").select("albero, generata").eq("argomento_id", a.id).maybeSingle();
+    if (error) throw error;
+    if (!data) return;
     const albero = conSintesi(data.albero, r.sintesi || {});
-    await sb.from("mappe").update({ albero }).eq("argomento_id", a.id);
-    if (mappa && mappa.argomento_id === a.id) {
-      mappa = { ...mappa, albero };
-      aggiornaInBreveAperto();
-    }
+    const { error: e2 } = await sb.from("mappe").update({ albero }).eq("argomento_id", a.id);
+    if (e2) throw e2;
+    if (mappa && mappa.argomento_id === a.id && !mappa.provvisoria) mappa = { ...mappa, albero };
   } catch (e) {
-    // Il riassunto non è essenziale: la card dice che non c'è ancora, la mappa resta.
+    // Il riassunto non è essenziale: la card dice che non c'è ancora e alla prossima apertura si riprova.
+    console.warn("sintesi della mappa non riuscita:", a.id, e && e.message);
   } finally {
-    sintesiInCorso = null;
+    finisciLavoro(a.id, "sintesi");
     if (mappa && mappa.argomento_id === a.id) aggiornaInBreveAperto();
-    if (corrente === a) aggiornaBottoniMappa();
+    if (stessoArgomento(corrente, a)) aggiornaBottoniMappa();
   }
 }
 
 // Se la card di un nodo è aperta, il suo «In breve» si aggiorna senza ridisegnare niente.
 function aggiornaInBreveAperto() {
   const p = document.querySelector("#card-nodo:not([hidden]) .in-breve");
-  if (!p || !nodoAperto || !nodoAperto.concetto) return;
+  if (!p || !nodoAperto || !nodoAperto.concetto || !mappa) return;
   const c = trovaNodo(mappa.albero.nodi, nodoAperto.concetto.id);
-  const s = sintesiDelConcetto(c, sintesiInCorso === mappa.argomento_id);
+  const s = sintesiDelConcetto(c, lavoroSu(mappa.argomento_id) === "sintesi" || !!mappa.provvisoria);
   p.dataset.tipo = s.tipo; p.textContent = s.testo;
 }

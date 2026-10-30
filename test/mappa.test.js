@@ -185,6 +185,10 @@ test("«in breve» a parte (issue #13): la sintesi resta se regge sugli appunti,
   assert.equal(r.scartate, 1);
   // Ogni concetto ha la sua voce, anche se il modello l'ha saltato.
   assert.deepEqual(sintesiDaRisposta(ARGOMENTO, { sintesi: [] }).sintesi, { "uuid-1": "", "uuid-2": "" });
+  // Un doppione non sovrascrive la prima risposta e non conta due volte.
+  const dop = sintesiDaRisposta(ARGOMENTO, { sintesi: [{ concetto_id: "c2", testo: "Inventato da Jacopo nel 1240." }, { concetto_id: "c2", testo: "Il sonetto ha 14 versi endecasillabi." }] });
+  assert.equal(dop.sintesi["uuid-2"], "");
+  assert.equal(dop.scartate, 1);
   // La mappa arriva senza sintesi: si aggiunge dopo.
   assert.ok(costruisciMappa(ARGOMENTO, { nodi: [] }).nodi.every((n) => !("sintesi" in n)));
 });

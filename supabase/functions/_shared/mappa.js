@@ -109,9 +109,11 @@ export function sintesiDaRisposta(argomento, grezza) {
   concetti.forEach((c, i) => { perBreve[idBreve(i)] = c.id; });
   const sintesi = Object.fromEntries(concetti.map((c) => [c.id, ""]));
   let scartate = 0;
+  const visti = new Set();
   lista(grezza && grezza.sintesi).forEach((g) => {
     const id = perBreve[g && g.concetto_id];
-    if (!id || sintesi[id]) return;
+    if (!id || visti.has(id)) return;
+    visti.add(id);
     const tenuta = sintesiPulita(g.testo, fonte);
     if (!tenuta && pulito(g && g.testo)) scartate++;
     sintesi[id] = tenuta;

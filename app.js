@@ -1080,7 +1080,20 @@ async function mostraSessione(x, daScheda) {
 
 const FRASI_MAPPA = ["Rileggo gli appunti", "Cerco i sotto-punti di ogni concetto", "Controllo che ogni nodo stia negli appunti", "Disegno la mappa"];
 let mappa = null; // { argomento_id, albero, generata, scartati } dell'argomento aperto
-let mappaInCorso = null; // argomento_id della mappa che il modello sta preparando
+// Un lavoro del modello per argomento alla volta (issue #13): { argomento_id → "mappa" | "sintesi" | "arricchisci" }.
+// Ogni lavoro libera solo il suo argomento: due argomenti non si liberano a vicenda.
+let lavoriMappa = new Map();
+const lavoroSu = (id) => lavoriMappa.get(id) || null;
+function iniziaLavoro(id, tipo) {
+  if (!id || lavoriMappa.has(id)) return false;
+  lavoriMappa = new Map(lavoriMappa).set(id, tipo);
+  return true;
+}
+function finisciLavoro(id, tipo) {
+  if (lavoriMappa.get(id) !== tipo) return;
+  const nuovi = new Map(lavoriMappa); nuovi.delete(id); lavoriMappa = nuovi;
+}
+const stessoArgomento = (x, y) => !!x && !!y && x.id === y.id;
 let statiMappa = null; // { argomento_id, stati: { concetto_id: stato } } dall'ultima prova di ogni concetto
 
 function apriMappa(a, pannello) {
@@ -1106,7 +1119,7 @@ async function caricaMappa(a) {
   // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
   const stati = caricaStatiMappa(a).then(() => { if (corrente === a && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
   if (mappa && mappa.argomento_id === a.id) { disegnaMappa(); return; }
-  if (mappaInCorso === a.id) {
+  if (lavoroSu(a.id) === "mappa") {
     mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true };
     disegnaMappa(); attesa($("stato-mappa"), FRASI_MAPPA); return;
   }
@@ -1128,8 +1141,8 @@ async function caricaMappa(a) {
 // (una chiamata leggera), poi in background il riassunto «In breve» (issue #13).
 async function generaMappa(a) {
   // Una generazione per argomento alla volta: mappa, sintesi o arricchisci.
-  if (mappaInCorso === a.id || arricchimentoInCorso === a.id || sintesiInCorso === a.id) return;
-  mappaInCorso = a.id; aggiornaBottoniMappa(); errore($("err-mappa"), "");
+  if (!iniziaLavoro(a.id, "mappa")) return;
+  aggiornaBottoniMappa(); errore($("err-mappa"), "");
   const prima = mappa && mappa.argomento_id === a.id ? mappa : null;
   if (!prima) { mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true }; disegnaMappa(); }
   attesa($("stato-mappa"), ["Aggiungo i sotto-punti presi dagli appunti", "Controllo che ogni nodo stia negli appunti"]);
@@ -1139,25 +1152,25 @@ async function generaMappa(a) {
     const nuova = { argomento_id: a.id, albero: { titolo: r.titolo, materia: r.materia, nodi: r.nodi }, scartati: r.scartati || 0, generata: new Date().toISOString() };
     const { error } = await sb.from("mappe").upsert(nuova, { onConflict: "argomento_id,studente_id" });
     salvata = !error;
-    if (corrente === a) { mappa = nuova; disegnaMappa(); }
-    if (error && corrente === a) avviso($("err-mappa"), "Non sono riuscito a salvare la mappa: la vedi adesso, ma la prossima volta va rifatta.");
+    if (stessoArgomento(corrente, a)) { mappa = nuova; disegnaMappa(); }
+    if (error && stessoArgomento(corrente, a)) avviso($("err-mappa"), "Non sono riuscito a salvare la mappa: la vedi adesso, ma la prossima volta va rifatta.");
   } catch (e) {
-    if (corrente === a) {
+    if (stessoArgomento(corrente, a)) {
       if (mappa && mappa.provvisoria) { mappa = prima; $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; if (prima) disegnaMappa(); }
       const nessuno = e.dati && e.dati.errore === "nessun_concetto";
       errore($("err-mappa"), nessuno ? "Questo argomento non ha ancora concetti." : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
     }
   } finally {
-    mappaInCorso = null;
+    finisciLavoro(a.id, "mappa");
     // Se ha cambiato argomento, l'attesa sullo schermo non è più di questa mappa.
-    if (corrente === a) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
+    if (stessoArgomento(corrente, a)) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
   if (salvata) generaSintesi(a);
 }
 
 // Rigenera, Arricchisci e Stampa: spenti mentre sull'argomento aperto lavora il modello.
 function aggiornaBottoniMappa() {
-  const id = corrente && corrente.id, occupato = mappaInCorso === id || arricchimentoInCorso === id || sintesiInCorso === id;
+  const id = corrente && corrente.id, occupato = !!lavoroSu(id);
   $("btn-rigenera").disabled = occupato;
   $("btn-arricchisci").disabled = occupato || !mappa || mappa.argomento_id !== id || !!mappa.provvisoria;
   $("btn-stampa").disabled = !mappa || mappa.argomento_id !== id || !!mappa.provvisoria;

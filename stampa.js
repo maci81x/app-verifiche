@@ -245,7 +245,7 @@ function collegaStampa() {
   $("btn-stampa-indietro").addEventListener("click", esciDaStampa);
   $("btn-prepara-stampa").addEventListener("click", preparaVerificaDaStampare);
   $("btn-stampa").addEventListener("click", () => {
-    if (mappa) apriStampa("mappa", { titolo: corrente.titolo, materia: corrente.materia }, { albero: mappa.albero, stati: statiDellaMappa(corrente) });
+    if (mappa && !mappa.provvisoria) apriStampa("mappa", { titolo: corrente.titolo, materia: corrente.materia }, { albero: mappa.albero, stati: statiDellaMappa(corrente) });
   });
   $("btn-stampa-studiare").addEventListener("click", () => {
     if (listaStudiare.length) apriStampa("studiare", { titolo: corrente.titolo, materia: corrente.materia }, listaStudiare);
