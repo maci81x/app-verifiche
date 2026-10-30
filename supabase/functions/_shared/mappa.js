@@ -78,8 +78,8 @@ export function costruisciMappa(argomento, grezza) {
   const perBreve = {};
   concetti.forEach((c, i) => { perBreve[idBreve(i)] = c.id; });
 
-  let scartati = 0, tagliati = 0, sintesiScartate = 0;
-  const figliDi = {}, sintesiDi = {};
+  let scartati = 0, tagliati = 0;
+  const figliDi = {};
   lista(grezza && grezza.nodi).forEach((g) => {
     const id = perBreve[g && g.concetto_id];
     // Ramo di un concetto che non esiste, o ripetuto: non si attacca a niente.
@@ -87,21 +87,36 @@ export function costruisciMappa(argomento, grezza) {
     const sotto = sottoPunti(g.figli, id, 2, fonte);
     scartati += sotto.scartati; tagliati += sotto.tagliati;
     figliDi[id] = sotto.figli;
-    // «In breve» (issue #11): tenuta solo se le sue parole importanti stanno negli appunti.
-    sintesiDi[id] = sintesiPulita(g.sintesi, fonte);
-    if (pulito(g.sintesi) && !sintesiDi[id]) sintesiScartate++;
   });
 
-  // Ogni concetto ha sempre il campo sintesi (anche vuoto): così l'app distingue una mappa
-  // nuova senza riassunto sicuro da una mappa vecchia, nata prima dei riassunti.
+  // Senza il campo sintesi: arriva dopo, con l'azione `sintesi` (issue #13).
   const interi = concetti.map((c) => ({
     id: c.id, titolo: c.titolo, ancora: c.ancora, fonte: FONTE_APPUNTI,
-    peso: Math.min(3, Math.max(1, Number(c.peso) || 2)), sintesi: sintesiDi[c.id] || "", figli: figliDi[c.id] || [],
+    peso: Math.min(3, Math.max(1, Number(c.peso) || 2)), figli: figliDi[c.id] || [],
   }));
   const nodi = nelLimite(interi);
   const conta = (ns) => ns.reduce((t, n) => t + contaNodi(n), 0);
   tagliati += conta(interi) - conta(nodi);
-  return { titolo: argomento.titolo, materia: argomento.materia, nodi, scartati, tagliati, sintesi_scartate: sintesiScartate };
+  return { titolo: argomento.titolo, materia: argomento.materia, nodi, scartati, tagliati };
+}
+
+// «In breve» (issue #13). grezza: { sintesi: [{ concetto_id: "c1", testo }] } → { sintesi: { [uuid]: testo } , scartate }.
+// Ogni concetto dell'argomento ha la sua voce: "" se il modello non l'ha scritta o se non regge.
+export function sintesiDaRisposta(argomento, grezza) {
+  const concetti = concettiInOrdine(argomento.concetti);
+  const fonte = normalizza(argomento.trascrizione);
+  const perBreve = {};
+  concetti.forEach((c, i) => { perBreve[idBreve(i)] = c.id; });
+  const sintesi = Object.fromEntries(concetti.map((c) => [c.id, ""]));
+  let scartate = 0;
+  lista(grezza && grezza.sintesi).forEach((g) => {
+    const id = perBreve[g && g.concetto_id];
+    if (!id || sintesi[id]) return;
+    const tenuta = sintesiPulita(g.testo, fonte);
+    if (!tenuta && pulito(g && g.testo)) scartate++;
+    sintesi[id] = tenuta;
+  });
+  return { sintesi, scartate };
 }
 
 // ------------------------------------------------------------------ nodi dal web (issue #4)

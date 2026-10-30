@@ -118,7 +118,7 @@ let arricchimentoInCorso = null; // argomento_id
 
 async function arricchisciDalWeb() {
   const a = corrente, btn = $("btn-arricchisci");
-  if (!a || !mappa || mappa.argomento_id !== a.id || arricchimentoInCorso === a.id || mappaInCorso === a.id) return;
+  if (!a || !mappa || mappa.argomento_id !== a.id || mappa.provvisoria || arricchimentoInCorso === a.id || mappaInCorso === a.id || sintesiInCorso === a.id) return;
   if (senzaRete()) { errore($("err-mappa"), MSG_OFFLINE_WEB); return; }
   const generataPrima = mappa.generata;
   arricchimentoInCorso = a.id; btn.disabled = true; $("btn-rigenera").disabled = true; errore($("err-mappa"), "");
@@ -140,7 +140,7 @@ async function arricchisciDalWeb() {
       : messaggioWeb(e, "Non sono riuscito ad arricchire la mappa. Riprova fra un momento."));
   } finally {
     arricchimentoInCorso = null;
-    if (corrente === a) { attesa($("stato-mappa"), null); btn.disabled = !mappa; $("btn-rigenera").disabled = false; }
+    if (corrente === a) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
 }
 

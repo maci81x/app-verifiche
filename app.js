@@ -1084,7 +1084,7 @@ let mappaInCorso = null; // argomento_id della mappa che il modello sta preparan
 let statiMappa = null; // { argomento_id, stati: { concetto_id: stato } } dall'ultima prova di ogni concetto
 
 function apriMappa(a, pannello) {
-  corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id; $("btn-stampa").disabled = true; $("btn-arricchisci").disabled = true;
+  corrente = a; mappa = null; aggiornaBottoniMappa();
   $("t-mappa").textContent = a.titolo;
   errore($("err-mappa"), ""); attesa($("stato-mappa"), null);
   $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; statiMappa = null; chiudiCardNodo(false);
@@ -1106,39 +1106,61 @@ async function caricaMappa(a) {
   // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
   const stati = caricaStatiMappa(a).then(() => { if (corrente === a && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
   if (mappa && mappa.argomento_id === a.id) { disegnaMappa(); return; }
-  if (mappaInCorso === a.id) { attesa($("stato-mappa"), FRASI_MAPPA); return; }
+  if (mappaInCorso === a.id) {
+    mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true };
+    disegnaMappa(); attesa($("stato-mappa"), FRASI_MAPPA); return;
+  }
   attesa($("stato-mappa"), ["Apro la mappa"]);
   const [{ data, error }] = await Promise.all([
     sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle(), stati]);
   if (corrente !== a) return; // nel frattempo ha cambiato argomento
   attesa($("stato-mappa"), null);
   if (error) { errore($("err-mappa"), "Non riesco ad aprire la mappa. Controlla la connessione e riprova."); return; }
-  if (data) { mappa = { argomento_id: a.id, ...data }; disegnaMappa(); return; }
+  if (data) {
+    mappa = { argomento_id: a.id, ...data }; disegnaMappa();
+    if (mancanoSintesi(mappa.albero)) generaSintesi(a); // mappa vecchia o sintesi non arrivate: si preparano adesso
+    return;
+  }
   generaMappa(a);
 }
 
+// La mappa compare subito con i concetti (già nel database), poi arrivano i sotto-punti
+// (una chiamata leggera), poi in background il riassunto «In breve» (issue #13).
 async function generaMappa(a) {
-  // Una richiesta per volta, e mai mentre si arricchisce: l'albero arricchito sovrascriverebbe quello nuovo.
-  if (mappaInCorso === a.id || arricchimentoInCorso === a.id) return;
-  const btn = $("btn-rigenera");
-  mappaInCorso = a.id; btn.disabled = true; $("btn-arricchisci").disabled = true; errore($("err-mappa"), "");
-  attesa($("stato-mappa"), FRASI_MAPPA);
+  // Una generazione per argomento alla volta: mappa, sintesi o arricchisci.
+  if (mappaInCorso === a.id || arricchimentoInCorso === a.id || sintesiInCorso === a.id) return;
+  mappaInCorso = a.id; aggiornaBottoniMappa(); errore($("err-mappa"), "");
+  const prima = mappa && mappa.argomento_id === a.id ? mappa : null;
+  if (!prima) { mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true }; disegnaMappa(); }
+  attesa($("stato-mappa"), ["Aggiungo i sotto-punti presi dagli appunti", "Controllo che ogni nodo stia negli appunti"]);
+  let salvata = false;
   try {
     const r = await conRiprova(() => modello({ azione: "mappa", argomento_id: a.id }));
     const nuova = { argomento_id: a.id, albero: { titolo: r.titolo, materia: r.materia, nodi: r.nodi }, scartati: r.scartati || 0, generata: new Date().toISOString() };
     const { error } = await sb.from("mappe").upsert(nuova, { onConflict: "argomento_id,studente_id" });
-    if (corrente !== a) return; // nel frattempo ha cambiato argomento: la mappa è salvata, non si disegna
-    mappa = nuova; disegnaMappa();
-    if (error) avviso($("err-mappa"), "Non sono riuscito a salvare la mappa: la vedi adesso, ma la prossima volta va rifatta.");
+    salvata = !error;
+    if (corrente === a) { mappa = nuova; disegnaMappa(); }
+    if (error && corrente === a) avviso($("err-mappa"), "Non sono riuscito a salvare la mappa: la vedi adesso, ma la prossima volta va rifatta.");
   } catch (e) {
-    if (corrente !== a) return;
-    const nessuno = e.dati && e.dati.errore === "nessun_concetto";
-    errore($("err-mappa"), nessuno ? "Questo argomento non ha ancora concetti." : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
+    if (corrente === a) {
+      if (mappa && mappa.provvisoria) { mappa = prima; $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; if (prima) disegnaMappa(); }
+      const nessuno = e.dati && e.dati.errore === "nessun_concetto";
+      errore($("err-mappa"), nessuno ? "Questo argomento non ha ancora concetti." : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
+    }
   } finally {
     mappaInCorso = null;
     // Se ha cambiato argomento, l'attesa sullo schermo non è più di questa mappa.
-    if (corrente === a) { attesa($("stato-mappa"), null); btn.disabled = false; }
+    if (corrente === a) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
+  if (salvata) generaSintesi(a);
+}
+
+// Rigenera, Arricchisci e Stampa: spenti mentre sull'argomento aperto lavora il modello.
+function aggiornaBottoniMappa() {
+  const id = corrente && corrente.id, occupato = mappaInCorso === id || arricchimentoInCorso === id || sintesiInCorso === id;
+  $("btn-rigenera").disabled = occupato;
+  $("btn-arricchisci").disabled = occupato || !mappa || mappa.argomento_id !== id || !!mappa.provvisoria;
+  $("btn-stampa").disabled = !mappa || mappa.argomento_id !== id || !!mappa.provvisoria;
 }
 
 // Scrive in `el` l'HTML di componi(carattere) con la stima della larghezza delle lettere;
@@ -1161,8 +1183,8 @@ function disegnaMappa() {
   $("meta-mappa").textContent = n + " nodi presi dagli appunti" + (web ? " e " + web + " dal web" : "") + " · fatta il " + dataIt(mappa.generata) +
     (mappa.scartati ? " · " + mappa.scartati + (mappa.scartati === 1 ? " nodo tolto perché" : " nodi tolti perché") + " non si ritrovava negli appunti" : "") +
     ". Tocca un riquadro per la frase degli appunti, il riassunto e la prova su quel concetto.";
-  $("btn-stampa").disabled = false;
-  $("btn-arricchisci").disabled = arricchimentoInCorso === mappa.argomento_id || mappaInCorso === mappa.argomento_id;
+  if (mappa.provvisoria) $("meta-mappa").textContent = "Ecco i concetti: sto aggiungendo i sotto-punti presi dagli appunti.";
+  aggiornaBottoniMappa();
 }
 // Righe delle prove fatte su un argomento (anche dai ripassi: portano l'argomento da cui vengono).
 async function righeProve(a) {

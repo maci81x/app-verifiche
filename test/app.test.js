@@ -500,11 +500,29 @@ test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione
   assert.equal(/<img|<script/.test(cattivo), false);
 });
 
-test("card: le mappe vecchie chiedono di rigenerare, quelle nuove senza sintesi sicura lo dicono", () => {
-  const vecchio = { id: "c1", titolo: "T", ancora: "a b", fonte: "appunti", figli: [] };
-  assert.match(run(`htmlCardNodo(${JSON.stringify(vecchio)}, { concetto: ${JSON.stringify(vecchio)}, stato: "mai" })`), /data-tipo="vecchia">Rigenera la mappa per il riassunto\./);
-  const vuoto = { ...vecchio, sintesi: "" };
+test("card: riassunto in preparazione, non ancora pronto, o non sicuro (issue #13)", () => {
+  const senza = { id: "c1", titolo: "T", ancora: "a b", fonte: "appunti", figli: [] };
+  assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai", sintesiInArrivo: true })`),
+    /data-tipo="attesa" aria-live="polite">Sto preparando il riassunto…/);
+  assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai" })`), /data-tipo="vecchia">Il riassunto non c'è ancora/);
+  const vuoto = { ...senza, sintesi: "" };
   assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota">Per questo concetto non ho un riassunto sicuro/);
+  // Anche con la sintesi in arrivo, i pulsanti restano: niente si blocca.
+  assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai", sintesiInArrivo: true })`), /data-azione="prova"/);
+});
+
+test("mappa subito (issue #13): scheletro dai concetti, sintesi unite senza toccare l'albero di partenza", () => {
+  const a = { titolo: "La peste", materia: "storia", concetti: [{ id: "c2", titolo: "Due", ancora: "b", ordine: 1 }, { id: "c1", titolo: "Uno", ancora: "a", ordine: 0, peso: 3 }] };
+  const prov = JSON.parse(run(`JSON.stringify(alberoProvvisorio(${JSON.stringify(a)}))`));
+  assert.deepEqual(prov.nodi.map((n) => [n.id, n.fonte, n.figli.length]), [["c1", "appunti", 0], ["c2", "appunti", 0]]);
+  assert.equal(run(`mancanoSintesi(${JSON.stringify(prov)})`), true);
+  const unito = JSON.parse(run(`(() => { const p = alberoProvvisorio(${JSON.stringify(a)}); const u = conSintesi(p, { c1: "Prima frase.", c2: "" });
+    return JSON.stringify({ u, p }); })()`));
+  assert.deepEqual(unito.u.nodi.map((n) => n.sintesi), ["Prima frase.", ""]);
+  assert.ok(unito.p.nodi.every((n) => !("sintesi" in n)), "l'albero di partenza non cambia");
+  assert.equal(run(`mancanoSintesi(${JSON.stringify(unito.u)})`), false);
+  // I nodi dal web non hanno sintesi e non contano.
+  assert.equal(run(`mancanoSintesi({ nodi: [{ id: "w", fonte: "web" }, { id: "c1", fonte: "appunti", sintesi: "" }] })`), false);
 });
 
 test("card di un sotto-punto: la sua ancora, il riassunto e la prova del suo concetto", () => {
