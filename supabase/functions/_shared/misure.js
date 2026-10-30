@@ -16,10 +16,13 @@ const PI = [3.14, Math.PI];
 
 // Valore numerico di una misura della figura ("8 cm" → 8, "7,5" → 7.5, "?" → null).
 // Una misura con più di un numero (o nessuno) non si usa.
-export function valoreMisura(figura, nome) {
+// Numeri scritti in una misura, con i punti delle migliaia tolti ("1.200 m" → ["1200"]).
+function numeriMisura(figura, nome) {
   const m = (figura?.misure || []).find((x) => x.nome === nome);
-  if (!m) return null;
-  const numeri = String(m.valore).replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2").match(/\d+(?:[.,]\d+)?/g) || [];
+  return m ? String(m.valore).replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2").match(/\d+(?:[.,]\d+)?/g) || [] : [];
+}
+export function valoreMisura(figura, nome) {
+  const numeri = numeriMisura(figura, nome);
   return numeri.length === 1 ? Number(numeri[0].replace(",", ".")) : null;
 }
 
@@ -98,7 +101,27 @@ const COERENZE = {
 };
 
 const lista = (x) => (x == null ? null : (Array.isArray(x) ? x : [x]));
-const testoMisura = (figura, nome) => String((figura?.misure || []).find((x) => x.nome === nome)?.valore ?? "");
+
+// Figure impossibili: un cateto non può essere lungo quanto l'ipotenusa, né un lato quanto la diagonale.
+const IMPOSSIBILI = {
+  triangolo_rettangolo: (v) => tutti(v("ipotenusa")) && [v("cateto1"), v("cateto2")].some((c) => c != null && c >= v("ipotenusa")),
+  rettangolo: (v) => tutti(v("diagonale")) && [v("base"), v("altezza")].some((c) => c != null && c >= v("diagonale")),
+};
+
+// Unità ammesse per grandezza. Vuota va sempre bene (decide il numero).
+const UNITA = {
+  area: /²|\^ ?2|[a-z]2$|quadr/,
+  volume: /³|\^ ?3|[a-z]3$|cub|litr|^(ml|cl|dl|l|hl)$/,
+  lunghezza: /^(mm|cm|dm|m|dam|hm|km)$/,
+};
+function unitaSbagliata(grandezza, unita) {
+  const u = String(unita || "").trim().toLowerCase().replace(/\.$/, "");
+  if (!u) return false;
+  if (grandezza === "area") return !UNITA.area.test(u);
+  if (grandezza === "volume") return !UNITA.volume.test(u);
+  if (grandezza === "perimetro" || grandezza === "misura") return !UNITA.lunghezza.test(u);
+  return false;
+}
 
 // Valori che il risultato può avere secondo la formula giusta, o null se la figura non
 // basta per ricavarlo (allora decide solo la `verifica`).
@@ -119,14 +142,13 @@ export function attesiDallaFigura(figura, grandezza) {
 // valore: il risultato dichiarato, come stringa ("20", "7,07", "3/4").
 export function figuraNonTorna(figura, grandezza, valore, unita = "") {
   if (!figura) return null;
+  const v = (n) => valoreMisura(figura, n);
+  if (Object.hasOwn(IMPOSSIBILI, figura.forma) && IMPOSSIBILI[figura.forma](v)) return "figura_incoerente";
   for (const [nome, calcola] of (Object.hasOwn(COERENZE, figura.forma) ? COERENZE[figura.forma] : [])) {
-    const dato = valoreMisura(figura, nome), atteso = calcola((n) => valoreMisura(figura, n));
-    if (dato != null && atteso != null && !coincide(atteso, testoMisura(figura, nome).match(/\d+(?:[.,]\d+)?/)[0]))
-      return "figura_incoerente";
+    const dato = v(nome), atteso = calcola(v);
+    if (dato != null && atteso != null && !coincide(atteso, numeriMisura(figura, nome)[0])) return "figura_incoerente";
   }
-  const u = String(unita || "").trim().toLowerCase();
-  if (grandezza === "area" && /^(mm|cm|dm|m|km)$/.test(u)) return "unita";
-  if (grandezza === "perimetro" && /[²³]|\^/.test(u)) return "unita";
+  if (unitaSbagliata(grandezza, unita)) return "unita";
   const attesi = attesiDallaFigura(figura, grandezza);
   if (attesi === null || attesi.some((x) => x == null)) return null;
   return attesi.some((x) => coincide(x, valore)) ? null : "formula";

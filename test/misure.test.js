@@ -110,3 +110,19 @@ test("misure che non bastano o forme sconosciute: niente ricalcolo", () => {
   assert.equal(figuraNonTorna(null, "area", "5", ""), null);
   assert.deepEqual(GRANDEZZE, ["area", "perimetro", "volume", "misura", "altro"]);
 });
+
+test("revisione #10: unità per grandezza, migliaia nelle misure, figure impossibili", () => {
+  const r = fig("rettangolo", { base: "12", altezza: "5" });
+  assert.equal(figuraNonTorna(r, "area", "60", "cm³"), "unita");
+  assert.equal(figuraNonTorna(r, "area", "60", "cm2"), null);
+  assert.equal(figuraNonTorna(r, "area", "60", "metri quadrati"), null);
+  assert.equal(figuraNonTorna(r, "perimetro", "34", "cm2"), "unita");
+  const c = fig("cubo", { spigolo: "3" });
+  assert.equal(figuraNonTorna(c, "volume", "27", "cm"), "unita");
+  assert.equal(figuraNonTorna(c, "volume", "27", "cm²"), "unita");
+  assert.equal(figuraNonTorna(c, "volume", "27", "cm³"), null);
+  assert.equal(figuraNonTorna(c, "volume", "27", "dm3"), null);
+  assert.equal(figuraNonTorna(fig("cerchio", { raggio: "500 m", diametro: "1.000 m" }), "altro", "1", ""), null, "1.000 è mille");
+  assert.equal(figuraNonTorna(fig("triangolo_rettangolo", { cateto1: "?", cateto2: "10", ipotenusa: "6" }), "misura", "8", "cm"), "figura_incoerente");
+  assert.equal(figuraNonTorna(fig("rettangolo", { base: "13", altezza: "?", diagonale: "13" }), "misura", "0", "cm"), "figura_incoerente");
+});

@@ -47,8 +47,8 @@ test("un'ancora troppo corta per dire qualcosa non regge", () => {
 
 test("il confine: 7 parole su 10 presenti (70%) passa, 6 su 10 (60%) no", () => {
   const fonte = normalizza("alfa beta gamma delta epsilon zeta theta iota kappa lambda");
-  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta theta xxxx yyyy wwww", fonte), true);
-  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta xxxx yyyy wwww qqqq", fonte), false);
+  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta theta qqqa qqqb qqqd", fonte), true);
+  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta qqqa qqqb qqqd qqqe", fonte), false);
 });
 
 test("un'ancora fatta di parole vere prese qua e là nella fonte viene scartata", () => {
@@ -66,18 +66,48 @@ test("le parole si confrontano intere, non dentro altre parole", () => {
 
 test("le parole devono comparire nello stesso ordine dell'ancora", () => {
   assert.equal(ancoraRegge("endecasillabi versi composto sonetto", FONTE), false);
-  assert.equal(ancoraRegge("sonetto composto versi endecasillabi", FONTE), true);
+  assert.equal(ancoraRegge("sonetto composto 14 versi endecasillabi", FONTE), true);
 });
 
 test("la finestra: abbastanza larga per poche parole in mezzo, non per mezza pagina", () => {
-  // «Federico II di Svevia»: due parole in mezzo, finestra di 22 caratteri, regge.
-  assert.equal(ancoraRegge("Federico Svevia", FONTE), true);
+  // «corte palermitana di Federico»: una parola in mezzo, regge.
+  assert.equal(ancoraRegge("corte palermitana Federico", FONTE), true);
   // «corte ... imperatore»: in mezzo c'è mezza frase, troppo lontano.
   assert.equal(ancoraRegge("corte imperatore", FONTE), false);
 });
 
-test("la fonte comprende anche titoli, descrizioni e ancore dei concetti", () => {
-  // "Svevia" è nella trascrizione, "Federico" anche nella descrizione di c1
-  assert.equal(ancoraRegge("Federico Svevia", FONTE), true);
+test("la fonte è solo testo degli appunti: trascrizione e ancore, non titoli e descrizioni scritti dal modello", () => {
+  assert.equal(ancoraRegge("Federico II di Svevia", FONTE), true);
   assert.equal(ancoraRegge("Federico Barbarossa", FONTE), false); // 1 su 2 = 50%
+  const conDescrizione = fonteDi([{ trascrizione: "La peste arrivò nel 1347.", concetti: [
+    { ancora: "La peste arrivò nel 1347", titolo: "Il contagio", descrizione: "Trasmessa dalle pulci dei ratti neri" }] }]);
+  assert.doesNotMatch(conDescrizione, /pulci|contagio/);
+  assert.equal(ancoraRegge("Trasmessa dalle pulci dei ratti neri", conDescrizione), false);
+});
+
+// Un paragrafo vero di libro, per i fatti cambiati (revisione della issue #10).
+const RIVOLUZIONE = normalizza(
+  "Il 14 luglio 1789 il popolo di Parigi assaltò la Bastiglia, la prigione simbolo del potere del re. " +
+  "Nel 1791 il re tentò di fuggire con la famiglia, ma fu riconosciuto e arrestato a Varennes. " +
+  "La Rivoluzione francese cominciò nel 1789 e cambiò per sempre la storia d'Europa.");
+
+test("un'ancora con un fatto cambiato non regge: numero, nome, mese, negazione", () => {
+  assert.equal(ancoraRegge("Il 14 luglio 1789 il popolo di Parigi assaltò la Bastiglia", RIVOLUZIONE), true);
+  assert.equal(ancoraRegge("La Rivoluzione francese cominciò nel 1799", RIVOLUZIONE), false, "anno cambiato");
+  assert.equal(ancoraRegge("Il 14 luglio il popolo di Versailles assaltò la Bastiglia", RIVOLUZIONE), false, "nome cambiato");
+  assert.equal(ancoraRegge("Il 14 agosto 1789 il popolo di Parigi assaltò la Bastiglia", RIVOLUZIONE), false, "mese cambiato");
+  assert.equal(ancoraRegge("il re non fu riconosciuto e arrestato a Varennes", RIVOLUZIONE), false, "negazione aggiunta");
+  assert.equal(ancoraRegge("Il 14 luglio il popolo di Parigi assaltò la Bastiglia", RIVOLUZIONE), false, "anno tolto dal mezzo");
+});
+
+test("negazione tolta: il tratto degli appunti dice «non», l'ancora no", () => {
+  const fonte = normalizza("Il re non riuscì a fuggire dalla Francia e venne arrestato.");
+  assert.equal(ancoraRegge("Il re non riuscì a fuggire dalla Francia", fonte), true);
+  assert.equal(ancoraRegge("Il re riuscì a fuggire dalla Francia", fonte), false);
+});
+
+test("accenti composti in modo diverso (NFC/NFD) e ancore lunghissime", () => {
+  const fonte = normalizza("Perché la città è così grande");
+  assert.equal(ancoraRegge("Perche\u0301 la citta\u0300 e\u0300 così grande", fonte), true);
+  assert.equal(ancoraRegge("città grande ".repeat(100), fonte), false);
 });
