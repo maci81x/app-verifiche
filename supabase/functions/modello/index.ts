@@ -4,12 +4,13 @@
 // POST { azione: "trascrivi", immagini: [base64 jpeg, max 4], aggiunta?: bool, esercizi?: bool } → { trascrizione }
 // POST { azione: "concetti", materia, titolo, testo, pagine, esistenti?: [titoli] } → { concetti, ... }
 //      I concetti la cui ancora non regge sul testo (filtro di ancoraggio, _shared/ancoraggio.js) vengono scartati qui.
-// POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante? } → { domande, scartate }
+// POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante?, concetto_id? } → { domande, scartate }
+//      concetto_id (con un solo argomento): prova lampo di 3 domande su quel concetto («Mettiti alla prova»).
 //      quante (10, 15 o 20) solo per la verifica da stampare; senza, il numero dipende dal livello.
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
-// POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, figli }], scartati, tagliati }
+// POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, sintesi, figli }], scartati, tagliati, sintesi_scartate }
 //      Primo livello = i concetti dell'argomento (stesso id); sotto, sotto-punti ancorati alla trascrizione.
 // POST { azione: "spiega", concetto_id, errore?: { domanda, risposta_alunna, risposta_attesa } }
 //      → { spiegazione, esempio, analogia, fonti: [{ titolo, url }], eta }
@@ -37,7 +38,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json-schema";
 import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
-  promptMappa, DOMANDE_DA_STAMPARE,
+  promptMappa, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
 } from "../_shared/prompt.js";
@@ -47,7 +48,7 @@ import { eserciziVerificati, FORME, GRANDEZZE, QUANTI, PER_CHIAMATA, quantiDaChi
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
-import { preparaPool, tieniAncorate } from "../_shared/domande.js";
+import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -152,8 +153,8 @@ const SCHEMA_MAPPA = {
       type: "array",
       items: {
         type: "object",
-        properties: { concetto_id: { type: "string" }, figli: { type: "array", items: SOTTO_PUNTO } },
-        required: ["concetto_id", "figli"], additionalProperties: false,
+        properties: { concetto_id: { type: "string" }, sintesi: { type: "string" }, figli: { type: "array", items: SOTTO_PUNTO } },
+        required: ["concetto_id", "sintesi", "figli"], additionalProperties: false,
       },
     },
   },
@@ -408,8 +409,10 @@ Deno.serve(async (req) => {
 
     if (b.azione === "domande") {
       const ids = Array.isArray(b.argomenti) ? b.argomenti.filter((x: unknown) => typeof x === "string").slice(0, 200) : [];
+      const soloConcetto = b.concetto_id == null ? null : (typeof b.concetto_id === "string" && UUID.test(b.concetto_id) ? b.concetto_id : false);
       if (!ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita) ||
-          (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)))
+          (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)) || soloConcetto === false ||
+          (soloConcetto && (ids.length !== 1 || b.ripasso || b.quante != null)))
         return json({ errore: "richiesta non valida" }, 400);
       const db = comeUtente(req);
       // studente_id = chi chiama: il genitore legge gli argomenti ma non prepara prove.
@@ -418,7 +421,13 @@ Deno.serve(async (req) => {
         .in("id", ids).eq("studente_id", io.sub);
       if (error) throw error;
       if (!argomenti?.length) return json({ errore: "argomento non trovato" }, 404);
-      const { pool, indice, contesto } = preparaPool(argomenti, !!b.ripasso);
+      // «Mettiti alla prova» (issue #11): solo il concetto toccato sulla mappa. Il materiale
+      // resta tutto, così il filtro di ancoraggio lavora come sempre.
+      const scelti = soloConcetto
+        ? argomenti.map((a: any) => ({ ...a, concetti: (a.concetti || []).filter((c: any) => c.id === soloConcetto) }))
+        : argomenti;
+      if (soloConcetto && !scelti[0].concetti.length) return json({ errore: "concetto non trovato" }, 404);
+      const { pool, indice, contesto } = preparaPool(scelti, !!b.ripasso);
       if (!pool.length) return json({ errore: "nessun_concetto" }, 422);
 
       // Ultime domande fatte su questi argomenti, dalla più recente: il modello non deve ripeterle uguali.
@@ -430,9 +439,14 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
-        quante: b.quante,
+        quante: b.quante, soloConcetto: !!soloConcetto,
       }), SCHEMA_DOMANDE);
-      const esito = tieniAncorate(r.domande as unknown[], indice, argomenti);
+      const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
+      // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.
+      if (soloConcetto && tenute.domande.length < MIN_LAMPO) return json({ errore: "nessuna_ancorata", scartate: tenute.scartate }, 422);
+      const esito = soloConcetto
+        ? { domande: sceltaLampo(tenute.domande, b.tipo, DOMANDE_PER_CONCETTO), scartate: tenute.scartate }
+        : tenute;
       if (!esito.domande.length) return json({ errore: "nessuna_ancorata", scartate: esito.scartate }, 422);
       return json(esito);
     }
@@ -456,9 +470,10 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
-      // Con 25 concetti o più la mappa è già piena: non serve chiedere niente al modello.
-      const posti = MAX_NODI - a.concetti.length;
-      const r = posti > 0 ? await chiedi(promptMappa(a, posti), SCHEMA_MAPPA) : { nodi: [] };
+      // Con 25 concetti o più non c'è posto per i sotto-punti, ma il modello serve lo stesso
+      // per le sintesi «in breve» (issue #11).
+      const posti = Math.max(0, MAX_NODI - a.concetti.length);
+      const r = await chiedi(promptMappa(a, posti), SCHEMA_MAPPA);
       return json(costruisciMappa(a, r));
     }
 

@@ -116,3 +116,23 @@ test("domande e mappa leggono il materiale fino a 120.000 caratteri, non più 16
   const pm = promptMappa({ titolo: "Capitolo", materia: "storia", trascrizione: lungo, concetti: [] }, 10);
   assert.match(pm, /FINE-CAPITOLO/);
 });
+
+test("prova lampo su un concetto (issue #11): tre domande sullo stesso concetto, nel tipo scelto", async () => {
+  const { promptDomande, DOMANDE_PER_CONCETTO } = await import("../supabase/functions/_shared/prompt.js");
+  assert.equal(DOMANDE_PER_CONCETTO, 3);
+  const base = { livello: "medio", modalita: "scritta", ripasso: false, contesto: [], gia: [], materiale: [{ titolo: "x", trascrizione: "y" }], soloConcetto: true };
+  assert.match(promptDomande({ ...base, tipo: "miste" }), /Prova lampo su un concetto solo: tre domande sullo stesso concetto: due chiuse a quattro opzioni e una aperta breve/);
+  assert.match(promptDomande({ ...base, tipo: "chiuse" }), /tutte a scelta multipla/);
+  assert.doesNotMatch(promptDomande({ ...base, tipo: "miste" }), /^\d+ domande:/m);
+});
+
+test("prova lampo: per le miste due chiuse e una aperta scelte per tipo, id rinumerati", async () => {
+  const { sceltaLampo, MIN_LAMPO } = await import("../supabase/functions/_shared/domande.js");
+  assert.equal(MIN_LAMPO, 2);
+  const d = (id, tipo) => ({ id, tipo });
+  const scelte = sceltaLampo([d("d1", "chiusa"), d("d2", "chiusa"), d("d3", "chiusa"), d("d4", "aperta")], "miste");
+  assert.deepEqual(scelte.map((x) => x.tipo), ["chiusa", "chiusa", "aperta"]);
+  assert.deepEqual(scelte.map((x) => x.id), ["d1", "d2", "d3"]);
+  assert.equal(sceltaLampo([d("d1", "aperta"), d("d2", "aperta"), d("d3", "chiusa")], "miste").length, 3);
+  assert.deepEqual(sceltaLampo([d("d1", "chiusa"), d("d2", "chiusa"), d("d3", "chiusa"), d("d4", "chiusa")], "chiuse").map((x) => x.id), ["d1", "d2", "d3"]);
+});

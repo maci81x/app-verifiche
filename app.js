@@ -172,7 +172,7 @@ function cosaStudiare(concetti, righe) {
 // La larghezza del testo è stimata (carattere ≈ 0,56 del corpo): il riquadro va a capo prima.
 const MAPPA = {
   soglia: 600, margine: 8, rientro: 18, spazio: 28, px: 10, py: 7, stacco: 6, staccoRami: 14,
-  interlinea: 1.3, carattere: 0.56, pallino: 14, corpo: [17, 15, 13.5, 12.5],
+  interlinea: 1.3, carattere: 0.56, corpo: [17, 15, 13.5, 12.5],
 };
 const arrotonda = (v) => Math.round(v * 10) / 10;
 
@@ -197,18 +197,27 @@ function aCapo(testo, caratteri) {
 
 // Riquadro di un nodo largo `larghezza`: quante lettere ci stanno, le righe e l'altezza.
 const FONTE_WEB = "web", ETICHETTA_WEB = "dal web";
+// Ultima riga del riquadro: il semaforo con forma e parola (issue #11), «dal web» per i nodi
+// del web (issue #4). La radice non ne ha.
+function rigaStato(n, livello) {
+  if (n.fonte === FONTE_WEB) return ETICHETTA_WEB;
+  if (livello === 0 || !n.stato) return null;
+  return segnoStato(n.stato) + " " + parolaStato(n.stato);
+}
 function misuraNodo(n, livello, larghezza, carattere) {
   const corpo = MAPPA.corpo[livello];
-  const utile = larghezza - 2 * MAPPA.px - (livello === 1 ? MAPPA.pallino : 0);
+  const utile = larghezza - 2 * MAPPA.px;
   const caratteri = Math.max(4, Math.floor(utile / (corpo * carattere)));
-  // Un nodo arrivato dal web porta sempre l'etichetta, anche in stampa (issue #4).
-  const righe = [...aCapo(n.titolo, caratteri), ...(n.fonte === FONTE_WEB ? [ETICHETTA_WEB] : [])];
-  return { caratteri, righe, w: arrotonda(larghezza), h: arrotonda(2 * MAPPA.py + righe.length * corpo * MAPPA.interlinea) };
+  const stato = rigaStato(n, livello);
+  const ultime = stato ? aCapo(stato, caratteri) : [];
+  const righe = [...aCapo(n.titolo, caratteri), ...ultime];
+  return { caratteri, righe, ultime: ultime.length, w: arrotonda(larghezza), h: arrotonda(2 * MAPPA.py + righe.length * corpo * MAPPA.interlinea) };
 }
 const nodoMappa = (n, livello, x, y, m) => ({
   id: n.id || "radice", livello, titolo: n.titolo || "", ancora: n.ancora || "", fonte: n.fonte || "",
-  toccabile: !!(n.ancora || n.url), // al tocco mostra la frase degli appunti, o testo e link del web
-  x: arrotonda(x), y: arrotonda(y), w: m.w, h: m.h, righe: m.righe, caratteri: m.caratteri,
+  stato: n.fonte === FONTE_WEB ? "web" : (livello ? (n.stato || "mai") : ""),
+  toccabile: !!(n.ancora || n.url), // al tocco apre la card del nodo (mappa-card.js)
+  x: arrotonda(x), y: arrotonda(y), w: m.w, h: m.h, righe: m.righe, ultime: m.ultime, caratteri: m.caratteri,
 });
 const livelliMappa = (n) => 1 + (n.figli || []).reduce((p, f) => Math.max(p, livelliMappa(f)), 0);
 
@@ -260,28 +269,29 @@ function mappaOrizzontale(radice, w, carattere) {
 
 // albero: { titolo, nodi: [{ id, titolo, ancora, fonte, figli }] } → posizioni di nodi e linee.
 // carattere: larghezza stimata di una lettera rispetto al corpo; il browser la alza se il testo sborda.
-function layoutMappa(albero, larghezza, carattere = MAPPA.carattere) {
+// stati: { [concetto_id]: "verde" | "giallo" | "rosso" | "mai" }; i sotto-punti prendono quello del concetto.
+function layoutMappa(albero, larghezza, carattere = MAPPA.carattere, stati = {}) {
   const w = Math.max(280, Math.floor(larghezza));
-  const radice = { id: "radice", titolo: albero.titolo, figli: albero.nodi || [] };
+  const perNodo = statiNodi(albero, stati);
+  const conStato = (nodi) => (nodi || []).map((n) => ({ ...n, stato: perNodo[n.id], figli: conStato(n.figli) }));
+  const radice = { id: "radice", titolo: albero.titolo, figli: conStato(albero.nodi) };
   return w < MAPPA.soglia ? mappaVerticale(radice, w, carattere) : mappaOrizzontale(radice, w, carattere);
 }
 
-// stati: { [concetto_id]: "rosso" | "giallo" | "verde" | "mai" } per il pallino dei concetti
-function svgMappa(layout, stati) {
+// Nodi con lo stato del semaforo (data-s) e, se toccabili, pulsanti con aria-pressed.
+function svgMappa(layout) {
   const conFonte = (f) => (f === FONTE_WEB ? ' data-fonte="web"' : "");
   const parti = layout.linee.map((k) => '<path class="m-linea" data-l="' + k.livello + '"' + conFonte(k.fonte) + ' d="' + k.d + '"/>');
   layout.nodi.forEach((n) => {
-    const corpo = MAPPA.corpo[n.livello], dx = n.livello === 1 ? MAPPA.pallino : 0;
-    const etichetta = (i) => n.fonte === FONTE_WEB && i === n.righe.length - 1 ? ' class="m-etichetta"' : "";
-    const righe = n.righe.map((t, i) => '<tspan' + etichetta(i) + ' x="' + arrotonda(n.x + MAPPA.px + dx) + '" y="' +
+    const corpo = MAPPA.corpo[n.livello];
+    const ultima = (i) => i >= n.righe.length - n.ultime ? ' class="' + (n.stato === "web" ? "m-etichetta" : "m-stato") + '"' : "";
+    const righe = n.righe.map((t, i) => '<tspan' + ultima(i) + ' x="' + arrotonda(n.x + MAPPA.px) + '" y="' +
       arrotonda(n.y + MAPPA.py + corpo * (0.95 + i * MAPPA.interlinea)) + '">' + esc(t) + "</tspan>").join("");
-    const pallino = n.livello === 1
-      ? '<circle class="m-pallino" data-s="' + esc((stati || {})[n.id] || "mai") + '" cx="' + arrotonda(n.x + MAPPA.px + 4) +
-        '" cy="' + arrotonda(n.y + MAPPA.py + corpo * 0.62) + '" r="4.5"/>'
-      : "";
+    const detto = n.stato && n.stato !== "web" ? ", " + parolaStato(n.stato) : (n.stato === "web" ? ", " + ETICHETTA_WEB : "");
     parti.push('<g class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + n.livello + '"' + conFonte(n.fonte) +
-      (n.toccabile ? ' tabindex="0" role="button"' : "") + ' aria-label="' + esc(n.titolo) + '">' +
-      '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="10"/>' + pallino +
+      (n.stato ? ' data-s="' + n.stato + '"' : "") +
+      (n.toccabile ? ' tabindex="0" role="button" aria-pressed="false" aria-haspopup="dialog" aria-label="' + esc(n.titolo + detto) + '"' : "") + ">" +
+      '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="10"/>' +
       '<text style="font-size:' + corpo + 'px">' + righe + "</text></g>");
   });
   return '<svg class="mappa" viewBox="0 0 ' + layout.w + " " + layout.h + '" width="100%" aria-label="Mappa concettuale">' + parti.join("") + "</svg>";
@@ -334,6 +344,7 @@ function doppioTocco(btn, testoConferma, fn) {
 
 const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
+  if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
@@ -1126,12 +1137,13 @@ async function mostraSessione(x, daScheda) {
 const FRASI_MAPPA = ["Rileggo gli appunti", "Cerco i sotto-punti di ogni concetto", "Controllo che ogni nodo stia negli appunti", "Disegno la mappa"];
 let mappa = null; // { argomento_id, albero, generata, scartati } dell'argomento aperto
 let mappaInCorso = null; // argomento_id della mappa che il modello sta preparando
+let statiMappa = null; // { argomento_id, stati: { concetto_id: stato } } dall'ultima prova di ogni concetto
 
 function apriMappa(a, pannello) {
   corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id; $("btn-stampa").disabled = true; $("btn-arricchisci").disabled = true;
   $("t-mappa").textContent = a.titolo;
   errore($("err-mappa"), ""); attesa($("stato-mappa"), null);
-  $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; $("ancora-mappa").hidden = true;
+  $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; statiMappa = null; chiudiCardNodo(false);
   vai("mappa", a.materia);
   mostraPannello(pannello);
 }
@@ -1147,10 +1159,13 @@ function mostraPannello(p) {
 async function caricaMappa(a) {
   if (!a.concetti.length) { avviso($("meta-mappa"), "Questo argomento non ha ancora concetti: torna all'argomento e tocca Ritrova i concetti."); $("btn-rigenera").hidden = true; return; }
   $("btn-rigenera").hidden = false;
+  // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
+  const stati = caricaStatiMappa(a).then(() => { if (corrente === a && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
   if (mappa && mappa.argomento_id === a.id) { disegnaMappa(); return; }
   if (mappaInCorso === a.id) { attesa($("stato-mappa"), FRASI_MAPPA); return; }
   attesa($("stato-mappa"), ["Apro la mappa"]);
-  const { data, error } = await sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle();
+  const [{ data, error }] = await Promise.all([
+    sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle(), stati]);
   if (corrente !== a) return; // nel frattempo ha cambiato argomento
   attesa($("stato-mappa"), null);
   if (error) { errore($("err-mappa"), "Non riesco ad aprire la mappa. Controlla la connessione e riprova."); return; }
@@ -1193,23 +1208,40 @@ function disegnaAdattando(el, componi) {
 
 function disegnaMappa() {
   if (!mappa || $("v-mappa").hidden || $("pannello-mappa").hidden) return;
+  chiudiCardNodo(false); // il disegno nuovo sostituisce il nodo a cui era agganciata la card
   const box = $("disegno-mappa"), larghezza = box.clientWidth || 340;
-  const stati = statiConcetti(corrente);
-  disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car), stati));
+  const stati = statiDellaMappa(corrente);
+  disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car, stati)));
   box.dataset.larghezza = String(larghezza);
   const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
   $("meta-mappa").textContent = n + " nodi presi dagli appunti" + (web ? " e " + web + " dal web" : "") + " · fatta il " + dataIt(mappa.generata) +
     (mappa.scartati ? " · " + mappa.scartati + (mappa.scartati === 1 ? " nodo tolto perché" : " nodi tolti perché") + " non si ritrovava negli appunti" : "") +
-    ". Tocca un riquadro per vedere la frase degli appunti.";
-  $("ancora-mappa").hidden = true;
+    ". Tocca un riquadro per la frase degli appunti, il riassunto e la prova su quel concetto.";
   $("btn-stampa").disabled = false;
   $("btn-arricchisci").disabled = arricchimentoInCorso === mappa.argomento_id || mappaInCorso === mappa.argomento_id;
 }
-// { concetto_id: stato } per il pallino dei concetti sulla mappa (anche quella stampata).
+// Righe delle prove fatte su un argomento (anche dai ripassi: portano l'argomento da cui vengono).
+async function righeProve(a) {
+  const { data, error } = await sb.from("domande").select("concetto_id, sessione_id, sessioni(data), risposte(punteggio)")
+    .eq("argomento_id", a.id).limit(2000);
+  if (error) throw error;
+  return (data || []).filter((d) => (d.risposte || []).length && d.sessioni).map((d) => ({
+    concetto_id: d.concetto_id, sessione_id: d.sessione_id, data: d.sessioni.data, punteggio: d.risposte[0].punteggio,
+  }));
+}
+// { concetto_id: stato } dalla prova più recente di ogni concetto, con la logica di Cosa studiare
+// (issue #11). Senza rete resta lo stato salvato sul concetto.
+const statiDaLista = (lista) => Object.fromEntries(lista.map((x) => [x.id, x.stato]));
 function statiConcetti(a) {
   const stati = {}; a.concetti.forEach((c) => { stati[c.id] = c.stato || "mai"; });
   return stati;
 }
+async function caricaStatiMappa(a) {
+  let nuovi = null;
+  try { nuovi = { argomento_id: a.id, stati: statiDaLista(cosaStudiare(a.concetti, await righeProve(a))) }; } catch (e) { nuovi = null; }
+  if (corrente === a) statiMappa = nuovi; // una risposta vecchia non copre gli stati dell'argomento aperto adesso
+}
+const statiDellaMappa = (a) => (statiMappa && statiMappa.argomento_id === a.id ? statiMappa.stati : statiConcetti(a));
 const contaNodiMappa = (nodi, conta = () => true) => (nodi || []).reduce((s, n) => s + (conta(n) ? 1 : 0) + contaNodiMappa(n.figli, conta), 0);
 
 // Vero se il testo di un riquadro è più largo del riquadro (misura del browser).
@@ -1225,31 +1257,17 @@ function trovaNodo(nodi, id) {
   for (const n of nodi || []) { if (n.id === id) return n; const f = trovaNodo(n.figli, id); if (f) return f; }
   return null;
 }
-function mostraAncora(g) {
-  const n = mappa && trovaNodo(mappa.albero.nodi, g.dataset.id), box = $("ancora-mappa");
-  $("disegno-mappa").querySelectorAll(".m-nodo.scelto").forEach((x) => x.classList.remove("scelto"));
-  if (!n || !(n.ancora || n.url)) { box.hidden = true; return; }
-  g.classList.add("scelto");
-  box.innerHTML = n.fonte === FONTE_WEB
-    ? "<b>" + esc(n.titolo) + '</b> <span class="etichetta-web">' + ETICHETTA_WEB + "</span><p>" + esc(n.testo) + "</p>" + linkFonte(n)
-    : "<b>" + esc(n.titolo) + '</b><span class="citazione">' + esc(n.ancora) + "</span>";
-  box.hidden = false;
-}
-
 async function caricaStudiare(a) {
   const lista = $("lista-studiare"); lista.innerHTML = "";
   if (!a.concetti.length) { lista.innerHTML = '<p class="legenda">Questo argomento non ha ancora concetti.</p>'; return; }
   attesa($("stato-studiare"), ["Guardo le ultime prove"]);
-  // Anche le domande dei ripassi: portano l'argomento da cui vengono.
-  const { data, error } = await sb.from("domande").select("concetto_id, sessione_id, sessioni(data), risposte(punteggio)")
-    .eq("argomento_id", a.id).limit(2000);
+  let righe;
+  try { righe = await righeProve(a); } catch (e) { righe = null; }
   attesa($("stato-studiare"), null);
   if (corrente !== a) return;
-  if (error) { errore($("err-mappa"), "Non riesco a leggere le prove di questo argomento. Riprova."); return; }
-  const righe = (data || []).filter((d) => (d.risposte || []).length && d.sessioni).map((d) => ({
-    concetto_id: d.concetto_id, sessione_id: d.sessione_id, data: d.sessioni.data, punteggio: d.risposte[0].punteggio,
-  }));
+  if (!righe) { errore($("err-mappa"), "Non riesco a leggere le prove di questo argomento. Riprova."); return; }
   listaStudiare = cosaStudiare(a.concetti, righe);
+  statiMappa = { argomento_id: a.id, stati: statiDaLista(listaStudiare) };
   listaStudiare.forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
     d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" +
@@ -1262,15 +1280,21 @@ async function caricaStudiare(a) {
 
 /* =================================================================== preparazione della prova */
 
-async function preparaVerifica(args, btn, elStato, elErr) {
+// extra.concetto: prova lampo di 3 domande su quel concetto («Mettiti alla prova» dalla mappa).
+async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
   errore(elErr, ""); btn.disabled = true;
   attesa(elStato, modo === "ripasso"
     ? ["Scelgo i concetti più deboli del quadrimestre", "Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti"]
     : ["Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti", "Scarto quelle campate in aria"]);
   if (!args.some((a) => a.concetti.length)) { attesa(elStato, null); btn.disabled = false; errore(elErr, "Non ci sono concetti su cui interrogarti."); return; }
   ({ titolo: titoloProva, materia: materiaProva } = titoloEMateria(args, modo === "ripasso"));
+  const lampo = extra.concetto || null;
+  if (lampo) titoloProva += " · " + lampo.titolo;
   try {
-    const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso", livello, tipo, modalita });
+    const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso", livello, tipo, modalita,
+      ...(lampo ? { concetto_id: lampo.id } : {}) });
+    // Prova lampo chiesta da un argomento che nel frattempo ha lasciato: non la si apre.
+    if (lampo && args.length === 1 && corrente !== args[0]) { attesa(elStato, null); btn.disabled = false; return; }
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
     const pesi = {}; args.forEach((a) => a.concetti.forEach((c) => { pesi[c.id] = c.peso; }));
     domande.forEach((d) => { d.peso = pesi[d.concetto_id] || 1; });
@@ -1627,6 +1651,7 @@ function collega() {
   collegaStampa();
   collegaAiuto();
   collegaEsercizi();
+  collegaCardNodo();
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
@@ -1681,10 +1706,12 @@ function collega() {
   $("btn-rigenera").addEventListener("click", () => { if (corrente) generaMappa(corrente); });
   $("btn-torna-scheda").addEventListener("click", () => apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente));
   const disegno = $("disegno-mappa");
-  disegno.addEventListener("click", (e) => { const g = e.target.closest(".m-nodo"); if (g) mostraAncora(g); });
+  disegno.addEventListener("click", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g) apriCardNodo(g); });
+  disegno.addEventListener("keyup", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g && e.key === " ") { e.preventDefault(); apriCardNodo(g); } });
   disegno.addEventListener("keydown", (e) => {
     const g = e.target.closest(".m-nodo");
-    if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); mostraAncora(g); }
+    // Invio apre subito; lo spazio al rilascio, così il tasto non chiude la card appena aperta.
+    if (g && g.getAttribute("role") === "button" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); if (e.key === "Enter") apriCardNodo(g); }
   });
   // Ruotando il telefono cambia la larghezza: si ridisegna (verticale sotto i 600px).
   let attesaRidisegno = null;

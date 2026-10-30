@@ -99,7 +99,15 @@ function misteDelLivello(livello, n) {
 // contesto: [{ id, argomento, materia, titolo, descrizione, ancora, andamento }]
 // gia: testi delle ultime domande fatte; materiale: [{ titolo, trascrizione }]
 // quante: solo per la verifica da stampare, uno di DOMANDE_DA_STAMPARE.
-export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante }) {
+// Prova lampo su un solo concetto (issue #11): «Mettiti alla prova» dalla mappa.
+export const DOMANDE_PER_CONCETTO = 3;
+const REGOLE_CONCETTO = {
+  miste: "tre domande sullo stesso concetto: due chiuse a quattro opzioni e una aperta breve",
+  chiuse: "tre domande sullo stesso concetto, tutte a scelta multipla con quattro opzioni plausibili e una sola corretta",
+  aperte: "tre domande aperte brevi sullo stesso concetto, da rispondere con parole proprie",
+};
+
+export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante, soloConcetto }) {
   const perLivello = { semplice: 7, medio: 8, difficile: 6 }[livello];
   const taglio = {
     semplice: "Resta sul riconoscimento: definizioni, date, termini, fatti espliciti nel materiale.",
@@ -108,7 +116,9 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
   }[livello];
   const scelte = DOMANDE_DA_STAMPARE.includes(quante);
   const misto = misteDelLivello(livello, scelte ? quante : null);
-  const regole = (scelte ? quante : perLivello) + " domande: " + (
+  const regole = soloConcetto
+    ? "Prova lampo su un concetto solo: " + REGOLE_CONCETTO[tipo] + ". Ogni domanda guarda il concetto da un lato diverso. " + taglio
+    : (scelte ? quante : perLivello) + " domande: " + (
     tipo === "chiuse" ? "tutte a scelta multipla con quattro opzioni plausibili e una sola corretta"
     : tipo === "aperte" ? "tutte aperte, da rispondere con parole proprie"
     : misto) + ". " + taglio;
@@ -153,14 +163,15 @@ export function promptMappa(argomento, sottoPunti) {
   }));
   return [
     "Sei un insegnante di scuola media italiana. Prepari la mappa concettuale di un argomento per un'alunna che deve ripassarlo dagli appunti.",
-    "I rami principali sono già decisi: sono i concetti qui sotto, ognuno con il suo id. Per ogni concetto aggiungi da 0 a 4 sotto-punti, e sotto ciascun sotto-punto al massimo 3 dettagli. In tutto non più di " + sottoPunti + " fra sotto-punti e dettagli: meglio pochi e chiari che tanti.",
+    "I rami principali sono già decisi: sono i concetti qui sotto, ognuno con il suo id. Rispondi con un elemento di nodi per ogni concetto. Per ogni concetto aggiungi da 0 a 4 sotto-punti, e sotto ciascun sotto-punto al massimo 3 dettagli. In tutto non più di " + sottoPunti + " fra sotto-punti e dettagli: meglio pochi e chiari che tanti.",
     "Ogni sotto-punto e ogni dettaglio ha un titolo brevissimo (al massimo sei parole) e un'ancora: la frase esatta del materiale da cui nasce, copiata parola per parola. Se non trovi la frase nel materiale, non scrivere il nodo.",
     "Non inventare niente che nel materiale non ci sia. Un'informazione vera ma non scritta (un autore, una data, un collegamento che conosci tu) non va aggiunta.",
     "Non ripetere il titolo del concetto nei suoi sotto-punti.",
+    "Per ogni concetto scrivi anche sintesi: «in breve», una o due frasi corte che spiegano il concetto a una ragazza di 12-13 anni (seconda o terza media), con parole semplici. Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti; il server controlla che ci siano e toglie la sintesi se non le trova.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
     "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE),
-    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","sintesi":"","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
   ].join("\n\n");
 }
 

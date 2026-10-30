@@ -9,6 +9,7 @@
   --su-tinta:#FFFFFF;
   --verde:#1F6B45; --giallo:#8A6508; --rosso:#A32B20;
   --verde-bg:#E4F1E9; --giallo-bg:#F8EFD9; --rosso-bg:#FAE6E3;
+  --grigio:#4A5058; --grigio-bg:#EEF0EC; --web:#9AA1AC; --riga-quaderno:#C9D6E8;
   --ombra:0 1px 2px rgba(21,24,28,.05),0 10px 26px -18px rgba(21,24,28,.3);
   --display:"Fraunces",Georgia,serif;
   --testo:"Figtree","Segoe UI",system-ui,sans-serif;
@@ -23,6 +24,7 @@
   --su-tinta:#0E1116;
   --verde:#79C89C; --giallo:#DDB157; --rosso:#EE9287;
   --verde-bg:#15271D; --giallo-bg:#2A2215; --rosso-bg:#2C1A18;
+  --grigio:#C3C8CF; --grigio-bg:#262A30; --web:#9AA1AC; --riga-quaderno:#2E3A4C;
   --ombra:0 1px 2px rgba(0,0,0,.4),0 10px 26px -18px rgba(0,0,0,.85);
   color-scheme:dark;
 }}
@@ -35,6 +37,7 @@
   --su-tinta:#0E1116;
   --verde:#79C89C; --giallo:#DDB157; --rosso:#EE9287;
   --verde-bg:#15271D; --giallo-bg:#2A2215; --rosso-bg:#2C1A18;
+  --grigio:#C3C8CF; --grigio-bg:#262A30; --web:#9AA1AC; --riga-quaderno:#2E3A4C;
   --ombra:0 1px 2px rgba(0,0,0,.4),0 10px 26px -18px rgba(0,0,0,.85);
   color-scheme:dark;
 }
@@ -293,15 +296,47 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
 .m-nodo[data-l="0"] text{fill:var(--su-tinta);font-weight:700}
 .m-nodo[data-l="1"] rect{fill:var(--tinta-soft);stroke:var(--tinta);stroke-width:1.5}
 .m-nodo[data-l="1"] text{font-weight:600}
-.m-nodo[data-l="3"] rect{fill:none;stroke-dasharray:3 3}
 .m-nodo[data-l="3"] text{fill:var(--inchiostro-2)}
 .m-nodo[role="button"]{cursor:pointer}
 .m-nodo:focus{outline:none}
-.m-nodo:focus-visible rect,.m-nodo.scelto rect{stroke:var(--tinta);stroke-width:2.5}
-.m-pallino{fill:var(--inchiostro-2)}
-.m-pallino[data-s="verde"]{fill:var(--verde)} .m-pallino[data-s="giallo"]{fill:var(--giallo)} .m-pallino[data-s="rosso"]{fill:var(--rosso)}
-.ancora-mappa{border:1px solid var(--tinta-bordo);background:var(--tinta-soft);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:.92rem}
-.ancora-mappa .citazione{margin-top:6px}
+/* Semaforo sui nodi (issue #11): colore + forma + parola (riga .m-stato). I sotto-punti
+   prendono lo stato del loro concetto; i nodi del web restano tratteggiati e grigi. */
+.m-nodo[data-s="verde"] rect{fill:var(--verde-bg);stroke:var(--verde)}
+.m-nodo[data-s="giallo"] rect{fill:var(--giallo-bg);stroke:var(--giallo)}
+.m-nodo[data-s="rosso"] rect{fill:var(--rosso-bg);stroke:var(--rosso)}
+.m-nodo[data-s="mai"] rect{fill:var(--grigio-bg);stroke:var(--grigio)}
+.m-nodo[data-l="1"][data-s] rect{stroke-width:1.6}
+.m-stato{font-weight:700;font-size:.86em}
+.m-nodo[data-s="verde"] .m-stato{fill:var(--verde)} .m-nodo[data-s="giallo"] .m-stato{fill:var(--giallo)}
+.m-nodo[data-s="rosso"] .m-stato{fill:var(--rosso)} .m-nodo[data-s="mai"] .m-stato{fill:var(--grigio)}
+.m-nodo[role="button"]:focus-visible rect,
+.m-nodo[role="button"][aria-pressed="true"] rect{stroke:var(--inchiostro);stroke-width:2.5;stroke-dasharray:none}
+.legenda-sem{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 0 0;font-size:.82rem}
+.sem{display:inline-flex;align-items:center;gap:5px;font-weight:600;white-space:nowrap}
+.sem i{font-style:normal;font-size:1.05em;line-height:1}
+.sem[data-s="verde"]{color:var(--verde)} .sem[data-s="giallo"]{color:var(--giallo)}
+.sem[data-s="rosso"]{color:var(--rosso)} .sem[data-s="mai"]{color:var(--grigio)}
+/* Card del nodo: dal basso, sopra un velo; il focus resta dentro (mappa-card.js). */
+body.con-card{overflow:hidden}
+.card-velo{position:fixed;inset:0;z-index:50;background:rgba(10,12,16,.45);display:flex;align-items:flex-end;justify-content:center}
+.card-nodo{background:var(--rialzo);color:var(--inchiostro);width:100%;max-width:640px;max-height:86vh;overflow:auto;
+  border-radius:20px 20px 0 0;padding:14px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 30px rgba(0,0,0,.25);
+  animation:sale .18s ease-out}
+@keyframes sale{from{transform:translateY(24px)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){.card-nodo{animation:none}}
+.card-testa{position:relative;padding-right:54px}
+.card-testa h3{margin:6px 0 6px;font-family:var(--display);font-size:1.2rem;line-height:1.25}
+.card-nodo .chiudi{position:absolute;top:0;right:0;width:44px;height:44px;border-radius:50%;border:1px solid var(--bordo);background:var(--carta);
+  color:var(--inchiostro);font-size:1.1rem;cursor:pointer}
+.card-nodo .occhiello{margin:16px 0 6px}
+.quaderno{margin:0;font-family:var(--display);font-style:italic;font-size:1.06rem;line-height:28px;padding:2px 12px 4px 16px;
+  border-left:3px solid var(--rosso);background-color:var(--carta);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 27px,var(--riga-quaderno) 27px 28px);background-position:0 2px}
+.avviso-appunti{margin:10px 0 0;background:var(--giallo-bg);color:var(--giallo);border:1px solid var(--giallo);border-radius:10px;padding:8px 12px;font-size:.9rem}
+.in-breve{margin:0;font-size:1rem}
+.in-breve[data-tipo="vecchia"],.in-breve[data-tipo="vuota"]{color:var(--inchiostro-2);font-style:italic}
+.card-testo{margin:12px 0 0}
+.card-azioni{margin-top:18px}
 /* Stampa e PDF (issue #3). A schermo il documento sembra un foglio: nero su bianco
    anche col tema scuro, perché è proprio quello che uscirà dalla stampante. */
 .foglio{background:#fff;color:#111;border:1px solid var(--bordo);border-radius:10px;padding:22px 20px;margin-top:18px;
@@ -317,9 +352,14 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
 .foglio .m-nodo text{fill:#111}
 .foglio .m-nodo[data-l="0"] rect{fill:#fff;stroke:#111;stroke-width:2.5}
 .foglio .m-nodo[data-l="0"] text{fill:#111}
-.foglio .m-nodo[data-l="1"] rect{fill:#fff;stroke:#111;stroke-width:1.8}
+.foglio .m-nodo[data-l="1"] rect{stroke-width:1.8}
 .foglio .m-linea,.foglio .m-linea[data-l="1"]{stroke:#555}
-.foglio .m-pallino{fill:#777} .foglio .m-pallino[data-s="verde"]{fill:#1F6B45} .foglio .m-pallino[data-s="giallo"]{fill:#8A6508} .foglio .m-pallino[data-s="rosso"]{fill:#A32B20}
+/* In stampa il semaforo resta: colore chiaro di sfondo, bordo e simbolo con la parola. */
+.foglio svg.mappa{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.foglio .m-nodo[data-s="verde"] rect{fill:#E4F1E9;stroke:#1F6B45} .foglio .m-nodo[data-s="verde"] .m-stato{fill:#1F6B45}
+.foglio .m-nodo[data-s="giallo"] rect{fill:#F8EFD9;stroke:#7A5806} .foglio .m-nodo[data-s="giallo"] .m-stato{fill:#7A5806}
+.foglio .m-nodo[data-s="rosso"] rect{fill:#FAE6E3;stroke:#A32B20} .foglio .m-nodo[data-s="rosso"] .m-stato{fill:#A32B20}
+.foglio .m-nodo[data-s="mai"] rect{fill:#EEF0EC;stroke:#4A5058} .foglio .m-nodo[data-s="mai"] .m-stato{fill:#4A5058}
 .st-nodi{margin:0;padding-left:1.4em}
 .st-nodi .st-nodi{margin-top:4px}
 .st-nodi li{margin:6px 0}
@@ -360,14 +400,13 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
   h2{break-after:avoid;page-break-after:avoid}
 }
 /* Web come aiuto (issue #4): i nodi dal web hanno un colore neutro, distinto dai rami della materia. */
-.m-nodo[data-fonte="web"] rect{fill:var(--rialzo);stroke:var(--inchiostro-2);stroke-width:1;stroke-dasharray:4 3}
+.m-nodo[data-fonte="web"] rect{fill:var(--rialzo);stroke:var(--web);stroke-width:1.2;stroke-dasharray:5 4}
 .m-nodo[data-fonte="web"] text{fill:var(--inchiostro-2)}
 .m-etichetta{font-style:italic;font-size:.82em;letter-spacing:.04em}
 .m-linea[data-fonte="web"]{stroke:var(--bordo);stroke-dasharray:4 3}
 .foglio .m-nodo[data-fonte="web"] rect{fill:#fff;stroke:#777}
 .etichetta-web{display:inline-block;font-family:var(--dati);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;
   color:var(--inchiostro-2);border:1px dashed var(--inchiostro-2);border-radius:999px;padding:1px 8px;vertical-align:middle}
-.ancora-mappa p{margin:.4em 0 0}
 .fonte-web{font-size:.88rem}
 .fonte-web a,.fonti a{color:var(--tinta);font-weight:600}
 .corpo-spiega{margin-top:14px}
