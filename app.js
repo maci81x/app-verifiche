@@ -559,7 +559,10 @@ async function disegnaImpostazioni() {
     campo.placeholder = "nuovo codice"; campo.className = "codice-nuovo"; campo.setAttribute("aria-label", "Nuovo codice per " + s.nome);
     const cc = document.createElement("button"); cc.type = "button"; cc.className = "minore"; cc.textContent = "Cambia codice";
     cc.onclick = () => cambiaCodice(s, campo, cc);
-    d.appendChild(campo); d.appendChild(cc); box.appendChild(d);
+    const el = document.createElement("button"); el.type = "button"; el.className = "minore pericolo"; el.textContent = "Elimina profilo";
+    el.setAttribute("aria-label", "Elimina il profilo di " + s.nome);
+    el.onclick = () => doppioTocco(el, "Tocca ancora: cancella anche tutti i suoi argomenti e prove", () => eliminaProfilo(s, el));
+    d.appendChild(campo); d.appendChild(cc); d.appendChild(el); box.appendChild(d);
   });
 }
 async function creaProfilo() {
@@ -581,6 +584,35 @@ async function creaProfilo() {
   attesa($("stato-imp"), null); $("btn-np-crea").disabled = false;
   disegnaImpostazioni();
 }
+// Elimina un profilo con tutti i suoi dati (issue #14): sul server foto, dati e account; qui la
+// copia locale del nome, la sessione salvata e il conteggio «da ripassare».
+async function eliminaProfilo(s, btn) {
+  errore($("err-imp"), "");
+  btn.disabled = true;
+  try {
+    // 404: il profilo non c'è più (per esempio cancellato da un altro telefono): si pulisce lo stesso.
+    await funzioneProfili({ azione: "elimina", studente_id: s.id }).catch((e) => { if (e.message !== "profilo non trovato") throw e; });
+    // Il profilo eliminato era quello aperto su questo telefono: l'app smette di usarlo.
+    if (profilo && profilo.id === s.id) {
+      const c = clients[chiaveSessione(s.id)];
+      if (c) c.auth.signOut({ scope: "local" }).catch(() => {});
+      delete clients[chiaveSessione(s.id)];
+      profilo = null; sb = null; argomenti = []; sessioni = [];
+    }
+    salvaLocale(CHIAVE_PROFILI, leggiLocale(CHIAVE_PROFILI, []).filter((p) => p.id !== s.id));
+    try { localStorage.removeItem(chiaveSessione(s.id)); localStorage.removeItem("verifiche-ripassare-" + s.id); } catch (e) { /* solo copie locali */ }
+    if (leggiLocale(CHIAVE_ULTIMO, null) === s.id) salvaLocale(CHIAVE_ULTIMO, null);
+    await disegnaImpostazioni();
+    avviso($("err-imp"), "Profilo di " + s.nome + " eliminato, con tutti i suoi argomenti e prove.");
+    const msg = $("err-imp"); msg.setAttribute("tabindex", "-1"); msg.focus(); // il pulsante toccato non c'è più
+    caricaProfili();
+  } catch (e) {
+    console.warn("elimina profilo:", e);
+    errore($("err-imp"), "Non sono riuscito a eliminare il profilo di " + s.nome + ". Riprova.");
+    btn.disabled = false;
+  }
+}
+
 async function cambiaCodice(s, campo, btn) {
   const codice = campo.value.trim();
   errore($("err-imp"), "");
