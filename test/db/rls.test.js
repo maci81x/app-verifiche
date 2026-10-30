@@ -323,3 +323,35 @@ prova('spiegazioni: una per concetto, la ragazza legge e scrive le sue, il genit
   delete from concetti where id = '${CONC}';
   ${verifica(`${conta('spiegazioni')} = 0`, 'la spiegazione sopravvive al concetto')}
 `);
+
+// ---------------------------------------------------------------- tipi di esercizio (issue #5, fetta #6)
+const TIPO = `'Espressioni con le frazioni', '[3/4 + (2/5 - 1/10)] x 2', 2, false`;
+
+prova('esercizi_tipi: la ragazza legge e scrive i suoi, il genitore legge, le altre niente', `
+  ${verifica(`(select percorso = 'teoria' from argomenti where id = '${ARG}')`, "un argomento di oggi non ha percorso 'teoria'")}
+  ${come(ANNA)}
+  update argomenti set percorso = 'esercizi' where id = '${ARG}';
+  ${vieta(`update argomenti set percorso = 'orale' where id = '${ARG}'`, 'check_violation', 'percorso sconosciuto')}
+  insert into esercizi_tipi (argomento_id, titolo, ancora, difficolta, figura) values ('${ARG}', ${TIPO});
+  ${verifica(`(select studente_id = '${ANNA}' and stato = 'mai' and tentativi = 0 and media is null from esercizi_tipi)`, 'il tipo non nasce di Anna, mai verificato')}
+  update esercizi_tipi set media = 7.5, stato = 'giallo', tentativi = 1;
+  ${vieta(`insert into esercizi_tipi (argomento_id, titolo, ancora, difficolta) values ('${ARG}', 'x', 'y', 4)`, 'check_violation', 'difficoltà 4')}
+  ${vieta(`insert into esercizi_tipi (argomento_id, titolo, ancora) values ('${ARG}', 'x', '  ')`, 'check_violation', 'ancora vuota')}
+  ${come(BEA)}
+  ${verifica(`${conta('esercizi_tipi')} = 0`, 'Bea vede i tipi di Anna')}
+  ${vieta(`insert into esercizi_tipi (argomento_id, titolo, ancora, difficolta, figura) values ('${ARG}', ${TIPO})`,
+    'foreign_key_violation', "Bea crea un tipo sull'argomento di Anna")}
+  ${vieta(`insert into esercizi_tipi (studente_id, argomento_id, titolo, ancora, difficolta, figura) values ('${ANNA}', '${ARG}', ${TIPO})`,
+    'insufficient_privilege', 'Bea crea un tipo a nome di Anna')}
+  ${nessunaRiga(`update esercizi_tipi set media = 1`, 'Bea modifica i tipi di Anna')}
+  ${nessunaRiga(`delete from esercizi_tipi`, 'Bea cancella i tipi di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('esercizi_tipi')} = 1`, 'il genitore non legge i tipi della figlia')}
+  ${nessunaRiga(`update esercizi_tipi set media = 1`, 'il genitore modifica i tipi')}
+  ${nessunaRiga(`delete from esercizi_tipi`, 'il genitore cancella i tipi')}
+  ${come(null)}
+  ${vieta(`perform * from esercizi_tipi`, 'insufficient_privilege', "l'anonimo legge i tipi")}
+  ${come(ANNA)}
+  delete from argomenti where id = '${ARG}';
+  ${verifica(`${conta('esercizi_tipi')} = 0`, "i tipi sopravvivono all'argomento")}
+`);

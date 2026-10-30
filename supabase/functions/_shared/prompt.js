@@ -226,3 +226,30 @@ export function promptArricchisci(dati) {
     "Fonti:\n" + elencoFonti(dati.fonti),
   ].join("\n\n");
 }
+
+// ---------------------------------------------------------------- esercizi di matematica (issue #5)
+
+// Trascrizione di pagine di esercizi (30 ottobre 2026): numeri e simboli contano più delle parole.
+export const PROMPT_TRASCRIZIONE_ESERCIZI = [
+  "Trascrivi fedelmente queste pagine di esercizi di matematica (libro o quaderno), grafia a mano inclusa.",
+  "Le foto possono essere storte, ruotate, inclinate, sfocate, con ombre o dita sul bordo: raddrizzale mentalmente e leggile lo stesso.",
+  "Copia ogni esercizio con il suo numero, esattamente come è scritto: numeri, virgole, segni, parentesi tonde, quadre e graffe, frazioni come a/b, potenze come a^n, radici come √(...), unità di misura. Non risolvere niente e non correggere niente.",
+  "Se c'è una figura, descrivila in una riga fra parentesi quadre con le misure scritte sopra (per esempio: [figura: triangolo rettangolo, cateti 6 cm e 8 cm]).",
+  "Dove un segno è davvero illeggibile scrivi [?] e vai avanti. Non inventare.",
+  'Rispondi solo con JSON: {"trascrizione":""}',
+].join("\n\n");
+
+// Tipi di esercizio presenti nelle foto. esistenti: titoli già salvati sull'argomento.
+export function promptEserciziTipi(materia, titolo, testo, esistenti = []) {
+  return [
+    "Sei un insegnante di matematica di scuola media italiana. Queste sono pagine di esercizi del libro o del quaderno di un'alunna.",
+    "Riconosci i tipi di esercizio presenti, per esempio: espressioni con le frazioni, potenze, proporzioni, percentuali, equazioni di primo grado, perimetro e area di poligoni, teorema di Pitagora, circonferenza e cerchio, volumi. Un tipo è una famiglia di esercizi che si risolvono nello stesso modo.",
+    "Per ogni tipo: titolo breve; ancora = il testo di UN esercizio vero di queste pagine, copiato carattere per carattere (numeri e simboli compresi, senza il numero dell'esercizio); difficolta da 1 a 3 per una ragazza di seconda media; figura = true se per risolverlo serve una figura geometrica.",
+    "Solo tipi che nelle pagine ci sono davvero, con un esercizio da copiare. Niente problemi con testo lungo da interpretare, niente geometria analitica.",
+    esistenti.length ? "Tipi già salvati (non ripeterli):\n" + JSON.stringify(esistenti) : "",
+    materia.trim() ? "Materia dichiarata: " + materia.trim() : "",
+    titolo.trim() ? "Argomento dichiarato: " + titolo.trim() : "",
+    "Pagine:\n" + testo,
+    'Rispondi solo con JSON: {"tipi":[{"titolo":"","ancora":"","difficolta":2,"figura":false}]}',
+  ].filter(Boolean).join("\n\n");
+}

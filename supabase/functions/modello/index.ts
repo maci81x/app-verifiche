@@ -1,7 +1,7 @@
 // Unico punto da cui l'app parla con il modello. La chiave Anthropic è un
 // segreto Supabase e non arriva mai al browser.
 //
-// POST { azione: "trascrivi", immagini: [base64 jpeg, max 4], aggiunta?: bool } → { trascrizione }
+// POST { azione: "trascrivi", immagini: [base64 jpeg, max 4], aggiunta?: bool, esercizi?: bool } → { trascrizione }
 // POST { azione: "concetti", materia, titolo, testo, pagine, esistenti?: [titoli] } → { concetti, ... }
 //      I concetti la cui ancora non regge sul testo (filtro al 60%) vengono scartati qui.
 // POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante? } → { domande, scartate }
@@ -17,6 +17,9 @@
 //      Il web aiuta a studiare e non entra mai nella verifica (_shared/web.js). Ricerca con lo
 //      strumento web_search (al massimo 3 ricerche, solo i siti della lista), poi composizione
 //      in JSON: le fonti si scelgono per numero fra quelle citate davvero.
+// POST { azione: "esercizi_tipi", materia, titolo, testo, esistenti?: [titoli] } → { tipi, scartati }
+//      Matematica (issue #5): tipi di esercizio con un esercizio vero come ancora;
+//      quelli la cui ancora non si ritrova nella trascrizione vengono scartati qui.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -28,7 +31,9 @@ import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
   promptMappa, DOMANDE_DA_STAMPARE,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
+  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi,
 } from "../_shared/prompt.js";
+import { tipiAncorati } from "../_shared/esercizi.js";
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
@@ -168,6 +173,20 @@ const SCHEMA_ARRICCHISCI = {
   },
   required: ["nodi"], additionalProperties: false,
 } as const;
+const SCHEMA_TIPI = {
+  type: "object",
+  properties: {
+    tipi: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { titolo: { type: "string" }, ancora: { type: "string" }, difficolta: { type: "integer" }, figura: { type: "boolean" } },
+        required: ["titolo", "ancora", "difficolta", "figura"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["tipi"], additionalProperties: false,
+} as const;
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
 
 class Definitivo extends Error {}
@@ -252,7 +271,8 @@ Deno.serve(async (req) => {
       if (!Array.isArray(imm) || !imm.length || imm.length > MAX_IMMAGINI ||
           !imm.every((x) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
         return json({ errore: `da 1 a ${MAX_IMMAGINI} foto JPEG in base64` }, 400);
-      const r = await chiedi(b.aggiunta ? PROMPT_TRASCRIZIONE_AGGIUNTA : PROMPT_TRASCRIZIONE, SCHEMA_TRASCRIZIONE, imm);
+      const prompt = b.esercizi ? PROMPT_TRASCRIZIONE_ESERCIZI : (b.aggiunta ? PROMPT_TRASCRIZIONE_AGGIUNTA : PROMPT_TRASCRIZIONE);
+      const r = await chiedi(prompt, SCHEMA_TRASCRIZIONE, imm);
       return json({ trascrizione: testo(r.trascrizione) });
     }
 
@@ -266,6 +286,14 @@ Deno.serve(async (req) => {
         : promptConcetti(testo(b.materia), testo(b.titolo), materiale, pagine);
       const r = await chiedi(prompt, SCHEMA_CONCETTI);
       return json(concettiAncorati(r.concetti as unknown[], materiale));
+    }
+
+    if (b.azione === "esercizi_tipi") {
+      const materiale = testo(b.testo).slice(0, 200_000);
+      if (!materiale.trim()) return json({ errore: "nessun testo da leggere" }, 422);
+      const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean).slice(0, 50) : [];
+      const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti), SCHEMA_TIPI);
+      return json(tipiAncorati(r.tipi as unknown[], materiale, esistenti));
     }
 
     if (b.azione === "domande") {

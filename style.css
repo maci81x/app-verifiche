@@ -378,3 +378,12 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
 .fonti li{margin:4px 0}
 .fonti small{color:var(--inchiostro-2)}
 .spiega-btn{margin-top:10px;min-height:40px;padding:9px 14px;font-size:.88rem}
+
+/* esercizi di matematica (issue #5) */
+#scelta-percorso{margin-top:16px}
+label.tipo-es{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--bordo);border-radius:14px;padding:14px 16px;background:var(--rialzo);box-shadow:var(--ombra);cursor:pointer;min-height:48px}
+label.tipo-es+label.tipo-es{margin-top:10px}
+label.tipo-es input{width:22px;height:22px;flex:none;margin-top:2px;accent-color:var(--tinta)}
+label.tipo-es b{display:block;font-size:1.02rem}
+label.tipo-es small{display:block;color:var(--inchiostro-2);font-size:.86rem;margin-top:2px}
+label.tipo-es .citazione{overflow-wrap:anywhere}

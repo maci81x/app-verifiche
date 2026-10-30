@@ -8,6 +8,7 @@ const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeo
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../esercizi.js", import.meta.url), "utf8"), ctx);
 const run = (expr) => vm.runInContext(expr, ctx);
 
 test("curva del voto del prototipo: 0% vale 3, 60% vale 6, 100% vale 10, al mezzo punto", () => {
@@ -285,4 +286,36 @@ test("Spiegamelo meglio: spiegazione, esempio e analogia escapati, fonti cliccab
   assert.doesNotMatch(html, /javascript:/);
   assert.match(html, /dal web/);
   assert.doesNotMatch(run(`htmlSpiegazione({ spiegazione: "x", esempio: "", analogia: "", fonti: [] })`), /Fonti/);
+});
+
+// ---------------------------------------------------------------- esercizi di matematica (issue #5)
+
+test("Teoria/Esercizi solo per le materie di matematica, con le varianti", () => {
+  for (const m of ["Matematica", "aritmetica", "Geometria", "ALGEBRA", "matematica e geometria"]) assert.equal(run(`eMatematica(${JSON.stringify(m)})`), true, m);
+  for (const m of ["storia", "scienze", "", "italiano"]) assert.equal(run(`eMatematica(${JSON.stringify(m)})`), false, m);
+});
+
+test("libreria: un argomento di esercizi conta i tipi, gli altri i concetti", () => {
+  assert.equal(run(`contaVoci({ percorso: "teoria", concetti: [1, 2, 3] })`), "3 concetti");
+  assert.equal(run(`contaVoci({ concetti: [1] })`), "1 concetti");
+  assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}, {}] })`), "2 tipi di esercizio");
+  assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}] })`), "1 tipo di esercizio");
+});
+
+test("checklist: si salvano solo i tipi spuntati, in ordine dopo quelli già salvati", () => {
+  const righe = run(`righeTipi("arg", [
+    { titolo: "Frazioni", ancora: "3/4 + 1/2", difficolta: 2, figura: false },
+    { titolo: "Pitagora", ancora: "cateti 6 e 8", difficolta: 3, figura: true },
+    { titolo: "Potenze", ancora: "2^3 + 5^2", difficolta: 1 }], [true, false, true], 4)`);
+  assert.deepEqual(JSON.parse(JSON.stringify(righe)), [
+    { argomento_id: "arg", titolo: "Frazioni", ancora: "3/4 + 1/2", difficolta: 2, figura: false, ordine: 4 },
+    { argomento_id: "arg", titolo: "Potenze", ancora: "2^3 + 5^2", difficolta: 1, figura: false, ordine: 5 },
+  ]);
+  assert.equal(run(`righeTipi("arg", [{ titolo: "x", ancora: "y", difficolta: 1 }], [false]).length`), 0);
+});
+
+test("lettura degli esercizi vuota se non c'è testo o se tutti i gruppi erano illeggibili", () => {
+  assert.equal(run(`lettoVuoto([])`), true);
+  assert.equal(run(`lettoVuoto([GRUPPO_ILLEGGIBILE, GRUPPO_ILLEGGIBILE])`), true);
+  assert.equal(run(`lettoVuoto([GRUPPO_ILLEGGIBILE, "45) 3/4 + 1/2 ="])`), false);
 });

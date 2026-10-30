@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div class="wrap">
@@ -137,6 +137,13 @@
     <div><label class="etichetta" for="argomento">Argomento *</label><input type="text" id="argomento" placeholder="la peste del Trecento" autocomplete="off"></div>
   </div>
   <p class="legenda">Servono per ritrovare l'argomento in libreria e per cercarlo fra mesi: non li salto.</p>
+  <div id="scelta-percorso" hidden>
+    <p class="occhiello">Cosa hai fotografato?</p>
+    <div class="livelli">
+      <label><input type="radio" name="percorso" value="teoria" checked><b>Teoria</b><small>Definizioni, regole, formule: ti interrogo come nelle altre materie</small></label>
+      <label><input type="radio" name="percorso" value="esercizi"><b>Esercizi</b><small>Riconosco i tipi di esercizio e te ne preparo di simili</small></label>
+    </div>
+  </div>
   <div class="bottoni"><button class="azione" id="btn-analizza">Leggi il materiale</button></div>
   <div id="err-mat"></div>
   <div id="stato-mat"></div>
@@ -155,6 +162,19 @@
   </div>
   <div id="err-con"></div>
   <div id="stato-con"></div>
+</section>
+
+<!-- ============ TIPI DI ESERCIZIO ============ -->
+<section id="v-tipi" hidden>
+  <h2 id="t-tipi">I tipi di esercizio</h2>
+  <p class="aiuto">Ecco gli esercizi che ho riconosciuto nelle foto. Togli la spunta a quelli sbagliati o che non ti servono, poi conferma.</p>
+  <div id="lista-tipi"></div>
+  <p class="legenda" id="nota-scartati-tipi"></p>
+  <div class="bottoni">
+    <button class="azione" id="btn-conferma-tipi">Conferma i tipi</button>
+    <button class="minore" id="btn-tipi-indietro">Torna all'argomento</button>
+  </div>
+  <div id="err-tipi"></div>
 </section>
 
 <!-- ============ SCHEDA ARGOMENTO ============ -->
@@ -180,6 +200,7 @@
     <button class="minore" id="btn-stampa-verifica">Verifica da stampare</button>
     <button class="minore" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
     <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i concetti</button>
+    <button class="minore" id="btn-ritrova-tipi" hidden>Ritrova i tipi di esercizio</button>
     <button class="minore pericolo" id="btn-elimina">Elimina argomento</button>
   </div>
   <div id="err-scheda"></div>
@@ -332,8 +353,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=6"></script>
-<script src="stampa.js?v=6"></script>
-<script src="aiuto.js?v=6"></script>
+<script src="app.js?v=7"></script>
+<script src="stampa.js?v=7"></script>
+<script src="aiuto.js?v=7"></script>
+<script src="esercizi.js?v=7"></script>
 </body>
 </html>

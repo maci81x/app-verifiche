@@ -332,7 +332,7 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
@@ -647,7 +647,8 @@ function messaggioModello(e, predefinito) {
 async function caricaLibreria() {
   attesa($("stato-lib"), ["Apro la libreria"]);
   const [a, s] = await Promise.all([
-    sb.from("argomenti").select("id, materia, titolo, trascrizione, origine, creato, aggiornato, " +
+    sb.from("argomenti").select("id, materia, titolo, trascrizione, origine, percorso, creato, aggiornato, " +
+      "esercizi_tipi(id, titolo, ancora, difficolta, figura, ordine, stato, media, tentativi), " +
       "concetti(id, titolo, descrizione, ancora, peso, stato, media, tentativi, ordine, errore_appunti), " +
       "fonti(id, tipo, storage_path, riferimento_pagina)").order("aggiornato", { ascending: false }).limit(300),
     sb.from("sessioni").select("*").order("data", { ascending: false }).limit(500),
@@ -656,6 +657,7 @@ async function caricaLibreria() {
   if (a.error || s.error) { errore($("avviso-db"), "Non riesco ad aprire la libreria. Controlla la connessione e riprova."); }
   argomenti = (a.data || []).map((x) => {
     x.concetti = (x.concetti || []).sort((p, q) => p.ordine - q.ordine);
+    x.tipi = (x.esercizi_tipi || []).sort((p, q) => p.ordine - q.ordine);
     x.foto = (x.fonti || []).filter((f) => f.tipo === "foto" && f.storage_path).sort((p, q) => (p.riferimento_pagina || 0) - (q.riferimento_pagina || 0));
     return x;
   });
@@ -693,7 +695,7 @@ function disegnaLibreria() {
     const st = statoArg(a);
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
       '<span class="stato-pill" data-s="' + st + '">' + (a.ultima ? a.ultima.indice + "%" : "mai verificato") + "</span></div>" +
-      '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + a.concetti.length + " concetti</span><span>" + a.foto.length + " foto</span><span>" + dataIt(a.aggiornato) + "</span></div>";
+      '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + contaVoci(a) + "</span><span>" + a.foto.length + " foto</span><span>" + dataIt(a.aggiornato) + "</span></div>";
     b.onclick = () => apriScheda(a);
     lista.appendChild(b);
   });
@@ -761,7 +763,7 @@ async function conservaFoto(a, blobs, onPasso) {
 
 // Legge le foto a gruppi di quattro, in sequenza (prototipo). Un gruppo che fallisce
 // due volte diventa "[gruppo di foto non leggibile]" e si va avanti.
-async function trascrivi(blobs, aggiunta, onPasso) {
+async function trascrivi(blobs, aggiunta, onPasso, esercizi = false) {
   const testi = [];
   const gruppi = aGruppi(blobs);
   for (let n = 0; n < gruppi.length; n++) {
@@ -769,7 +771,7 @@ async function trascrivi(blobs, aggiunta, onPasso) {
     onPasso("Leggo le foto " + (n * PER_GRUPPO + 1) + "-" + (n * PER_GRUPPO + g.length) + " di " + blobs.length);
     try {
       const immagini = await Promise.all(g.map(base64));
-      const r = await conRiprova(() => modello({ azione: "trascrivi", immagini, aggiunta }));
+      const r = await conRiprova(() => modello({ azione: "trascrivi", immagini, aggiunta, esercizi }));
       if (r.trascrizione) testi.push(r.trascrizione);
     } catch (e) {
       if (e instanceof Definitivo) throw e;
@@ -874,6 +876,9 @@ function apriScheda(a) {
   $("btn-rileggi-concetti").hidden = !!a.concetti.length || !a.trascrizione;
   errore($("err-scheda"), "");
   disegnaOpzioni("opz-scheda");
+  $("opz-scheda").hidden = false;
+  ["btn-ripassa-arg", "btn-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
+  adattaSchedaEsercizi(a);
   vai("scheda", a.materia);
 }
 
@@ -919,6 +924,7 @@ async function eliminaArgomento(a) {
 }
 
 async function aggiungiFoto(nuove) {
+  if (conEsercizi(corrente)) return aggiungiFotoEsercizi(nuove);
   const a = corrente, st = $("stato-scheda");
   errore($("err-scheda"), "");
   attesa(st, ["Leggo le nuove pagine"]);
@@ -1610,7 +1616,7 @@ async function salvaProva(es, per) {
 // Argomenti della materia scelta nel ripasso; null (con l'errore a schermo) se non ce ne sono.
 function argomentiDelRipasso() {
   const m = document.querySelector('input[name="mat-rip"]:checked').value;
-  const scelti = argomenti.filter((a) => !m || a.materia === m);
+  const scelti = argomenti.filter((a) => (!m || a.materia === m) && !conEsercizi(a)); // gli esercizi non hanno domande di teoria
   if (!scelti.length) { errore($("err-rip"), "Nessun argomento per questa materia."); return null; }
   return scelti;
 }
@@ -1620,6 +1626,7 @@ function argomentiDelRipasso() {
 function collega() {
   collegaStampa();
   collegaAiuto();
+  collegaEsercizi();
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
@@ -1638,7 +1645,7 @@ function collega() {
     foto = []; corrente = null; disegnaMiniature();
     const dl = $("elenco-materie"); dl.innerHTML = "";
     [...new Set(argomenti.map((a) => a.materia))].forEach((m) => { const o = document.createElement("option"); o.value = m; dl.appendChild(o); });
-    $("testo-manuale").value = ""; $("materia").value = ""; $("argomento").value = "";
+    $("testo-manuale").value = ""; $("materia").value = ""; $("argomento").value = ""; aggiornaSceltaPercorso();
     errore($("err-mat"), ""); vai("materiale");
   });
   $("foto").addEventListener("change", (e) => {
@@ -1653,7 +1660,7 @@ function collega() {
       ($("materia").value.trim() ? $("argomento") : $("materia")).focus(); return;
     }
     if (!foto.length && manuale.length < 40) { errore($("err-mat"), "Aggiungi almeno una foto, oppure scrivi qualche riga di appunti."); return; }
-    leggiMateriale(manuale);
+    (percorsoScelto() === PERCORSO_ESERCIZI ? leggiEsercizi : leggiMateriale)(manuale);
   });
 
   $("btn-salva-basta").addEventListener("click", async () => { await salvaConcetti(); await caricaLibreria(); vai("libreria"); });
