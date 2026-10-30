@@ -3,7 +3,7 @@
 //
 // POST { azione: "trascrivi", immagini: [base64 jpeg, max 4], aggiunta?: bool, esercizi?: bool } → { trascrizione }
 // POST { azione: "concetti", materia, titolo, testo, pagine, esistenti?: [titoli] } → { concetti, ... }
-//      I concetti la cui ancora non regge sul testo (filtro al 60%) vengono scartati qui.
+//      I concetti la cui ancora non regge sul testo (filtro di ancoraggio, _shared/ancoraggio.js) vengono scartati qui.
 // POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante? } → { domande, scartate }
 //      quante (10, 15 o 20) solo per la verifica da stampare; senza, il numero dipende dal livello.
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
@@ -43,7 +43,7 @@ import {
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
-import { eserciziVerificati, FORME, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
+import { eserciziVerificati, FORME, GRANDEZZE, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
@@ -223,10 +223,11 @@ const schemaEsercizi = (brevi: string[]) => ({
             type: "array",
             items: { type: "object", properties: { testo: STRINGA, formula: STRINGA }, required: ["testo", "formula"], additionalProperties: false },
           },
+          grandezza: { type: "string", enum: GRANDEZZE },
           risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
           verifica: STRINGA,
         },
-        required: ["tipo", "testo", "dati", "figura", "passaggi", "risultato", "verifica"], additionalProperties: false,
+        required: ["tipo", "testo", "dati", "figura", "passaggi", "grandezza", "risultato", "verifica"], additionalProperties: false,
       },
     },
   },

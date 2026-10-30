@@ -6,6 +6,9 @@
 // Gli altri si scartano e si contano, come fa il filtro di ancoraggio per le domande.
 
 import { valutaSicuro, coincide } from "./calcolo.js";
+import { figuraNonTorna, GRANDEZZE } from "./misure.js";
+
+export { GRANDEZZE };
 
 export const QUANTI = [5, 10];
 export const PER_CHIAMATA = 5;  // esercizi per chiamata al modello (10 = due chiamate in parallelo)
@@ -107,6 +110,12 @@ export function motivoScarto(e, tipiPerBreve) {
   if (!verificaDaiDati(verifica, testo(e.testo) + " " + testo(e.dati))) return "verifica";
   if (!coincide(calcolato, valore)) return "risultato";
   if (!finaleCoincide(e.passaggi, valore)) return "passaggi";
+  // Con una figura standard la formula si ricontrolla qui (issue #10): area, perimetro,
+  // volume o misura mancante devono tornare con la formula giusta.
+  const figura = pulisciFigura(e.figura, testo(e.testo) + " " + testo(e.dati));
+  const grandezza = GRANDEZZE.includes(e.grandezza) ? e.grandezza : "altro";
+  const figuraSbagliata = figuraNonTorna(figura, grandezza, valore, testo(e.risultato?.unita, 20));
+  if (figuraSbagliata) return figuraSbagliata;
   return null;
 }
 

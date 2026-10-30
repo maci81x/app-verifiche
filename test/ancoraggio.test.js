@@ -18,7 +18,7 @@ const ARGOMENTO = {
 const FONTE = fonteDi([ARGOMENTO]);
 const INDICE = { c1: true, c2: true };
 
-test("la soglia è il 60% del prototipo", () => assert.equal(SOGLIA, 0.6));
+test("la soglia è il 70% (issue #10; il prototipo aveva il 60%)", () => assert.equal(SOGLIA, 0.7));
 
 test("normalizza come il prototipo: minuscole, accenti italiani tenuti, punteggiatura via", () => {
   assert.equal(normalizza("  L'«Amor» è  UNO desio, che ven da CORE! "), "l amor è uno desio che ven da core");
@@ -45,10 +45,35 @@ test("un'ancora troppo corta per dire qualcosa non regge", () => {
   assert.equal(ancoraRegge("", FONTE), false);
 });
 
-test("il confine: 3 parole su 5 presenti (60%) passa, 2 su 5 (40%) no", () => {
-  // parole lunghe: sonetto, versi, endecasillabi + due inventate
-  assert.equal(ancoraRegge("sonetto versi endecasillabi zzzuno zzzdue", FONTE), true);
-  assert.equal(ancoraRegge("sonetto versi zzzuno zzzdue zzztre", FONTE), false);
+test("il confine: 7 parole su 10 presenti (70%) passa, 6 su 10 (60%) no", () => {
+  const fonte = normalizza("alfa beta gamma delta epsilon zeta theta iota kappa lambda");
+  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta theta xxxx yyyy wwww", fonte), true);
+  assert.equal(ancoraRegge("alfa beta gamma delta epsilon zeta xxxx yyyy wwww qqqq", fonte), false);
+});
+
+test("un'ancora fatta di parole vere prese qua e là nella fonte viene scartata", () => {
+  // Tutte le parole ci sono, ma sparse per tutto il materiale.
+  assert.equal(ancoraRegge("Svevia sonetto palermitana quartine imperatore terzine", FONTE), false);
+  assert.equal(ancorata({ concetto_id: "c1", ancora: "poeti corte Sicilia sonetto endecasillabi terzine" }, INDICE, FONTE), false);
+});
+
+test("le parole si confrontano intere, non dentro altre parole", () => {
+  // «poeti» sta dentro «poetica», «sono» dentro «sonetto», «corte» dentro «cortese»: non contano.
+  const fonte = normalizza("La poetica cortese del sonetto");
+  assert.equal(ancoraRegge("poeti corte sono", fonte), false);
+  assert.equal(ancoraRegge("poetica cortese sonetto", fonte), true);
+});
+
+test("le parole devono comparire nello stesso ordine dell'ancora", () => {
+  assert.equal(ancoraRegge("endecasillabi versi composto sonetto", FONTE), false);
+  assert.equal(ancoraRegge("sonetto composto versi endecasillabi", FONTE), true);
+});
+
+test("la finestra: abbastanza larga per poche parole in mezzo, non per mezza pagina", () => {
+  // «Federico II di Svevia»: due parole in mezzo, finestra di 22 caratteri, regge.
+  assert.equal(ancoraRegge("Federico Svevia", FONTE), true);
+  // «corte ... imperatore»: in mezzo c'è mezza frase, troppo lontano.
+  assert.equal(ancoraRegge("corte imperatore", FONTE), false);
 });
 
 test("la fonte comprende anche titoli, descrizioni e ancore dei concetti", () => {

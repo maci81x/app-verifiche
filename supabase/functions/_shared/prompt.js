@@ -69,6 +69,11 @@ export function promptConcettiNuovi(titoliEsistenti, testo, pagine = 1) {
   ].join("\n\n");
 }
 
+// Materiale mandato al modello per domande e mappa. Il prototipo si fermava a 16.000
+// caratteri, cioè a 4-5 pagine: un capitolo intero (20-30 pagine) ne occupa circa 100.000
+// e così viene letto tutto (issue #10). Il filtro di ancoraggio lavora comunque su tutto.
+export const MAX_MATERIALE = 120_000;
+
 // Verifica da stampare (ticket #3, 30 ottobre 2026): il numero di domande si sceglie.
 // Le miste tengono la proporzione chiuse/aperte del livello, riscalata al numero scelto.
 // Senza scelta resta il testo del prototipo.
@@ -120,8 +125,7 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
     "Per le chiuse: quattro opzioni plausibili, una sola corretta. Per le aperte: la risposta attesa e gli elementi che devono comparire.",
     "Concetti:\n" + JSON.stringify(contesto),
     g.length ? ("Queste domande le ha già fatte: non riproporle uguali. Cambia angolazione, taglio e formulazione, pur restando sugli stessi concetti.\n" + JSON.stringify(g)) : "",
-    // ponytail: 16000 caratteri come nel prototipo; con un capitolo intero taglia il materiale. Da alzare se le domande coprono solo l'inizio.
-    "Materiale trascritto:\n" + materiale.map((a) => "[" + a.titolo + "]\n" + (a.trascrizione || "")).join("\n\n").slice(0, 16000),
+    "Materiale trascritto:\n" + materiale.map((a) => "[" + a.titolo + "]\n" + (a.trascrizione || "")).join("\n\n").slice(0, MAX_MATERIALE),
     'Rispondi solo con JSON: {"domande":[{"id":"d1","concetto_id":"c1","tipo":"chiusa","testo":"","opzioni":["","","",""],"corretta":0,"ancora":""},{"id":"d2","concetto_id":"c2","tipo":"aperta","testo":"","risposta_attesa":"","elementi":[""],"ancora":""}]}',
   ].filter(Boolean).join("\n\n");
 }
@@ -141,9 +145,8 @@ export function promptCorrezione(modalita, pacchetto) {
 
 // Mappa concettuale (ticket #2, 30 ottobre 2026). Nuovo, non viene dal prototipo:
 // da tarare sulla prova vera. I concetti sono già i rami; il modello aggiunge solo
-// sotto-punti, ognuno con la sua ancora, e il filtro al 60% scarta quelli che non reggono.
+// sotto-punti, ognuno con la sua ancora, e il filtro di ancoraggio scarta quelli che non reggono.
 // argomento: { titolo, materia, trascrizione, concetti: [{ titolo, descrizione, ancora, ordine }] }
-export const MAX_MATERIALE_MAPPA = 16000;
 export function promptMappa(argomento, sottoPunti) {
   const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({
     id: idBreve(i), titolo: c.titolo, descrizione: c.descrizione || "", ancora: c.ancora,
@@ -156,7 +159,7 @@ export function promptMappa(argomento, sottoPunti) {
     "Non ripetere il titolo del concetto nei suoi sotto-punti.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
-    "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE_MAPPA),
+    "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE),
     'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
   ].join("\n\n");
 }
@@ -272,12 +275,13 @@ export function promptEserciziGenera(dati) {
       "- dati: i dati in breve (per esempio «base 12 cm; altezza 5 cm»), vuoto per le espressioni;\n" +
       "- figura: se serve una figura geometrica, forma e misure da etichettare; altrimenti forma \"nessuna\" e misure vuote. Per la misura da trovare scrivi \"?\" come valore. Forme e nomi delle misure ammessi:\n" + forme + "\n" +
       "- passaggi: lo svolgimento passo per passo, ognuno con una frase breve e la formula in LaTeX (per esempio \\frac{3}{4}, 5^{2}, \\sqrt{36}, \\cdot);\n" +
+      "- grandezza: che cosa è il risultato rispetto alla figura disegnata: area, perimetro (per il cerchio la circonferenza), volume, misura (la misura segnata con \"?\" nella figura) oppure altro (espressioni, problemi in cui il risultato non è una di queste). Il server ricalcola area, perimetro, volume e misura mancante dalle misure della figura con la formula giusta e scarta l'esercizio se non coincide: la figura deve avere tutte le misure che servono;\n" +
       "- risultato: valore (solo il numero, con la virgola, oppure una frazione come 7/12; niente unità dentro il valore) e unità di misura (vuota se non c'è);\n" +
       "- verifica: un'espressione che ricalcola il risultato partendo dai numeri dei dati, scritta con solo numeri (decimali col punto), + - * / ^, sqrt() e parentesi tonde. Niente lettere, niente %, niente π (usa 3.14 sia nella verifica sia nel risultato), niente risultati intermedi: niente eval, il server la ricalcola e scarta l'esercizio se non coincide con il risultato.",
     "Controlla tu stesso ogni conto prima di rispondere.",
     dati.materia ? "Materia: " + dati.materia : "",
     dati.titolo ? "Argomento: " + dati.titolo : "",
-    'Rispondi solo con JSON: {"esercizi":[{"tipo":"t1","testo":"","dati":"","figura":{"forma":"nessuna","misure":[]},"passaggi":[{"testo":"","formula":""}],"risultato":{"valore":"","unita":""},"verifica":""}]}',
+    'Rispondi solo con JSON: {"esercizi":[{"tipo":"t1","testo":"","dati":"","figura":{"forma":"nessuna","misure":[]},"passaggi":[{"testo":"","formula":""}],"grandezza":"altro","risultato":{"valore":"","unita":""},"verifica":""}]}',
   ].filter(Boolean).join("\n\n");
 }
 

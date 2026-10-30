@@ -104,3 +104,15 @@ test("il web non entra mai nella verifica: un concetto con fonte web non produce
   const r = tieniAncorate([{ id: "d1", concetto_id: "c3", tipo: "aperta", testo: "Da dove partì la peste?", risposta_attesa: "Dalla Cina", elementi: [], ancora: "La peste partì dalla Cina" }], indice, [arg]);
   assert.equal(r.domande.length, 0);
 });
+
+test("domande e mappa leggono il materiale fino a 120.000 caratteri, non più 16.000 (issue #10)", async () => {
+  const { promptDomande, promptMappa, MAX_MATERIALE } = await import("../supabase/functions/_shared/prompt.js");
+  assert.equal(MAX_MATERIALE, 120_000);
+  const lungo = "a".repeat(100_000) + " FINE-CAPITOLO " + "b".repeat(30_000);
+  const pd = promptDomande({ livello: "medio", tipo: "miste", modalita: "scritta", ripasso: false, contesto: [], gia: [],
+    materiale: [{ titolo: "Capitolo", trascrizione: lungo }] });
+  assert.match(pd, /FINE-CAPITOLO/);
+  assert.ok(!pd.includes("b".repeat(30_000)), "oltre 120.000 si taglia");
+  const pm = promptMappa({ titolo: "Capitolo", materia: "storia", trascrizione: lungo, concetti: [] }, 10);
+  assert.match(pm, /FINE-CAPITOLO/);
+});
