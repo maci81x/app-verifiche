@@ -125,22 +125,22 @@ async function arricchisciDalWeb() {
   attesa($("stato-mappa"), FRASI_ARRICCHISCI);
   try {
     const r = await conRiprova(() => modello({ azione: "arricchisci", argomento_id: a.id }));
-    if (!r.aggiunti) { if (corrente === a) avviso($("err-mappa"), "Non ho trovato niente di affidabile da aggiungere. La mappa resta com'era."); return; }
+    if (!r.aggiunti) { if (stessoArgomento(corrente, a)) avviso($("err-mappa"), "Non ho trovato niente di affidabile da aggiungere. La mappa resta com'era."); return; }
     // La mappa è cambiata nel frattempo (Rigenera): l'albero arricchito è di quella vecchia, non si salva.
-    if (corrente === a && (!mappa || mappa.generata !== generataPrima)) return;
+    if (stessoArgomento(corrente, a) && (!mappa || mappa.generata !== generataPrima)) return;
     const { error } = await sb.from("mappe").update({ albero: r.albero }).eq("argomento_id", a.id);
-    if (corrente !== a) return;
+    if (!stessoArgomento(corrente, a)) return;
     mappa = { ...mappa, albero: r.albero };
     disegnaMappa();
     if (error) avviso($("err-mappa"), "Non sono riuscito a salvare i nodi nuovi: li vedi adesso, ma la prossima volta vanno cercati di nuovo.");
     else avviso($("err-mappa"), "Ho aggiunto " + r.aggiunti + (r.aggiunti === 1 ? " nodo" : " nodi") + " dal web: li riconosci dall'etichetta. Tocca per leggere e aprire la fonte.");
   } catch (e) {
-    if (corrente === a) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
+    if (stessoArgomento(corrente, a)) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
       ? "Prima serve la mappa: tocca Rigenera."
       : messaggioWeb(e, "Non sono riuscito ad arricchire la mappa. Riprova fra un momento."));
   } finally {
     finisciLavoro(a.id, "arricchisci");
-    if (corrente === a) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
+    if (stessoArgomento(corrente, a)) { attesa($("stato-mappa"), null); aggiornaBottoniMappa(); }
   }
 }
 

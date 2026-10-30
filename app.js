@@ -1117,7 +1117,7 @@ async function caricaMappa(a) {
   if (!a.concetti.length) { avviso($("meta-mappa"), "Questo argomento non ha ancora concetti: torna all'argomento e tocca Ritrova i concetti."); $("btn-rigenera").hidden = true; return; }
   $("btn-rigenera").hidden = false;
   // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
-  const stati = caricaStatiMappa(a).then(() => { if (corrente === a && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
+  const stati = caricaStatiMappa(a).then(() => { if (stessoArgomento(corrente, a) && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
   if (mappa && mappa.argomento_id === a.id) { disegnaMappa(); return; }
   if (lavoroSu(a.id) === "mappa") {
     mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true };
@@ -1126,7 +1126,7 @@ async function caricaMappa(a) {
   attesa($("stato-mappa"), ["Apro la mappa"]);
   const [{ data, error }] = await Promise.all([
     sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle(), stati]);
-  if (corrente !== a) return; // nel frattempo ha cambiato argomento
+  if (!stessoArgomento(corrente, a)) return; // nel frattempo ha cambiato argomento
   attesa($("stato-mappa"), null);
   if (error) { errore($("err-mappa"), "Non riesco ad aprire la mappa. Controlla la connessione e riprova."); return; }
   if (data) {
@@ -1156,7 +1156,7 @@ async function generaMappa(a) {
     if (error && stessoArgomento(corrente, a)) avviso($("err-mappa"), "Non sono riuscito a salvare la mappa: la vedi adesso, ma la prossima volta va rifatta.");
   } catch (e) {
     if (stessoArgomento(corrente, a)) {
-      if (mappa && mappa.provvisoria) { mappa = prima; $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; if (prima) disegnaMappa(); }
+      if (mappa && mappa.provvisoria) { chiudiCardNodo(false); mappa = prima; $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; if (prima) disegnaMappa(); }
       const nessuno = e.dati && e.dati.errore === "nessun_concetto";
       errore($("err-mappa"), nessuno ? "Questo argomento non ha ancora concetti." : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
     }
