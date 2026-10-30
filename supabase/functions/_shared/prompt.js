@@ -281,3 +281,16 @@ export function promptEserciziGenera(dati) {
   ].filter(Boolean).join("\n\n");
 }
 
+// Correzione dei passaggi degli esercizi (issue #5, fetta #8). Il giudizio sul risultato
+// arriva già fatto (da un calcolo, _shared/correzione.js): il modello spiega soltanto.
+// { classe, pacchetto: [{ id, testo, soluzione: [passi], risultato, risposta, esito, passaggi }] }
+export function promptCorrezioneEsercizi(dati) {
+  return [
+    "Sei un insegnante di matematica di scuola media italiana e correggi gli esercizi di un'alunna di " + perEta(dati.classe) + ".",
+    "Per ogni esercizio hai la consegna, lo svolgimento corretto, il risultato corretto, la risposta dell'alunna, i suoi passaggi e l'esito del suo risultato. L'esito l'ha stabilito un calcolo: non lo decidi tu e non cambiarlo.",
+    "Leggi i passaggi dell'alunna e trova il primo passaggio sbagliato: in primo_errore copialo carattere per carattere da quello che ha scritto lei (copiato, non riscritto). In tipo_errore scrivi che cosa è successo: calcolo, formula, segno, unita (unità di misura), procedimento (ha sbagliato strada), altro; nessuno se i passaggi sono giusti, e allora primo_errore resta vuoto.",
+    "In spiegazione spiega l'errore in 2-4 frasi semplici, con parole da " + perEta(dati.classe) + ", parlando direttamente a lei e senza giudicarla. In esempio mostra un esempio svolto simile, con numeri diversi, passo per passo. Se i passaggi sono giusti e l'esito è giusto, una frase di conferma e niente esempio.",
+    "Esercizi:\n" + JSON.stringify(dati.pacchetto),
+    'Rispondi solo con JSON: {"analisi":[{"id":"","primo_errore":"","tipo_errore":"calcolo","spiegazione":"","esempio":""}]}',
+  ].join("\n\n");
+}

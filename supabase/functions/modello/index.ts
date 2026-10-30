@@ -24,6 +24,10 @@
 //      Esercizi simili ai tipi confermati (letti dal database con i permessi della studentessa).
 //      Ognuno entra solo se la sua `verifica`, ricalcolata qui (_shared/calcolo.js), coincide
 //      con il risultato dichiarato; gli altri si scartano e si contano.
+// POST { azione: "esercizi_correggi", pacchetto: [{ id, testo, passaggi, risultato, verifica, risposta, svolgimento }] }
+//      → { correzioni: [{ id, esito, punti, letto, primo_errore, tipo_errore, spiegazione, esempio }], analisi_mancante }
+//      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
+//      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -35,9 +39,10 @@ import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
   promptMappa, DOMANDE_DA_STAMPARE,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
-  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera,
+  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
+import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
 import { eserciziVerificati, FORME, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
@@ -227,6 +232,23 @@ const schemaEsercizi = (brevi: string[]) => ({
   },
   required: ["esercizi"], additionalProperties: false,
 } as const);
+const SCHEMA_ANALISI = {
+  type: "object",
+  properties: {
+    analisi: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: STRINGA, primo_errore: STRINGA, tipo_errore: { type: "string", enum: TIPI_ERRORE },
+          spiegazione: STRINGA, esempio: STRINGA,
+        },
+        required: ["id", "primo_errore", "tipo_errore", "spiegazione", "esempio"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["analisi"], additionalProperties: false,
+} as const;
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
 
 class Definitivo extends Error {}
@@ -365,6 +387,22 @@ Deno.serve(async (req) => {
       const esito = eserciziVerificati(risposte.flatMap((r) => r.esercizi as unknown[]), perBreve, b.quanti);
       if (!esito.esercizi.length) return json({ errore: "nessun_verificato", scartati: esito.scartati }, 422);
       return json(esito);
+    }
+
+    if (b.azione === "esercizi_correggi") {
+      const { correzioni, daAnalizzare } = correggiPacchetto(b.pacchetto);
+      if (!correzioni.length) return json({ errore: "richiesta non valida" }, 400);
+      if (!daAnalizzare.length) return json({ correzioni, analisi_mancante: false });
+      // Senza la spiegazione dei passaggi la correzione del risultato vale lo stesso.
+      try {
+        const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+        const r = await chiedi(promptCorrezioneEsercizi({ classe: st?.classe ?? null, pacchetto: daAnalizzare }), SCHEMA_ANALISI);
+        return json({ correzioni: conAnalisi(correzioni, r.analisi as unknown[], daAnalizzare), analisi_mancante: false });
+      } catch (e) {
+        if (e instanceof Definitivo && e.message !== "rate_limited") throw e;
+        console.error("analisi dei passaggi:", e);
+        return json({ correzioni, analisi_mancante: true });
+      }
     }
 
     if (b.azione === "domande") {

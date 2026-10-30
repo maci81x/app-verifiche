@@ -205,7 +205,7 @@ function adattaSchedaEsercizi(a) {
 
 /* =================================================================== esercizi simili */
 
-let eserciziDi = null, eserciziMostrati = []; // li riusano correzione (#8) e stampa (#9)
+let eserciziDi = null, eserciziMostrati = [], scartatiMostrati = 0; // li riusano correzione (#8) e stampa (#9)
 
 function apriEsercizi(a) {
   eserciziDi = a;
@@ -218,6 +218,7 @@ function apriEsercizi(a) {
   });
   $("prep-esercizi").hidden = false; $("btn-altri-es").hidden = true;
   $("lista-es").innerHTML = ""; $("nota-scartati-es").textContent = "";
+  $("esito-es").innerHTML = ""; $("btn-correggi-es").hidden = true; eserciziMostrati = [];
   errore($("err-es"), "");
   vai("esercizi", a.materia);
   caricaKatex(); // in anticipo: quando arrivano gli esercizi probabilmente è già pronto
@@ -243,8 +244,9 @@ async function generaEsercizi() {
   attesa(st, ["Preparo gli esercizi", "Controllo i conti uno per uno", "Disegno le figure"]);
   try {
     const r = await conRiprovaEsercizi(() => modello({ azione: "esercizi_genera", argomento_id: a.id, quanti, tipi }));
-    eserciziMostrati = r.esercizi;
+    eserciziMostrati = r.esercizi; scartatiMostrati = r.scartati || 0;
     $("lista-es").innerHTML = r.esercizi.map(htmlEsercizio).join("");
+    preparaSvolgimento();
     $("nota-scartati-es").textContent = notaScartatiEsercizi(r.scartati);
     $("prep-esercizi").hidden = true; $("btn-altri-es").hidden = false;
     caricaKatex().then((ok) => { if (ok) rendiFormule($("lista-es")); });
@@ -260,6 +262,7 @@ async function generaEsercizi() {
 function collegaEsercizi() {
   $("btn-esercizi").addEventListener("click", () => apriEsercizi(corrente));
   $("btn-genera-es").addEventListener("click", generaEsercizi);
+  collegaProvaEsercizi();
   $("btn-altri-es").addEventListener("click", () => { $("prep-esercizi").hidden = false; $("btn-altri-es").hidden = true; });
   $("btn-es-indietro").addEventListener("click", () => { if (eserciziDi) apriScheda(argomenti.find((x) => x.id === eserciziDi.id) || eserciziDi); });
   $("materia").addEventListener("input", aggiornaSceltaPercorso);

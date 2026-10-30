@@ -355,3 +355,23 @@ prova('esercizi_tipi: la ragazza legge e scrive i suoi, il genitore legge, le al
   delete from argomenti where id = '${ARG}';
   ${verifica(`${conta('esercizi_tipi')} = 0`, "i tipi sopravvivono all'argomento")}
 `);
+
+prova('prove di esercizi: colonne nuove con le policy di sempre', `
+  ${verifica(`(select percorso = 'teoria' from sessioni where id = '${SESS}')`, "una prova di oggi non ha percorso 'teoria'")}
+  ${verifica(`(select esercizio is null from domande where id = '${DOM}')`, 'una domanda di oggi ha un esercizio')}
+  ${come(ANNA)}
+  update sessioni set percorso = 'esercizi' where id = '${SESS}';
+  update domande set esercizio = '{"testo":"Calcola 3/4 + 1/2","risultato":{"valore":"5/4","unita":""}}' where id = '${DOM}';
+  ${verifica(`(select esercizio->'risultato'->>'valore' = '5/4' from domande where id = '${DOM}')`, "l'esercizio non si salva")}
+  ${vieta(`update sessioni set percorso = 'orale' where id = '${SESS}'`, 'check_violation', 'percorso sconosciuto')}
+  ${vieta(`update domande set esercizio = '[1,2]' where id = '${DOM}'`, 'check_violation', "un esercizio che non è un oggetto")}
+  ${come(BEA)}
+  ${verifica(`${conta("sessioni where percorso = 'esercizi'")} = 0`, 'Bea vede le prove di esercizi di Anna')}
+  ${nessunaRiga(`update domande set esercizio = '{}'`, "Bea modifica gli esercizi di Anna")}
+  ${nessunaRiga(`update sessioni set percorso = 'teoria'`, "Bea modifica le prove di Anna")}
+  ${come(GENITORE)}
+  ${verifica(`(select count(*) = 1 from domande where esercizio is not null)`, "il genitore non legge l'esercizio della figlia")}
+  ${nessunaRiga(`update domande set esercizio = '{}'`, "il genitore modifica gli esercizi")}
+  ${come(null)}
+  ${vieta(`perform * from sessioni`, 'insufficient_privilege', "l'anonimo legge le prove")}
+`);

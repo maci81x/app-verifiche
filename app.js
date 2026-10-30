@@ -1041,7 +1041,7 @@ function sparkline(voti) {
 function rigaSessione(x, titolo) {
   const b = document.createElement("button"); b.className = "sessione"; b.type = "button"; tinta(b, x.materia);
   b.innerHTML = '<div class="alto"><span class="tit">' + esc(titolo) + '</span><span class="v" data-s="' + fasciaVoto(x.voto) + '">' + votoIt(Number(x.voto)) + "</span></div>" +
-    '<div class="meta">' + dataOraIt(x.data) + " · " + esc(x.materia) + " · " + (x.modalita === "orale" ? "interrogazione" : "scritta") + " · livello " + esc(x.livello) +
+    '<div class="meta">' + dataOraIt(x.data) + " · " + esc(x.materia) + " · " + (x.percorso === "esercizi" ? "esercizi" : (x.modalita === "orale" ? "interrogazione" : "scritta") + " · livello " + esc(x.livello)) +
     " · prontezza " + x.indice + "%" + (x.n_errori ? " · " + x.n_errori + (x.n_errori === 1 ? " errore" : " errori") : " · nessun errore") + "</div>";
   b.onclick = () => mostraSessione(x);
   return b;
@@ -1088,7 +1088,7 @@ async function mostraSessione(x, daScheda) {
   disegnaQuadrante(x.indice, Number(x.voto));
   $("verdetto-t").textContent = x.titolo;
   $("verdetto-p").textContent = dataOraIt(x.data);
-  $("voto-num").textContent = "prontezza " + x.indice + "% · livello " + x.livello + " · " + (x.modalita === "orale" ? "interrogazione" : "verifica scritta");
+  $("voto-num").textContent = "prontezza " + x.indice + "% · " + (x.percorso === "esercizi" ? "esercizi" : "livello " + x.livello + " · " + (x.modalita === "orale" ? "interrogazione" : "verifica scritta"));
   $("riga-scartate").hidden = true;
   // Semaforo di quel giorno, ricostruito dalle risposte.
   const perC = {};

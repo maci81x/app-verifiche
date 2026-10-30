@@ -11,6 +11,7 @@ vm.runInContext(readFileSync(new URL("../aiuto.js", import.meta.url), "utf8"), c
 vm.runInContext(readFileSync(new URL("../figure.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../formule.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../esercizi.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../prova-esercizi.js", import.meta.url), "utf8"), ctx);
 const run = (expr) => vm.runInContext(expr, ctx);
 
 test("curva del voto del prototipo: 0% vale 3, 60% vale 6, 100% vale 10, al mezzo punto", () => {
@@ -348,4 +349,50 @@ test("nota sugli esercizi scartati dal ricalcolo", () => {
   assert.equal(run("notaScartatiEsercizi(0)"), "");
   assert.match(run("notaScartatiEsercizi(1)"), /^1 esercizio l'ho tolto/);
   assert.match(run("notaScartatiEsercizi(3)"), /^3 esercizi li ho tolti/);
+});
+
+// ---------------------------------------------------------------- prova di esercizi (issue #5, fetta #8)
+
+const PROVA = [
+  { tipo_id: "t-fr", tipo: "Frazioni", testo: "Calcola 3/4 + 1/2", risultato: { valore: "5/4", unita: "" }, passaggi: [{ testo: "Denominatore comune", formula: "\\frac{3}{4}+\\frac{2}{4}" }] },
+  { tipo_id: "t-pi", tipo: "Pitagora", testo: "Ipotenusa con cateti 9 cm e 12 cm", risultato: { valore: "15", unita: "cm" }, passaggi: [] },
+  { tipo_id: "t-fr", tipo: "Frazioni", testo: "Calcola 2/3 - 1/6", risultato: { valore: "1/2", unita: "" }, passaggi: [] },
+];
+
+test("esito per tipo: media e semaforo di ogni tipo, ogni tipo pesa uguale nel voto", () => {
+  const es = JSON.parse(JSON.stringify(run(`esitoPerTipo(${JSON.stringify(PROVA)}, [10, 5, 0])`)));
+  assert.deepEqual(es.righe.map((r) => [r.titolo, r.n, r.media, r.stato]), [["Frazioni", 2, 5, "giallo"], ["Pitagora", 1, 5, "giallo"]]);
+  assert.equal(es.indice, 50);
+  assert.equal(es.voto, run("voto(50)"));
+  assert.equal(run(`esitoPerTipo([], []).indice`), 0);
+});
+
+test("aprire la soluzione prima di correggere vale al massimo 5 punti", () => {
+  assert.equal(run("puntiConAiuto(10, true)"), 5);
+  assert.equal(run("puntiConAiuto(0, true)"), 0);
+  assert.equal(run("puntiConAiuto(8, false)"), 8);
+});
+
+test("correzione: esito, primo errore citato, spiegazione e svolgimento giusto solo se serve", () => {
+  const giusta = run(`htmlCorrezione({ esito: "giusto", punti: 10 }, ${JSON.stringify(PROVA[0])})`);
+  assert.match(giusta, /data-s="verde"[\s\S]*✓ Giusto[\s\S]*10\/10/);
+  assert.doesNotMatch(giusta, /Ecco come si fa/);
+  const sbagliata = run(`htmlCorrezione({ esito: "sbagliato", punti: 0, primo_errore: "3/4 + 1/2 = 4/6 <b>", tipo_errore: "calcolo",
+    spiegazione: "Hai sommato i denominatori.", esempio: "1/3 + 1/3 = 2/3" }, ${JSON.stringify(PROVA[0])})`);
+  assert.match(sbagliata, /data-s="rosso"/);
+  assert.match(sbagliata, /Primo passaggio da rivedere \(errore di calcolo\)[\s\S]*4\/6 &lt;b&gt;/);
+  assert.match(sbagliata, /Hai sommato i denominatori[\s\S]*Un esempio simile[\s\S]*Ecco come si fa[\s\S]*Risultato: <b>5\/4<\/b>/);
+  assert.match(run(`htmlCorrezione({ esito: "senza_unita", punti: 5, vista: true }, ${JSON.stringify(PROVA[1])})`), /manca l'unità[\s\S]*Avevi aperto la soluzione/);
+});
+
+test("prova salvata con i valori già ammessi: domande aperte, livello medio, tipo come concetto, esercizio completo", () => {
+  const righe = JSON.parse(JSON.stringify(run(`righeDomandeEsercizi("s1", "a1", ${JSON.stringify(PROVA)}, { "t-fr": "3/4 + 1/2 =" })`)));
+  assert.equal(righe.length, 3);
+  assert.deepEqual(righe.map((r) => [r.ordine, r.tipo, r.livello, r.concetto_titolo, r.concetto_id]),
+    [[1, "aperta", "medio", "Frazioni", null], [2, "aperta", "medio", "Pitagora", null], [3, "aperta", "medio", "Frazioni", null]]);
+  assert.equal(righe[1].risposta_attesa, "15 cm");
+  assert.equal(righe[0].ancora, "3/4 + 1/2 =");
+  assert.equal(righe[1].ancora, PROVA[1].testo, "senza ancora del tipo vale la consegna");
+  assert.equal(righe[0].esercizio.testo, "Calcola 3/4 + 1/2");
+  assert.match(run("htmlRispostaEsercizio(2)"), /id="ris-es-2"[\s\S]*id="pas-es-2"[\s\S]*id="foto-es-2"[\s\S]*id="cor-es-2"/);
 });
