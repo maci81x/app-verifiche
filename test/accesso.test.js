@@ -176,3 +176,19 @@ test("Elimina profilo: se il server dice di no, i dati locali restano e compare 
   assert.deepEqual(JSON.parse(amb.memoria["verifiche-profili"]).map((p) => p.id), ["s1"]);
   assert.match(amb.el("err-imp").innerHTML, /Non sono riuscito a eliminare il profilo di Prova/);
 });
+
+test("Elimina profilo aperto su questo telefono: l'app smette di usarlo; un 404 vale come già eliminato", async () => {
+  const amb = ambiente(async (corpo) => (corpo.azione === "elimina" ? { status: 404, dati: { errore: "profilo non trovato" } } : { status: 200, dati: [] }));
+  amb.memoria["verifiche-profili"] = JSON.stringify([{ id: "s1", nome: "Prova" }]);
+  amb.run(`genitore = { auth: { getSession: async () => ({ data: { session: { access_token: "t" } } }) },
+    from: () => ({ select: () => ({ order: async () => ({ data: [] }) }) }) };
+    profilo = { id: "s1", nome: "Prova" }; sb = { finto: true }; argomenti = [{ id: "a" }];
+    clients["sb-verifiche-s1"] = { auth: { signOut: async () => ({}) } };`);
+  await amb.run(`eliminaProfilo({ id: "s1", nome: "Prova" }, document.createElement("button"))`);
+  assert.equal(amb.run("profilo"), null);
+  assert.equal(amb.run("sb"), null);
+  assert.equal(amb.run("argomenti.length"), 0);
+  assert.equal(amb.run(`"sb-verifiche-s1" in clients`), false);
+  assert.deepEqual(JSON.parse(amb.memoria["verifiche-profili"]), []);
+  assert.match(amb.el("err-imp").innerHTML, /eliminato/);
+});

@@ -10,9 +10,8 @@
 //      Cambia il codice di una figlia collegata a chi chiama e toglie l'eventuale blocco.
 // POST { azione: "elimina", studente_id }        → { ok: true, foto, resti }
 //      Cancella il profilo di una figlia collegata a chi chiama, con tutti i suoi dati (issue #14).
-//      Ordine: foto nello storage, poi la riga `studenti` (argomenti, prove, mappe... se ne vanno
-//      in cascata), poi l'account. Cancellare subito l'account dava «Database error deleting
-//      user»: la cascata partiva dal servizio di autenticazione, non dalla service role.
+//      Ordine: dati, foto, account (vedi elimina). Cancellare subito l'account dava «Database
+//      error deleting user».
 //
 // Chi chiama deve avere app_metadata.ruolo = "genitore" (lo imposta Roby, una volta).
 import { admin, CODICE, json, CORS } from "../_shared/http.ts";
@@ -34,40 +33,59 @@ const TABELLE = ["argomenti", "concetti", "mappe", "sessioni", "domande", "rispo
 
 type Db = ReturnType<typeof admin>;
 
-// Tutti i file della studentessa nel bucket: <studente>/<argomento>/<file>.jpg, più quelli
-// registrati in `fonti` (se una cartella non si elenca, i percorsi salvati bastano).
+// Tutti i file della studentessa nel bucket (<studente>/<argomento>/<file>.jpg), a pagine da
+// 1000 e scendendo nelle sottocartelle, più quelli registrati in `fonti`.
+async function elenca(db: Db, cartella: string, profondita = 0): Promise<string[]> {
+  const fuori: string[] = [];
+  for (let da = 0; ; da += 1000) {
+    const { data, error } = await db.storage.from(BUCKET).list(cartella, { limit: 1000, offset: da });
+    if (error) throw error;
+    for (const x of data || []) {
+      const percorso = cartella + "/" + x.name;
+      if (x.id) fuori.push(percorso);
+      else if (profondita < 4) fuori.push(...(await elenca(db, percorso, profondita + 1)));
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return fuori;
+}
 async function fotoDi(db: Db, id: string): Promise<string[]> {
-  const percorsi = new Set<string>();
+  const percorsi = new Set<string>(await elenca(db, id));
   const { data: righe, error } = await db.from("fonti").select("storage_path").eq("studente_id", id).not("storage_path", "is", null);
   if (error) throw error;
   (righe || []).forEach((r: { storage_path: string }) => percorsi.add(r.storage_path));
-  const { data: cartelle, error: e2 } = await db.storage.from(BUCKET).list(id, { limit: 1000 });
-  if (e2) throw e2;
-  for (const c of cartelle || []) {
-    if (c.id) { percorsi.add(id + "/" + c.name); continue; } // un file direttamente nella cartella
-    const { data: file, error: e3 } = await db.storage.from(BUCKET).list(id + "/" + c.name, { limit: 1000 });
-    if (e3) throw e3;
-    (file || []).forEach((f) => percorsi.add(id + "/" + c.name + "/" + f.name));
-  }
   return [...percorsi].filter((p) => p.startsWith(id + "/"));
 }
 
+// Quante righe e quanti file restano: dopo l'eliminazione deve essere tutto 0. Se il conteggio
+// stesso non riesce, l'eliminazione resta riuscita: resti = null.
 async function resti(db: Db, id: string) {
-  const conti: Record<string, number> = {};
-  for (const t of TABELLE) {
-    const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq("studente_id", id);
-    if (error) throw error;
-    conti[t] = count ?? 0;
+  try {
+    const conti: Record<string, number> = {};
+    for (const t of TABELLE) {
+      const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq("studente_id", id);
+      if (error) throw error;
+      conti[t] = count ?? 0;
+    }
+    for (const [t, col] of [["studenti", "id"], ["pin_profili", "user_id"], ["genitori_studenti", "studente_id"]]) {
+      const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq(col, id);
+      if (error) throw error;
+      conti[t] = count ?? 0;
+    }
+    conti.foto = (await elenca(db, id)).length;
+    return conti;
+  } catch (e) {
+    console.error("profili: conteggio dopo l'eliminazione non riuscito:", id, e);
+    return null;
   }
-  for (const [t, col] of [["studenti", "id"], ["pin_profili", "user_id"], ["genitori_studenti", "studente_id"]]) {
-    const { count, error } = await db.from(t).select("*", { count: "exact", head: true }).eq(col, id);
-    if (error) throw error;
-    conti[t] = count ?? 0;
-  }
-  conti.foto = (await db.storage.from(BUCKET).list(id, { limit: 1 })).data?.length ?? 0;
-  return conti;
 }
 
+// Ordine (issue #14): ogni passo si può ripetere finché il collegamento col genitore esiste.
+// 1. i dati (argomenti, prove, report: il resto va in cascata) con la service role;
+// 2. le foto nello storage (i percorsi si raccolgono prima, da `fonti` e dalla cartella);
+// 3. l'account: la sua cascata tocca solo studenti, collegamento e codice. Cancellarlo con
+//    tutti i dati dentro dava «Database error deleting user». Se fallisce lo stesso, si
+//    prova togliendo prima la riga `studenti`, come si faceva a mano.
 async function elimina(db: Db, genitore: string, id: string) {
   const { data: link, error: e1 } = await db.from("genitori_studenti").select("studente_id")
     .eq("genitore_id", genitore).eq("studente_id", id).maybeSingle();
@@ -79,14 +97,22 @@ async function elimina(db: Db, genitore: string, id: string) {
   if (u.user.app_metadata?.ruolo !== "studente") return json({ errore: "profilo non trovato" }, 404);
 
   const foto = await fotoDi(db, id);
+  for (const t of ["sessioni", "argomenti", "report"]) {
+    const { error } = await db.from(t).delete().eq("studente_id", id);
+    if (error) throw error;
+  }
   for (let i = 0; i < foto.length; i += 100) {
     const { error } = await db.storage.from(BUCKET).remove(foto.slice(i, i + 100));
     if (error) throw error;
   }
-  const { error: e3 } = await db.from("studenti").delete().eq("id", id);
-  if (e3) throw e3;
-  const { error: e4 } = await db.auth.admin.deleteUser(id);
-  if (e4) { console.error("profili: dati cancellati ma account no, da togliere a mano:", id, e4); throw e4; }
+  const { error: e3 } = await db.auth.admin.deleteUser(id);
+  if (e3) {
+    console.error("profili: account non cancellato al primo tentativo, tolgo prima la riga studenti:", id, e3);
+    const { error: e4 } = await db.from("studenti").delete().eq("id", id);
+    if (e4) throw e4;
+    const { error: e5 } = await db.auth.admin.deleteUser(id);
+    if (e5) { console.error("profili: dati cancellati ma account no, da togliere a mano:", id, e5); throw e5; }
+  }
   return json({ ok: true, foto: foto.length, resti: await resti(db, id) });
 }
 

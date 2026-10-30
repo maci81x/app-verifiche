@@ -590,12 +590,21 @@ async function eliminaProfilo(s, btn) {
   errore($("err-imp"), "");
   btn.disabled = true;
   try {
-    await funzioneProfili({ azione: "elimina", studente_id: s.id });
+    // 404: il profilo non c'è più (per esempio cancellato da un altro telefono): si pulisce lo stesso.
+    await funzioneProfili({ azione: "elimina", studente_id: s.id }).catch((e) => { if (e.message !== "profilo non trovato") throw e; });
+    // Il profilo eliminato era quello aperto su questo telefono: l'app smette di usarlo.
+    if (profilo && profilo.id === s.id) {
+      const c = clients[chiaveSessione(s.id)];
+      if (c) c.auth.signOut({ scope: "local" }).catch(() => {});
+      delete clients[chiaveSessione(s.id)];
+      profilo = null; sb = null; argomenti = []; sessioni = [];
+    }
     salvaLocale(CHIAVE_PROFILI, leggiLocale(CHIAVE_PROFILI, []).filter((p) => p.id !== s.id));
     try { localStorage.removeItem(chiaveSessione(s.id)); localStorage.removeItem("verifiche-ripassare-" + s.id); } catch (e) { /* solo copie locali */ }
     if (leggiLocale(CHIAVE_ULTIMO, null) === s.id) salvaLocale(CHIAVE_ULTIMO, null);
-    avviso($("err-imp"), "Profilo di " + s.nome + " eliminato, con tutti i suoi argomenti e prove.");
     await disegnaImpostazioni();
+    avviso($("err-imp"), "Profilo di " + s.nome + " eliminato, con tutti i suoi argomenti e prove.");
+    const msg = $("err-imp"); msg.setAttribute("tabindex", "-1"); msg.focus(); // il pulsante toccato non c'è più
     caricaProfili();
   } catch (e) {
     console.warn("elimina profilo:", e);
