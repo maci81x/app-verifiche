@@ -8,7 +8,10 @@
 
 // In bianco e nero il colore non basta: ogni stato ha anche un simbolo e una parola.
 const STATI_STAMPA = { rosso: ["✕", "da rifare"], giallo: ["▲", "da ripassare"], verde: ["●", "acquisito"], mai: ["○", "mai verificato"] };
-const DOCUMENTI_STAMPA = { mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Esito della prova" };
+const DOCUMENTI_STAMPA = {
+  mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Esito della prova",
+  esercizi: "Esercizi", esito_esercizi: "Esito degli esercizi",
+};
 const LARGHEZZA_MAPPA_STAMPA = 700; // circa la larghezza utile di un A4, in pixel CSS
 const LETTERE = "ABCD";
 
@@ -76,7 +79,54 @@ function corpoEsito({ indice, voto, verdetto, righe }) {
       (x.errore_appunti ? '<span class="st-nota">✎ ' + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
-const CORPI_STAMPA = { mappa: corpoMappa, studiare: corpoStudiare, verifica: corpoVerifica, esito: corpoEsito };
+/* ---- esercizi di matematica (issue #5, fetta #9) ---- */
+
+// Quadretti da 5 mm per lo svolgimento, disegnati in SVG: i browser di solito non stampano
+// gli sfondi, le linee sì. Larghezza 180 mm, altezza in mm.
+const QUADRETTO_MM = 5, LARGHEZZA_QUADRETTI_MM = 180;
+function svgQuadretti(altezza) {
+  const linee = [];
+  for (let x = 0; x <= LARGHEZZA_QUADRETTI_MM; x += QUADRETTO_MM) linee.push('<line x1="' + x + '" y1="0" x2="' + x + '" y2="' + altezza + '"/>');
+  for (let y = 0; y <= altezza; y += QUADRETTO_MM) linee.push('<line x1="0" y1="' + y + '" x2="' + LARGHEZZA_QUADRETTI_MM + '" y2="' + y + '"/>');
+  return '<svg class="st-quadretti" viewBox="0 0 ' + LARGHEZZA_QUADRETTI_MM + " " + altezza + '" aria-hidden="true"><g stroke="#b5b5b5" stroke-width=".2">' + linee.join("") + "</g></svg>";
+}
+// Spazio per lo svolgimento: più passaggi nella soluzione, più quadretti. Da 30 a 90 mm.
+const spazioSvolgimento = (e) => Math.min(90, Math.max(30, 20 + (e.passaggi || []).length * 10));
+
+const risultatoTesto = (e) => e.risultato.valore + (e.risultato.unita ? " " + e.risultato.unita : "");
+
+// Scheda (consegne, figure, quadretti) e, dopo un salto pagina, il foglio delle soluzioni.
+function corpoEsercizi(esercizi) {
+  const scheda = esercizi.map((e) => '<li class="st-quesito st-esercizio"><p>' + esc(e.testo) + "</p>" +
+    (e.dati ? '<p class="st-nota">Dati: ' + esc(e.dati) + "</p>" : "") +
+    (e.figura ? '<div class="st-figura">' + svgFigura(e.figura) + "</div>" : "") +
+    svgQuadretti(spazioSvolgimento(e)) + "</li>").join("");
+  const soluzioni = esercizi.map((e) => '<li class="st-quesito">' +
+    '<ol class="st-passaggi">' + (e.passaggi || []).map((p) => "<li>" + esc(p.testo) +
+      (p.formula ? ' <span class="st-formula">' + formulaHtml(p.formula) + "</span>" : "") + "</li>").join("") + "</ol>" +
+    "<p><b>Risultato: " + esc(risultatoTesto(e)) + "</b></p></li>").join("");
+  return '<section class="st-domande"><ol class="st-quesiti">' + scheda + "</ol></section>" +
+    '<section class="st-soluzioni st-salto"><h2>Soluzioni</h2><ol class="st-quesiti">' + soluzioni + "</ol></section>";
+}
+
+// Esito di una prova di esercizi: semaforo per tipo (simbolo e parola) e ogni esercizio.
+// { voto, righe: [{ titolo, media, stato, n }], dettaglio: [{ testo, risposta, giusta, esito, punti }] }
+function corpoEsitoEsercizi({ voto, righe, dettaglio }) {
+  const ordinate = [...righe].sort((a, b) => a.media - b.media);
+  return '<p class="st-voto">Voto della prova ' + votoIt(Number(voto)) + "</p>" +
+    '<ol class="st-lista">' + ordinate.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
+      "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10 · " +
+      x.n + (x.n === 1 ? " esercizio" : " esercizi") + "</span></li>").join("") + "</ol>" +
+    "<h2>Esercizio per esercizio</h2>" +
+    '<ol class="st-quesiti">' + (dettaglio || []).map((d) => '<li class="st-quesito"><p>' + esc(d.testo) + "</p>" +
+      '<p class="st-nota">Hai scritto: ' + esc(d.risposta || "—") + " · giusto: " + esc(d.giusta) + "</p>" +
+      "<p><b>" + esc(d.esito) + "</b> · " + d.punti + "/10</p></li>").join("") + "</ol>";
+}
+
+const CORPI_STAMPA = {
+  mappa: corpoMappa, studiare: corpoStudiare, verifica: corpoVerifica, esito: corpoEsito,
+  esercizi: corpoEsercizi, esito_esercizi: corpoEsitoEsercizi,
+};
 
 // doc: { tipo, info: { nome, materia, titolo, data }, dati } → l'HTML del documento da stampare.
 function componiStampa(doc, carattere = MAPPA.carattere) {
@@ -115,6 +165,8 @@ function apriStampa(tipo, info, dati) {
 // La mappa si ridisegna con una stima più larga se nel browser qualche riga sborda.
 function disegnaStampa() {
   disegnaAdattando($("doc-stampa"), (car) => componiStampa(docStampa, car));
+  // Le soluzioni degli esercizi hanno formule: KaTeX se c'è, altrimenti restano testo.
+  if (docStampa.tipo === "esercizi") caricaKatex().then((ok) => { if (ok) rendiFormule($("doc-stampa")); });
 }
 
 function stampaOra() {

@@ -90,7 +90,8 @@ function htmlRispostaEsercizio(i) {
 
 function preparaSvolgimento() {
   soluzioniViste = new Set(); correzioniFatte = null; correzioneInCorso = false;
-  $("btn-salva-es").hidden = true;
+  $("btn-salva-es").hidden = true; $("btn-stampa-esito-es").hidden = true;
+  $("btn-stampa-es").hidden = !eserciziMostrati.length;
   document.querySelectorAll("#lista-es .esercizio").forEach((art, i) => {
     art.insertAdjacentHTML("beforeend", htmlRispostaEsercizio(i));
     const sol = art.querySelector("details:not(.passaggi-mia)");
@@ -185,7 +186,7 @@ function mostraCorrezione(es, cor, analisiMancante) {
     esito.righe.map((r) => '<div class="esito-c" data-s="' + r.stato + '"><h3><span class="pallino"></span>' + esc(r.titolo) +
       '<span class="voto">' + votoIt(Math.round(r.media * 2) / 2) + "/10</span></h3><small>" + r.n + (r.n === 1 ? " esercizio" : " esercizi") + "</small></div>").join("") +
     '<p class="legenda">Voto della prova: ' + votoIt(esito.voto) + "." + (analisiMancante ? " I passaggi non sono riuscito a leggerli adesso: i risultati però sono corretti." : "") + "</p>";
-  $("btn-correggi-es").hidden = true;
+  $("btn-correggi-es").hidden = true; $("btn-stampa-esito-es").hidden = false;
   box.scrollIntoView({ behavior: "smooth", block: "start" });
   caricaKatex().then((ok) => { if (ok) rendiFormule($("lista-es")); });
 }
@@ -229,6 +230,24 @@ async function salvaDomandeERisposte(sessioneId, a, es, cor) {
   if (e3) throw e3;
 }
 
+// Dati per stampare l'esito (stampa.js, corpoEsitoEsercizi).
+function datiEsitoEsercizi(es, cor) {
+  const esito = esitoPerTipo(es, cor.map((c) => c.punti));
+  return {
+    voto: esito.voto, righe: esito.righe,
+    dettaglio: es.map((e, i) => ({
+      testo: e.testo, risposta: cor[i].risposta, giusta: e.risultato.valore + (e.risultato.unita ? " " + e.risultato.unita : ""),
+      esito: (ESITI_ES[cor[i].esito] || ESITI_ES.sbagliato)[1], punti: cor[i].punti,
+    })),
+  };
+}
+
 function collegaProvaEsercizi() {
   $("btn-correggi-es").addEventListener("click", correggiEsercizi);
+  $("btn-stampa-es").addEventListener("click", () => {
+    if (eserciziMostrati.length) apriStampa("esercizi", { titolo: eserciziDi.titolo, materia: eserciziDi.materia }, eserciziMostrati);
+  });
+  $("btn-stampa-esito-es").addEventListener("click", () => {
+    if (correzioniFatte) apriStampa("esito_esercizi", { titolo: eserciziDi.titolo, materia: eserciziDi.materia }, datiEsitoEsercizi(eserciziMostrati, correzioniFatte));
+  });
 }

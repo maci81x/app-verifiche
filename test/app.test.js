@@ -396,3 +396,48 @@ test("prova salvata con i valori già ammessi: domande aperte, livello medio, ti
   assert.equal(righe[0].esercizio.testo, "Calcola 3/4 + 1/2");
   assert.match(run("htmlRispostaEsercizio(2)"), /id="ris-es-2"[\s\S]*id="pas-es-2"[\s\S]*id="foto-es-2"[\s\S]*id="cor-es-2"/);
 });
+
+// ---------------------------------------------------------------- stampa degli esercizi (issue #5, fetta #9)
+
+const DA_STAMPARE = [
+  { tipo_id: "t-pi", tipo: "Pitagora", testo: "Calcola l'ipotenusa con i cateti di 9 cm e 12 cm.", dati: "cateti 9 cm e 12 cm",
+    figura: { forma: "triangolo_rettangolo", misure: [{ nome: "cateto1", valore: "12 cm" }, { nome: "cateto2", valore: "9 cm" }, { nome: "ipotenusa", valore: "?" }] },
+    passaggi: [{ testo: "Applico il teorema di Pitagora", formula: "\\sqrt{9^{2} + 12^{2}}" }, { testo: "Calcolo la radice", formula: "\\sqrt{225} = 15" }],
+    risultato: { valore: "15", unita: "cm" } },
+  { tipo_id: "t-fr", tipo: "Frazioni", testo: "Calcola 3/4 + 1/2", dati: "", figura: null,
+    passaggi: [{ testo: "Porto allo stesso denominatore", formula: "\\frac{3}{4} + \\frac{2}{4} = \\frac{5}{4}" }],
+    risultato: { valore: "5/4", unita: "" } },
+];
+
+test("scheda esercizi: ogni esercizio con la sua figura e i quadretti, nessuna soluzione prima del salto pagina", () => {
+  const html = run(`componiStampa({ tipo: "esercizi", info: { titolo: "Pitagora", materia: "matematica", nome: "Anna" }, dati: ${JSON.stringify(DA_STAMPARE)} })`);
+  assert.match(html, /<p class="st-tipo">Esercizi<\/p>/);
+  const [scheda, soluzioni] = html.split('<section class="st-soluzioni st-salto">');
+  assert.ok(soluzioni, "le soluzioni stanno in una sezione con il salto pagina");
+  assert.equal((scheda.match(/class="st-quesito st-esercizio"/g) || []).length, 2);
+  assert.equal((scheda.match(/<svg [^>]*class="figura"/g) || []).length, 1, "figura solo dove c'è");
+  assert.equal((scheda.match(/class="st-quadretti"/g) || []).length, 2, "spazio quadrettato per ogni esercizio");
+  assert.match(scheda, /Calcola l'ipotenusa[\s\S]*<svg [^>]*class="figura"[\s\S]*st-quadretti[\s\S]*Calcola 3\/4/);
+  assert.doesNotMatch(scheda, /Risultato|Applico|5\/4|15 cm|Porto/, "nessuna soluzione nella scheda");
+  assert.match(soluzioni, /Applico il teorema di Pitagora[\s\S]*Risultato: 15 cm[\s\S]*Porto allo stesso denominatore[\s\S]*Risultato: 5\/4/);
+  assert.match(soluzioni, /√\(9² \+ 12²\)/, "formule leggibili anche senza KaTeX");
+});
+
+test("quadretti: dentro il loro viewBox, più alti per gli esercizi con più passaggi", () => {
+  const q = run("svgQuadretti(40)");
+  assert.match(q, /viewBox="0 0 180 40"/);
+  for (const m of q.matchAll(/[xy][12]="([\d.]+)"/g)) assert.ok(+m[1] >= 0 && +m[1] <= 180);
+  assert.ok(run(`spazioSvolgimento(${JSON.stringify(DA_STAMPARE[0])})`) > run(`spazioSvolgimento(${JSON.stringify(DA_STAMPARE[1])})`));
+  assert.equal(run("spazioSvolgimento({ passaggi: [] })"), 30);
+  assert.equal(run("spazioSvolgimento({ passaggi: new Array(20).fill({}) })"), 90);
+});
+
+test("esito degli esercizi da stampare: semaforo per tipo con simbolo e parola, poi ogni esercizio", () => {
+  const dati = run(`datiEsitoEsercizi(${JSON.stringify(DA_STAMPARE)}, [{ esito: "giusto", punti: 10, risposta: "15 cm" }, { esito: "sbagliato", punti: 0, risposta: "4/6" }])`);
+  const html = run(`componiStampa({ tipo: "esito_esercizi", info: { titolo: "Pitagora", materia: "matematica" }, dati: ${JSON.stringify(dati)} })`);
+  assert.match(html, /Esito degli esercizi/);
+  assert.match(html, /✕ da rifare<\/span><b>Frazioni<\/b>[\s\S]*● acquisito<\/span><b>Pitagora<\/b>/, "dal tipo peggiore, con simbolo e parola");
+  assert.match(html, /0,0\/10 · 1 esercizio/);
+  assert.match(html, /Hai scritto: 4\/6 · giusto: 5\/4[\s\S]*Non torna<\/b> · 0\/10/);
+  assert.match(html, /Voto della prova /);
+});

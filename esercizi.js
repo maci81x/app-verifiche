@@ -219,6 +219,7 @@ function apriEsercizi(a) {
   $("prep-esercizi").hidden = false; $("btn-altri-es").hidden = true;
   $("lista-es").innerHTML = ""; $("nota-scartati-es").textContent = "";
   $("esito-es").innerHTML = ""; $("btn-correggi-es").hidden = true; eserciziMostrati = [];
+  ["btn-stampa-es", "btn-stampa-esito-es", "btn-salva-es"].forEach((id) => { $(id).hidden = true; });
   errore($("err-es"), "");
   vai("esercizi", a.materia);
   caricaKatex(); // in anticipo: quando arrivano gli esercizi probabilmente è già pronto

@@ -411,3 +411,14 @@ label.tipo-es .citazione{overflow-wrap:anywhere}
 label.scatto.piccolo{padding:12px 14px;margin-top:8px;box-shadow:none}
 .spiega-es,.esempio-es{white-space:pre-wrap;margin:8px 0 0}
 #esito-es .esito-c small{color:var(--inchiostro-2)}
+
+/* Stampa degli esercizi (issue #5, fetta #9): figure e quadretti in nero e grigio. */
+.st-figura{max-width:70mm;margin:3mm 0;color:#000}
+.st-figura svg{display:block;width:100%;height:auto;overflow:visible}
+.st-quadretti{display:block;width:100%;height:auto;margin-top:3mm}
+.st-passaggi{margin:0;padding-left:1.4em}
+.st-formula{font-family:"JetBrains Mono",monospace}
+@media print{
+  .st-esercizio{break-inside:avoid;page-break-inside:avoid}
+  .foglio .figura{color:#000}
+}
