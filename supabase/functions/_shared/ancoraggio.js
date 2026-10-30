@@ -11,8 +11,9 @@ export const SOGLIA = 0.7;
 export const MARGINE_FINESTRA = 1.5; // la finestra è lunga quanto l'ancora più il 50%
 const MIN_LETTERE = 4;               // le parole di tre lettere o meno non contano
 
+// Le migliaia col punto diventano un numero solo («1.500» → «1500»), come le scrive chi le copia senza punto.
 export function normalizza(s) {
-  return String(s || "").normalize("NFC").toLowerCase().replace(/[^a-zàèéìòóù0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return String(s || "").normalize("NFC").replace(/(\d)\.(?=\d{3}(?!\d))/g, "$1").toLowerCase().replace(/[^a-zàèéìòóù0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // Fonte di uno o più argomenti: { trascrizione, concetti: [{ ancora }] }. Solo testo degli

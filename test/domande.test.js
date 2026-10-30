@@ -125,3 +125,14 @@ test("prova lampo su un concetto (issue #11): tre domande sullo stesso concetto,
   assert.match(promptDomande({ ...base, tipo: "chiuse" }), /tutte a scelta multipla/);
   assert.doesNotMatch(promptDomande({ ...base, tipo: "miste" }), /^\d+ domande:/m);
 });
+
+test("prova lampo: per le miste due chiuse e una aperta scelte per tipo, id rinumerati", async () => {
+  const { sceltaLampo, MIN_LAMPO } = await import("../supabase/functions/_shared/domande.js");
+  assert.equal(MIN_LAMPO, 2);
+  const d = (id, tipo) => ({ id, tipo });
+  const scelte = sceltaLampo([d("d1", "chiusa"), d("d2", "chiusa"), d("d3", "chiusa"), d("d4", "aperta")], "miste");
+  assert.deepEqual(scelte.map((x) => x.tipo), ["chiusa", "chiusa", "aperta"]);
+  assert.deepEqual(scelte.map((x) => x.id), ["d1", "d2", "d3"]);
+  assert.equal(sceltaLampo([d("d1", "aperta"), d("d2", "aperta"), d("d3", "chiusa")], "miste").length, 3);
+  assert.deepEqual(sceltaLampo([d("d1", "chiusa"), d("d2", "chiusa"), d("d3", "chiusa"), d("d4", "chiusa")], "chiuse").map((x) => x.id), ["d1", "d2", "d3"]);
+});

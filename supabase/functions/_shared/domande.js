@@ -67,3 +67,15 @@ export function tieniAncorate(grezze, indice, argomenti) {
   }
   return { domande: tenute, scartate: (grezze || []).length - tenute.length };
 }
+
+// Prova lampo su un concetto (issue #11): tre domande, per le miste due chiuse e una aperta
+// scelte per tipo (non le prime tre). Meno di MIN_LAMPO domande ancorate: niente prova, perché
+// una domanda sola deciderebbe il semaforo del concetto.
+export const MIN_LAMPO = 2;
+export function sceltaLampo(domande, tipo, quante = 3) {
+  if (tipo !== "miste") return domande.slice(0, quante);
+  const chiuse = domande.filter((d) => d.tipo === "chiusa"), aperte = domande.filter((d) => d.tipo === "aperta");
+  const prese = [...chiuse.slice(0, quante - 1), ...aperte.slice(0, 1)];
+  const resto = domande.filter((d) => !prese.includes(d));
+  return [...prese, ...resto].slice(0, quante).map((d, i) => ({ ...d, id: "d" + (i + 1) }));
+}

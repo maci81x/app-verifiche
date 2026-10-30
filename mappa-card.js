@@ -31,14 +31,16 @@ function htmlCardNodo(n, ctx) {
     (ctx.errore ? '<p class="avviso-appunti" role="note"><span aria-hidden="true">✎</span> ' + esc(ctx.errore) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? " · " + esc(c.titolo) : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '">' + esc(s.testo) + "</p>" +
-    '<div class="bottoni card-azioni">' +
-    '<button type="button" class="azione" data-azione="prova">Mettiti alla prova' + (sotto ? " su «" + esc(c.titolo) + "»" : "") + "</button>" +
-    '<button type="button" class="minore" data-azione="spiega">Spiegamelo meglio</button></div>';
+    (ctx.senzaConcetto ? '<p class="legenda">Questo concetto non c\'è più nell\'argomento: rigenera la mappa.</p>'
+      : '<div class="bottoni card-azioni">' +
+        '<button type="button" class="azione" data-azione="prova">Mettiti alla prova' + (sotto ? " su «" + esc(c.titolo) + "»" : "") + "</button>" +
+        '<button type="button" class="minore" data-azione="spiega">Spiegamelo meglio</button></div>');
 }
 
 /* =================================================================== nel browser */
 
 let nodoAperto = null; // { g, n } del nodo con la card aperta
+let lampoInCorso = false; // una prova lampo alla volta
 
 function elementiFocus(box) {
   return Array.prototype.filter.call(box.querySelectorAll("button, a[href], [tabindex]:not([tabindex='-1'])"), (x) => !x.disabled && !x.hidden);
@@ -51,7 +53,7 @@ function apriCardNodo(g) {
   const concetto = n.fonte === FONTE_WEB ? null : concettoDelNodo(mappa.albero, n.id);
   const dalDb = concetto && (corrente.concetti || []).find((c) => c.id === concetto.id);
   const box = $("card-nodo"), dentro = $("card-nodo-corpo");
-  dentro.innerHTML = htmlCardNodo(n, { concetto, errore: dalDb && dalDb.errore_appunti, stato: g.dataset.s });
+  dentro.innerHTML = htmlCardNodo(n, { concetto, errore: dalDb && dalDb.errore_appunti, stato: g.dataset.s, senzaConcetto: !!concetto && !dalDb });
   g.setAttribute("aria-pressed", "true");
   nodoAperto = { g, n, concetto, dalDb };
   box.hidden = false;
@@ -92,16 +94,19 @@ function azioneCardNodo(e) {
   if (b.dataset.azione === "chiudi") { chiudiCardNodo(); return; }
   if (!concetto) return;
   if (b.dataset.azione === "spiega") {
+    if (!dalDb) return;
     chiudiCardNodo(false);
     apriSpiegazione({ concetto_id: concetto.id, titolo: concetto.titolo, ancora: concetto.ancora, materia: corrente.materia });
     return;
   }
   if (b.dataset.azione === "prova") {
-    if (!dalDb) return;
+    if (!dalDb || lampoInCorso) return;
     const argomento = corrente;
     chiudiCardNodo(false);
-    modo = "argomento";
-    preparaVerifica([argomento], $("btn-rigenera"), $("stato-mappa"), $("err-mappa"), { concetto: dalDb });
+    modo = "argomento"; lampoInCorso = true;
+    // Un pulsante tutto suo: preparaVerifica lo spegne e lo riaccende, Rigenera resta com'è.
+    preparaVerifica([argomento], document.createElement("button"), $("stato-mappa"), $("err-mappa"), { concetto: dalDb })
+      .finally(() => { lampoInCorso = false; });
   }
 }
 

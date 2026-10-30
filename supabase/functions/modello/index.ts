@@ -48,7 +48,7 @@ import { eserciziVerificati, FORME, GRANDEZZE, QUANTI, PER_CHIAMATA, quantiDaChi
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa } from "../_shared/mappa.js";
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
-import { preparaPool, tieniAncorate } from "../_shared/domande.js";
+import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -442,9 +442,10 @@ Deno.serve(async (req) => {
         quante: b.quante, soloConcetto: !!soloConcetto,
       }), SCHEMA_DOMANDE);
       const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
-      // Il modello a volte ne scrive una in più: la prova lampo resta di tre.
+      // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.
+      if (soloConcetto && tenute.domande.length < MIN_LAMPO) return json({ errore: "nessuna_ancorata", scartate: tenute.scartate }, 422);
       const esito = soloConcetto
-        ? { domande: tenute.domande.slice(0, DOMANDE_PER_CONCETTO), scartate: tenute.scartate }
+        ? { domande: sceltaLampo(tenute.domande, b.tipo, DOMANDE_PER_CONCETTO), scartate: tenute.scartate }
         : tenute;
       if (!esito.domande.length) return json({ errore: "nessuna_ancorata", scartate: esito.scartate }, 422);
       return json(esito);

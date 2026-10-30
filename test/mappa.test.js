@@ -175,10 +175,10 @@ test("arricchire di nuovo sostituisce i nodi dal web di prima, non li accumula",
 
 test("«in breve»: la sintesi del concetto resta se regge sugli appunti, sparisce (e si conta) se no (issue #11)", () => {
   const m = costruisciMappa(ARGOMENTO, { nodi: [
-    { concetto_id: "c1", sintesi: "Sono i poeti che tra il 1230 e il 1250 scrivevano alla corte di Federico II.", figli: [] },
+    { concetto_id: "c1", sintesi: "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II.", figli: [] },
     { concetto_id: "c2", sintesi: "Il sonetto lo inventò Jacopo da Lentini nel 1240.", figli: [] },
   ] });
-  assert.equal(m.nodi[0].sintesi, "Sono i poeti che tra il 1230 e il 1250 scrivevano alla corte di Federico II.");
+  assert.equal(m.nodi[0].sintesi, "Sono i poeti che tra il 1230 e il 1250 composero alla corte di Federico II.");
   assert.equal(m.nodi[1].sintesi, "", "Jacopo e il 1240 non sono negli appunti");
   assert.equal(m.sintesi_scartate, 1);
   // Ogni concetto ha il campo, anche senza ramo dal modello: così l'app riconosce le mappe nuove.

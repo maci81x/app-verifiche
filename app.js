@@ -290,7 +290,7 @@ function svgMappa(layout) {
     const detto = n.stato && n.stato !== "web" ? ", " + parolaStato(n.stato) : (n.stato === "web" ? ", " + ETICHETTA_WEB : "");
     parti.push('<g class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + n.livello + '"' + conFonte(n.fonte) +
       (n.stato ? ' data-s="' + n.stato + '"' : "") +
-      (n.toccabile ? ' tabindex="0" role="button" aria-pressed="false"' : "") + ' aria-label="' + esc(n.titolo + detto) + '">' +
+      (n.toccabile ? ' tabindex="0" role="button" aria-pressed="false" aria-haspopup="dialog" aria-label="' + esc(n.titolo + detto) + '"' : "") + ">" +
       '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="10"/>' +
       '<text style="font-size:' + corpo + 'px">' + righe + "</text></g>");
   });
@@ -344,6 +344,7 @@ function doppioTocco(btn, testoConferma, fn) {
 
 const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
+  if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
@@ -1158,12 +1159,13 @@ function mostraPannello(p) {
 async function caricaMappa(a) {
   if (!a.concetti.length) { avviso($("meta-mappa"), "Questo argomento non ha ancora concetti: torna all'argomento e tocca Ritrova i concetti."); $("btn-rigenera").hidden = true; return; }
   $("btn-rigenera").hidden = false;
-  await caricaStatiMappa(a);
-  if (corrente !== a) return;
+  // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
+  const stati = caricaStatiMappa(a).then(() => { if (corrente === a && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
   if (mappa && mappa.argomento_id === a.id) { disegnaMappa(); return; }
   if (mappaInCorso === a.id) { attesa($("stato-mappa"), FRASI_MAPPA); return; }
   attesa($("stato-mappa"), ["Apro la mappa"]);
-  const { data, error } = await sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle();
+  const [{ data, error }] = await Promise.all([
+    sb.from("mappe").select("albero, generata, scartati").eq("argomento_id", a.id).maybeSingle(), stati]);
   if (corrente !== a) return; // nel frattempo ha cambiato argomento
   attesa($("stato-mappa"), null);
   if (error) { errore($("err-mappa"), "Non riesco ad aprire la mappa. Controlla la connessione e riprova."); return; }
@@ -1206,6 +1208,7 @@ function disegnaAdattando(el, componi) {
 
 function disegnaMappa() {
   if (!mappa || $("v-mappa").hidden || $("pannello-mappa").hidden) return;
+  chiudiCardNodo(false); // il disegno nuovo sostituisce il nodo a cui era agganciata la card
   const box = $("disegno-mappa"), larghezza = box.clientWidth || 340;
   const stati = statiDellaMappa(corrente);
   disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car, stati)));
@@ -1234,8 +1237,9 @@ function statiConcetti(a) {
   return stati;
 }
 async function caricaStatiMappa(a) {
-  try { statiMappa = { argomento_id: a.id, stati: statiDaLista(cosaStudiare(a.concetti, await righeProve(a))) }; }
-  catch (e) { statiMappa = null; }
+  let nuovi = null;
+  try { nuovi = { argomento_id: a.id, stati: statiDaLista(cosaStudiare(a.concetti, await righeProve(a))) }; } catch (e) { nuovi = null; }
+  if (corrente === a) statiMappa = nuovi; // una risposta vecchia non copre gli stati dell'argomento aperto adesso
 }
 const statiDellaMappa = (a) => (statiMappa && statiMappa.argomento_id === a.id ? statiMappa.stati : statiConcetti(a));
 const contaNodiMappa = (nodi, conta = () => true) => (nodi || []).reduce((s, n) => s + (conta(n) ? 1 : 0) + contaNodiMappa(n.figli, conta), 0);
@@ -1289,6 +1293,8 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
   try {
     const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso", livello, tipo, modalita,
       ...(lampo ? { concetto_id: lampo.id } : {}) });
+    // Prova lampo chiesta da un argomento che nel frattempo ha lasciato: non la si apre.
+    if (lampo && args.length === 1 && corrente !== args[0]) { attesa(elStato, null); btn.disabled = false; return; }
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
     const pesi = {}; args.forEach((a) => a.concetti.forEach((c) => { pesi[c.id] = c.peso; }));
     domande.forEach((d) => { d.peso = pesi[d.concetto_id] || 1; });
@@ -1701,9 +1707,11 @@ function collega() {
   $("btn-torna-scheda").addEventListener("click", () => apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente));
   const disegno = $("disegno-mappa");
   disegno.addEventListener("click", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g) apriCardNodo(g); });
+  disegno.addEventListener("keyup", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g && e.key === " ") { e.preventDefault(); apriCardNodo(g); } });
   disegno.addEventListener("keydown", (e) => {
     const g = e.target.closest(".m-nodo");
-    if (g && g.getAttribute("role") === "button" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); apriCardNodo(g); }
+    // Invio apre subito; lo spazio al rilascio, così il tasto non chiude la card appena aperta.
+    if (g && g.getAttribute("role") === "button" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); if (e.key === "Enter") apriCardNodo(g); }
   });
   // Ruotando il telefono cambia la larghezza: si ridisegna (verticale sotto i 600px).
   let attesaRidisegno = null;
