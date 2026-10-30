@@ -262,3 +262,34 @@ prova("accesso con codice: l'anonimo e le studentesse non arrivano né alle tabe
   ${come(GENITORE)}
   ${vieta(`perform imposta_pin_di('${ANNA}', '1234')`, 'insufficient_privilege', 'il genitore chiama la funzione senza passare dalla Edge Function')}
 `);
+
+// ---------------------------------------------------------------- mappa concettuale (issue #2)
+const ALBERO = `'{"titolo":"La peste del Trecento","nodi":[]}'`;
+
+prova('mappe: una per argomento, la ragazza legge e scrive le sue, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into mappe (argomento_id, albero, scartati) values ('${ARG}', ${ALBERO}, 2);
+  ${verifica(`(select studente_id = '${ANNA}' and generata is not null from mappe)`, 'la mappa non è di Anna')}
+  -- Rigenera: sovrascrive la stessa riga
+  insert into mappe (argomento_id, albero, scartati) values ('${ARG}', '{"titolo":"nuova","nodi":[]}', 0)
+    on conflict (argomento_id, studente_id) do update set albero = excluded.albero, scartati = excluded.scartati;
+  ${verifica(`${conta('mappe')} = 1 and (select albero->>'titolo' = 'nuova' from mappe)`, 'rigenerare non sovrascrive la mappa')}
+  ${vieta(`insert into mappe (argomento_id, albero) values ('${ARG}', '[]')`, 'check_violation', "l'albero non è un oggetto")}
+  ${come(BEA)}
+  ${verifica(`${conta('mappe')} = 0`, 'Bea vede la mappa di Anna')}
+  ${vieta(`insert into mappe (argomento_id, albero) values ('${ARG}', ${ALBERO})`,
+    'foreign_key_violation', "Bea crea una mappa sull'argomento di Anna")}
+  ${vieta(`insert into mappe (studente_id, argomento_id, albero) values ('${ANNA}', '${ARG}', ${ALBERO})`,
+    'insufficient_privilege', 'Bea crea una mappa a nome di Anna')}
+  ${nessunaRiga(`update mappe set scartati = 9`, 'Bea modifica la mappa di Anna')}
+  ${nessunaRiga(`delete from mappe`, 'Bea cancella la mappa di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('mappe')} = 1`, 'il genitore non legge la mappa della figlia')}
+  ${nessunaRiga(`update mappe set scartati = 9`, 'il genitore modifica la mappa')}
+  ${nessunaRiga(`delete from mappe`, 'il genitore cancella la mappa')}
+  ${come(null)}
+  ${vieta(`perform * from mappe`, 'insufficient_privilege', "l'anonimo legge le mappe")}
+  ${come(ANNA)}
+  delete from argomenti where id = '${ARG}';
+  ${verifica(`${conta('mappe')} = 0`, "la mappa sopravvive all'argomento")}
+`);

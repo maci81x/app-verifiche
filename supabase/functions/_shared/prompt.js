@@ -1,3 +1,5 @@
+import { concettiInOrdine, idBreve } from "./mappa.js";
+
 // Prompt al modello. La base è copiata parola per parola da prototipo/prova-verifiche.html,
 // dove è stata tarata sul campo; le modifiche successive sono segnate con la loro data.
 // Non riscriverli senza rifare la taratura.
@@ -114,4 +116,26 @@ export function promptCorrezione(modalita, pacchetto) {
     JSON.stringify(pacchetto),
     'Rispondi solo con JSON: {"valutazioni":[{"id":"d2","completezza":3,"correttezza":4,"linguaggio":1,"totale":8,"commento":""}]}',
   ].filter(Boolean).join("\n\n");
+}
+
+// Mappa concettuale (ticket #2, 30 ottobre 2026). Nuovo, non viene dal prototipo:
+// da tarare sulla prova vera. I concetti sono già i rami; il modello aggiunge solo
+// sotto-punti, ognuno con la sua ancora, e il filtro al 60% scarta quelli che non reggono.
+// argomento: { titolo, materia, trascrizione, concetti: [{ titolo, descrizione, ancora, ordine }] }
+export const MAX_MATERIALE_MAPPA = 16000;
+export function promptMappa(argomento, sottoPunti) {
+  const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({
+    id: idBreve(i), titolo: c.titolo, descrizione: c.descrizione || "", ancora: c.ancora,
+  }));
+  return [
+    "Sei un insegnante di scuola media italiana. Prepari la mappa concettuale di un argomento per un'alunna che deve ripassarlo dagli appunti.",
+    "I rami principali sono già decisi: sono i concetti qui sotto, ognuno con il suo id. Per ogni concetto aggiungi da 0 a 4 sotto-punti, e sotto ciascun sotto-punto al massimo 3 dettagli. In tutto non più di " + sottoPunti + " fra sotto-punti e dettagli: meglio pochi e chiari che tanti.",
+    "Ogni sotto-punto e ogni dettaglio ha un titolo brevissimo (al massimo sei parole) e un'ancora: la frase esatta del materiale da cui nasce, copiata parola per parola. Se non trovi la frase nel materiale, non scrivere il nodo.",
+    "Non inventare niente che nel materiale non ci sia. Un'informazione vera ma non scritta (un autore, una data, un collegamento che conosci tu) non va aggiunta.",
+    "Non ripetere il titolo del concetto nei suoi sotto-punti.",
+    "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
+    "Concetti:\n" + JSON.stringify(concetti),
+    "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE_MAPPA),
+    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+  ].join("\n\n");
 }

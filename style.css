@@ -279,3 +279,26 @@ button.link{background:none;border:0;color:var(--inchiostro-2);font:500 .85rem v
 .riga-profilo button{min-height:38px;padding:8px 12px;font-size:.85rem}
 .riga-profilo .codice-nuovo{width:8.5em;min-height:38px;padding:8px 10px;margin:0;letter-spacing:.2em}
 .iniziale.grande{width:52px;height:52px;flex:none;border-radius:50%;background:var(--tinta);color:var(--su-tinta);display:grid;place-items:center;font:600 1.4rem var(--display)}
+/* Mappa concettuale e Cosa studiare (issue #2). Rami del primo livello nella tinta della materia. */
+.linguette{display:flex;gap:4px;margin:14px 0 4px;border-bottom:1px solid var(--bordo)}
+.linguette button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 12px;font:600 .95rem var(--testo);color:var(--inchiostro-2);cursor:pointer;min-height:44px}
+.linguette button[aria-selected="true"]{color:var(--tinta);border-bottom-color:var(--tinta)}
+#disegno-mappa{margin-top:12px;width:100%;overflow:hidden}
+svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
+.m-linea{fill:none;stroke:var(--tinta-bordo);stroke-width:1.5}
+.m-linea[data-l="1"]{stroke:var(--tinta);stroke-width:2.2}
+.m-nodo rect{fill:var(--rialzo);stroke:var(--bordo);stroke-width:1}
+.m-nodo text{fill:var(--inchiostro)}
+.m-nodo[data-l="0"] rect{fill:var(--tinta);stroke:none}
+.m-nodo[data-l="0"] text{fill:var(--su-tinta);font-weight:700}
+.m-nodo[data-l="1"] rect{fill:var(--tinta-soft);stroke:var(--tinta);stroke-width:1.5}
+.m-nodo[data-l="1"] text{font-weight:600}
+.m-nodo[data-l="3"] rect{fill:none;stroke-dasharray:3 3}
+.m-nodo[data-l="3"] text{fill:var(--inchiostro-2)}
+.m-nodo[role="button"]{cursor:pointer}
+.m-nodo:focus{outline:none}
+.m-nodo:focus-visible rect,.m-nodo.scelto rect{stroke:var(--tinta);stroke-width:2.5}
+.m-pallino{fill:var(--inchiostro-2)}
+.m-pallino[data-s="verde"]{fill:var(--verde)} .m-pallino[data-s="giallo"]{fill:var(--giallo)} .m-pallino[data-s="rosso"]{fill:var(--rosso)}
+.ancora-mappa{border:1px solid var(--tinta-bordo);background:var(--tinta-soft);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:.92rem}
+.ancora-mappa .citazione{margin-top:6px}

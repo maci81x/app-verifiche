@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 <div class="wrap">
@@ -175,12 +175,40 @@
   <div id="opz-scheda"></div>
   <div class="bottoni">
     <button class="azione" id="btn-ripassa-arg">Interrogami su questo</button>
+    <button class="minore" id="btn-mappa">Mappa</button>
+    <button class="minore" id="btn-studiare">Cosa studiare</button>
     <button class="minore" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
     <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i concetti</button>
     <button class="minore pericolo" id="btn-elimina">Elimina argomento</button>
   </div>
   <div id="err-scheda"></div>
   <div id="stato-scheda"></div>
+</section>
+
+<!-- ============ MAPPA E COSA STUDIARE ============ -->
+<section id="v-mappa" hidden>
+  <h2 id="t-mappa"></h2>
+  <div class="linguette" role="tablist" aria-label="Ripasso dagli appunti">
+    <button type="button" role="tab" id="tab-mappa" aria-controls="pannello-mappa" aria-selected="true">Mappa</button>
+    <button type="button" role="tab" id="tab-studiare" aria-controls="pannello-studiare" aria-selected="false">Cosa studiare</button>
+  </div>
+  <div id="pannello-mappa" role="tabpanel" aria-labelledby="tab-mappa">
+    <p class="aiuto" id="meta-mappa"></p>
+    <div id="disegno-mappa"></div>
+    <div id="ancora-mappa" class="ancora-mappa" aria-live="polite" hidden></div>
+    <div class="bottoni">
+      <button class="minore" id="btn-rigenera">Rigenera</button>
+      <button class="minore" id="btn-stampa" disabled title="Arriva con il prossimo aggiornamento">Stampa (presto)</button>
+    </div>
+  </div>
+  <div id="pannello-studiare" role="tabpanel" aria-labelledby="tab-studiare" hidden>
+    <p class="aiuto">In cima i concetti andati male nell'ultima prova. Rileggi la frase degli appunti, poi rifai la verifica.</p>
+    <div id="lista-studiare"></div>
+    <div id="stato-studiare"></div>
+  </div>
+  <div class="bottoni"><button class="minore" id="btn-torna-scheda">Torna all'argomento</button></div>
+  <div id="err-mappa"></div>
+  <div id="stato-mappa"></div>
 </section>
 
 <!-- ============ RIPASSO QUADRIMESTRE ============ -->
@@ -262,6 +290,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

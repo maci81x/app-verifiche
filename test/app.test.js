@@ -102,3 +102,90 @@ test("il blocco del codice non si calcola più nel browser", () => {
   for (const nome of ["erroreCodice", "secondiBlocco", "leggiBlocco", "salvaBlocco", "MAX_ERRORI", "BLOCCO_MS"])
     assert.equal(run(`typeof ${nome}`), "undefined", nome + " è ancora nel client");
 });
+
+test("cosa studiare: stato dell'ultima prova di ogni concetto, rossi in cima, grigio se mai verificato", () => {
+  const concetti = [
+    { id: "a", titolo: "Arrivo della peste", ancora: "nel 1347", peso: 2, ordine: 0 },
+    { id: "b", titolo: "I flagellanti", ancora: "si frustavano", peso: 2, ordine: 1 },
+    { id: "c", titolo: "Le cause", ancora: "le pulci dei ratti", peso: 3, ordine: 2 },
+    { id: "d", titolo: "Mai chiesto", ancora: "x y", peso: 1, ordine: 3 },
+    { id: "e", titolo: "Il contagio", ancora: "per via dei commerci", peso: 1, ordine: 4 },
+  ];
+  // due prove: la più vecchia (s1) e la più recente (s2)
+  const righe = [
+    { concetto_id: "a", sessione_id: "s1", data: "2026-10-20T10:00:00Z", punteggio: 2 },
+    { concetto_id: "a", sessione_id: "s2", data: "2026-10-28T10:00:00Z", punteggio: 9 },  // ora verde
+    { concetto_id: "b", sessione_id: "s1", data: "2026-10-20T10:00:00Z", punteggio: 10 },
+    { concetto_id: "b", sessione_id: "s2", data: "2026-10-28T10:00:00Z", punteggio: 3 },  // ora rosso
+    { concetto_id: "b", sessione_id: "s2", data: "2026-10-28T10:00:00Z", punteggio: 4 },
+    { concetto_id: "c", sessione_id: "s1", data: "2026-10-20T10:00:00Z", punteggio: 6 },  // giallo, non chiesto in s2
+    { concetto_id: "e", sessione_id: "s2", data: "2026-10-28T10:00:00Z", punteggio: 0 },  // rosso, una volta
+    { concetto_id: null, sessione_id: "s2", data: "2026-10-28T10:00:00Z", punteggio: 0 },  // concetto cancellato
+  ];
+  const l = JSON.parse(run(`JSON.stringify(cosaStudiare(${JSON.stringify(concetti)}, ${JSON.stringify(righe)}))`));
+  assert.deepEqual(l.map((x) => [x.id, x.stato, x.sbagliato]), [
+    ["b", "rosso", 2], ["e", "rosso", 1], ["c", "giallo", 1], ["d", "mai", 0], ["a", "verde", 1],
+  ]);
+  assert.equal(l[0].ancora, "si frustavano");
+  assert.equal(run("cosaStudiare([], []).length"), 0);
+});
+
+test("cosa studiare: a pari stato prima il concetto sbagliato nella prova più recente", () => {
+  const concetti = [{ id: "vecchio", titolo: "V", ancora: "v", peso: 3, ordine: 0 }, { id: "nuovo", titolo: "N", ancora: "n", peso: 1, ordine: 1 }];
+  const righe = [
+    { concetto_id: "vecchio", sessione_id: "s1", data: "2026-10-01T10:00:00+00:00", punteggio: 0 },
+    { concetto_id: "vecchio", sessione_id: "s1", data: "2026-10-01T10:00:00+00:00", punteggio: 0 },
+    { concetto_id: "nuovo", sessione_id: "s2", data: "2026-10-28T10:00:00.123+00:00", punteggio: 2 },
+  ];
+  const l = JSON.parse(run(`JSON.stringify(cosaStudiare(${JSON.stringify(concetti)}, ${JSON.stringify(righe)}))`));
+  assert.deepEqual(l.map((x) => [x.id, x.stato]), [["nuovo", "rosso"], ["vecchio", "rosso"]]);
+});
+
+// Albero di prova: titoli lunghi apposta, tre livelli, una foglia con una parola lunghissima.
+const ALBERO = {
+  titolo: "La peste del Trecento e le sue conseguenze sulla società europea", materia: "storia",
+  nodi: [
+    { id: "k1", titolo: "Arrivo della peste nera in Europa nel 1347 dai porti del Mar Nero", ancora: "nel 1347", fonte: "appunti", peso: 3, figli: [
+      { id: "k1-1", titolo: "Le navi genovesi", ancora: "a", fonte: "appunti", figli: [
+        { id: "k1-1-1", titolo: "Caffa, in Crimea, assediata dai mongoli", ancora: "b", fonte: "appunti", figli: [] },
+        { id: "k1-1-2", titolo: "Precipitevolissimevolmente diffusa", ancora: "c", fonte: "appunti", figli: [] },
+      ] },
+      { id: "k1-2", titolo: "Messina", ancora: "d", fonte: "appunti", figli: [] },
+    ] },
+    { id: "k2", titolo: "I flagellanti", ancora: "e", fonte: "appunti", peso: 2, figli: [] },
+    { id: "k3", titolo: "Le conseguenze economiche: meno contadini, salari più alti", ancora: "f", fonte: "appunti", peso: 1, figli: [
+      { id: "k3-1", titolo: "Rivolte nelle campagne", ancora: "g", fonte: "appunti", figli: [] },
+    ] },
+  ],
+};
+const sovrapposti = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+for (const larghezza of [320, 375, 600, 900]) {
+  test(`mappa larga ${larghezza}px: tutti i nodi dentro il viewBox e nessuno sopra un altro`, () => {
+    const l = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(ALBERO)}, ${larghezza}))`));
+    assert.equal(l.w, larghezza);
+    assert.equal(l.verticale, larghezza < 600);
+    assert.equal(l.nodi.length, 9); // radice + 8
+    for (const n of l.nodi) {
+      assert.ok(n.x >= 0 && n.y >= 0 && n.x + n.w <= l.w && n.y + n.h <= l.h, `${n.id} esce dal viewBox`);
+      assert.ok(n.righe.length >= 1 && n.righe.every((r) => r.length <= n.caratteri), `${n.id}: testo più largo del riquadro`);
+    }
+    for (let i = 0; i < l.nodi.length; i++)
+      for (let j = i + 1; j < l.nodi.length; j++)
+        assert.ok(!sovrapposti(l.nodi[i], l.nodi[j]), `${l.nodi[i].id} copre ${l.nodi[j].id}`);
+    assert.equal(l.linee.length, 8); // una per ogni nodo tranne la radice
+    const svg = run(`svgMappa(layoutMappa(${JSON.stringify(ALBERO)}, ${larghezza}), { k1: "rosso" })`);
+    assert.match(svg, new RegExp(`viewBox="0 0 ${larghezza} ${l.h}"`));
+    assert.equal((svg.match(/class="m-nodo/g) || []).length, 9);
+    assert.match(svg, /data-s="rosso"/); // il pallino del concetto
+  });
+}
+
+test("mappa: in verticale i figli stanno sotto e più a destra del padre; in orizzontale a destra", () => {
+  const nodo = (l, id) => l.nodi.find((n) => n.id === id);
+  const v = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(ALBERO)}, 375))`));
+  assert.ok(nodo(v, "k1-1").x > nodo(v, "k1").x && nodo(v, "k1-1").y > nodo(v, "k1").y);
+  const o = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(ALBERO)}, 900))`));
+  assert.ok(nodo(o, "k1-1").x >= nodo(o, "k1").x + nodo(o, "k1").w);
+  assert.equal(run(`svgMappa(layoutMappa({ titolo: "<b>x</b>", nodi: [] }, 375), {})`).includes("<b>"), false, "testo non escapato");
+});

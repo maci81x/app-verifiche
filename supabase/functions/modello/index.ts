@@ -8,6 +8,8 @@
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
+// POST { azione: "mappa", argomento_id } → { titolo, materia, nodi: [{ id, titolo, ancora, fonte, peso, figli }], scartati, tagliati }
+//      Primo livello = i concetti dell'argomento (stesso id); sotto, sotto-punti ancorati alla trascrizione.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -17,7 +19,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json-schema";
 import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
+  promptMappa,
 } from "../_shared/prompt.js";
+import { costruisciMappa, MAX_NODI } from "../_shared/mappa.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate } from "../_shared/domande.js";
 
@@ -106,6 +110,32 @@ const SCHEMA_CONCETTI = {
   properties: { concetti: { type: "array", items: CONCETTO } },
   required: ["concetti"], additionalProperties: false,
 } as const;
+
+// Mappa: la nidificazione è scritta per esteso, così il modello non va oltre tre livelli.
+const DETTAGLIO = {
+  type: "object", properties: { titolo: { type: "string" }, ancora: { type: "string" } },
+  required: ["titolo", "ancora"], additionalProperties: false,
+} as const;
+const SOTTO_PUNTO = {
+  type: "object",
+  properties: { titolo: { type: "string" }, ancora: { type: "string" }, figli: { type: "array", items: DETTAGLIO } },
+  required: ["titolo", "ancora", "figli"], additionalProperties: false,
+} as const;
+const SCHEMA_MAPPA = {
+  type: "object",
+  properties: {
+    nodi: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { concetto_id: { type: "string" }, figli: { type: "array", items: SOTTO_PUNTO } },
+        required: ["concetto_id", "figli"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["nodi"], additionalProperties: false,
+} as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 class Definitivo extends Error {}
 
@@ -211,6 +241,21 @@ Deno.serve(async (req) => {
       if (!pacchetto.length) return json({ valutazioni: [] });
       const r = await chiedi(promptCorrezione(b.modalita === "orale" ? "orale" : "scritta", pacchetto), SCHEMA_VALUTAZIONI);
       return json({ valutazioni: r.valutazioni });
+    }
+
+    if (b.azione === "mappa") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      // Con i permessi della studentessa, e solo i suoi argomenti: la mappa nasce da quello che c'è nel database.
+      const { data: a, error } = await comeUtente(req).from("argomenti")
+        .select("id, titolo, materia, trascrizione, concetti(id, titolo, descrizione, ancora, peso, ordine)")
+        .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle();
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
+      // Con 25 concetti o più la mappa è già piena: non serve chiedere niente al modello.
+      const posti = MAX_NODI - a.concetti.length;
+      const r = posti > 0 ? await chiedi(promptMappa(a, posti), SCHEMA_MAPPA) : { nodi: [] };
+      return json(costruisciMappa(a, r));
     }
 
     return json({ errore: "azione sconosciuta" }, 400);
