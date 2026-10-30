@@ -224,7 +224,8 @@ export function promptArricchisci(dati) {
   return [
     "Sei un insegnante di scuola media italiana. Aggiungi alla mappa concettuale di un'alunna di " + perEta(dati.classe) + " fino a 6 nodi presi dal web.",
     "Materia: " + dati.materia + ". Argomento: " + dati.argomento + ".\nNodi della mappa:\n" + dati.agganci.map((a) => a.breve + ": " + a.titolo).join("\n"),
-    "Per ogni nodo nuovo: aggancio = l'id (n1, n2...) del nodo della mappa a cui si collega meglio; titolo brevissimo, al massimo sei parole; testo di 2 o 3 righe semplici; fonte = il numero della fonte da cui viene. Solo cose che stanno nelle fonti, niente che ripeta i nodi che ci sono già.",
+    "Per ogni nodo nuovo: aggancio = l'id (n1, n2...) del nodo della mappa a cui si collega meglio; titolo brevissimo, al massimo sei parole; testo di 2 o 3 frasi brevi e semplici, una cosa per frase, con il soggetto sempre scritto (una ragazza di " + perEta(dati.classe) + " deve capirle alla prima lettura); fonte = il numero della fonte da cui viene. Solo cose che stanno nelle fonti.",
+    "Ogni nodo deve aggiungere qualcosa che nei nodi della mappa non c'è: un esempio, un perché, una curiosità, un collegamento. Se un nodo direbbe con altre parole quello che un nodo della mappa dice già, non scriverlo: meglio meno nodi.",
     NIENTE_VERIFICA,
     "Quello che è stato trovato sul web:\n" + (dati.ricerca || "(niente)"),
     "Fonti:\n" + elencoFonti(dati.fonti),

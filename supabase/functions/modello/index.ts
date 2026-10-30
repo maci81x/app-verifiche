@@ -252,7 +252,8 @@ const SCHEMA_ANALISI = {
 } as const;
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
 
-class Definitivo extends Error {}
+// dettaglio: il motivo dato dalla API (per esempio la ricerca web spenta), senza dati della ragazza.
+class Definitivo extends Error { constructor(m: string, readonly dettaglio?: string) { super(m); } }
 const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_disponibile: 503, not_granted: 403 };
 
 let client: Anthropic | undefined;
@@ -312,7 +313,7 @@ async function cercaSulWeb(prompt: string) {
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError)
       throw new Definitivo("not_granted");
     // Ricerca web spenta per l'organizzazione o non accettata: lo si dice chiaro all'app.
-    if (e instanceof Anthropic.BadRequestError) { console.error("ricerca web:", e); throw new Definitivo("web_non_disponibile"); }
+    if (e instanceof Anthropic.BadRequestError) { console.error("ricerca web:", e); throw new Definitivo("web_non_disponibile", e.message.slice(0, 300)); }
     throw e;
   }
   return { fonti: fontiCitate(contenuto), ricerca: testoRicerca(contenuto) };
@@ -509,7 +510,7 @@ Deno.serve(async (req) => {
 
     return json({ errore: "azione sconosciuta" }, 400);
   } catch (e) {
-    if (e instanceof Definitivo) return json({ errore: e.message }, STATO_DEFINITIVO[e.message] ?? 403);
+    if (e instanceof Definitivo) return json({ errore: e.message, ...(e.dettaglio ? { dettaglio: e.dettaglio } : {}) }, STATO_DEFINITIVO[e.message] ?? 403);
     console.error(e);
     return json({ errore: "lettura non riuscita" }, 502);
   }

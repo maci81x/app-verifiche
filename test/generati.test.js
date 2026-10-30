@@ -127,3 +127,16 @@ test("revisione: migliaia all'italiana nella consegna, decimali col punto nella 
   assert.equal(coincide(-0.35, "-0,4"), true);
   assert.equal(coincide(1.05, "1,1"), true);
 });
+
+test("i buoni si scelgono a turno per tipo: il modello li scrive raggruppati e l'ultimo tipo non resta fuori (issue #10)", () => {
+  const tipi = { t1: TIPI.t1, t2: TIPI.t2, t3: { id: "uuid-area", titolo: "Area" } };
+  const fr = (n) => ({ tipo: "t1", testo: "Calcola: " + n + "/2 + 1/4", dati: "", figura: { forma: "nessuna", misure: [] },
+    passaggi: [{ testo: "Sommo", formula: "= " + (n / 2 + 0.25) }], risultato: { valore: String(n / 2 + 0.25).replace(".", ","), unita: "" }, verifica: n + "/2+1/4" });
+  const area = { tipo: "t3", testo: "Area di un triangolo con base 8 cm e altezza 5 cm.", dati: "base 8 cm; altezza 5 cm",
+    figura: { forma: "triangolo", misure: [{ nome: "base", valore: "8 cm" }, { nome: "altezza", valore: "5 cm" }] },
+    passaggi: [{ testo: "Base per altezza diviso 2", formula: "8 \\cdot 5 : 2 = 20" }], grandezza: "area", risultato: { valore: "20", unita: "cm²" }, verifica: "8*5/2" };
+  const grezzi = [fr(1), fr(3), fr(5), fr(7), buono(), buono(), area];
+  const r = eserciziVerificati(grezzi, tipi, 5);
+  assert.equal(r.scartati, 0);
+  assert.deepEqual(r.esercizi.map((e) => e.tipo_id), ["uuid-frazioni", "uuid-pitagora", "uuid-area", "uuid-frazioni", "uuid-pitagora"]);
+});

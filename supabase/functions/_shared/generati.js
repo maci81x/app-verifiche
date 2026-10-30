@@ -138,12 +138,18 @@ function pulisci(e, tipo) {
 
 // tipiPerBreve: { t1: { id, titolo } }. Restituisce al massimo `quanti` esercizi buoni e
 // quanti ne ha scartati; quelli buoni ma in più non contano come scartati.
+// I buoni si prendono a turno un tipo per volta (issue #10): il modello li scrive raggruppati
+// per tipo, e tenere i primi lasciava fuori l'ultimo tipo.
 export function eserciziVerificati(grezzi, tipiPerBreve, quanti) {
-  const esercizi = [];
+  const perTipo = new Map();
   let scartati = 0;
   for (const e of Array.isArray(grezzi) ? grezzi : []) {
     if (motivoScarto(e, tipiPerBreve)) { scartati++; continue; }
-    if (esercizi.length < Math.min(quanti, MAX_ESERCIZI)) esercizi.push(pulisci(e, tipiPerBreve[e.tipo]));
+    perTipo.set(e.tipo, [...(perTipo.get(e.tipo) || []), e]);
   }
+  const gruppi = [...perTipo.values()];
+  const aTurno = [];
+  for (let j = 0; gruppi.some((g) => j < g.length); j++) gruppi.forEach((g) => { if (j < g.length) aTurno.push(g[j]); });
+  const esercizi = aTurno.slice(0, Math.min(quanti, MAX_ESERCIZI)).map((e) => pulisci(e, tipiPerBreve[e.tipo]));
   return { esercizi, scartati };
 }
