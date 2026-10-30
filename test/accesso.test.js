@@ -39,6 +39,7 @@ function ambiente(rispostaServer) {
     createTextNode: (t) => ({ testo: () => t }),
     querySelectorAll: () => [],
     documentElement: elemento("html"),
+    body: elemento("body"),
   };
   const sessioni = [];
   const window = {

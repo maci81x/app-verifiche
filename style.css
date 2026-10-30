@@ -302,3 +302,60 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
 .m-pallino[data-s="verde"]{fill:var(--verde)} .m-pallino[data-s="giallo"]{fill:var(--giallo)} .m-pallino[data-s="rosso"]{fill:var(--rosso)}
 .ancora-mappa{border:1px solid var(--tinta-bordo);background:var(--tinta-soft);border-radius:12px;padding:12px 14px;margin-top:12px;font-size:.92rem}
 .ancora-mappa .citazione{margin-top:6px}
+/* Stampa e PDF (issue #3). A schermo il documento sembra un foglio: nero su bianco
+   anche col tema scuro, perché è proprio quello che uscirà dalla stampante. */
+.foglio{background:#fff;color:#111;border:1px solid var(--bordo);border-radius:10px;padding:22px 20px;margin-top:18px;
+  font-family:var(--testo);font-size:15px;line-height:1.5;box-shadow:var(--ombra);overflow-wrap:anywhere}
+.foglio:empty{display:none}
+.st-testa{border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
+.st-tipo{margin:0;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:#555}
+.st-testa h1{margin:.15em 0 .1em;font-family:var(--display);font-size:1.5rem;line-height:1.2;color:#111}
+.st-chi{margin:0;font-size:.9rem;color:#444}
+.foglio h2{font-family:var(--display);font-size:1.15rem;margin:22px 0 8px;color:#111}
+.st-mappa svg.mappa{max-width:100%}
+.foglio .m-nodo rect{fill:#fff;stroke:#333}
+.foglio .m-nodo text{fill:#111}
+.foglio .m-nodo[data-l="0"] rect{fill:#fff;stroke:#111;stroke-width:2.5}
+.foglio .m-nodo[data-l="0"] text{fill:#111}
+.foglio .m-nodo[data-l="1"] rect{fill:#fff;stroke:#111;stroke-width:1.8}
+.foglio .m-linea,.foglio .m-linea[data-l="1"]{stroke:#555}
+.foglio .m-pallino{fill:#777} .foglio .m-pallino[data-s="verde"]{fill:#1F6B45} .foglio .m-pallino[data-s="giallo"]{fill:#8A6508} .foglio .m-pallino[data-s="rosso"]{fill:#A32B20}
+.st-nodi{margin:0;padding-left:1.4em}
+.st-nodi .st-nodi{margin-top:4px}
+.st-nodi li{margin:6px 0}
+.st-ancora{display:block;font-style:italic;color:#333;font-size:.92em;border-left:2px solid #999;padding-left:8px;margin-top:2px}
+.st-lista{list-style:none;margin:0;padding:0}
+.st-voce{border-bottom:1px solid #ccc;padding:10px 0;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.st-voce b{font-size:1.02em}
+.st-voce .st-ancora,.st-voce .st-nota{flex-basis:100%}
+.st-stato{font-family:var(--dati);font-size:.82em;border:1px solid #111;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.st-volte{margin-left:auto;font-family:var(--dati);font-size:.85em;color:#444}
+.st-nota{font-size:.88em;color:#444}
+.st-voto{font-size:1.1rem;font-weight:700;margin:0}
+.st-verdetto{margin:.3em 0 10px}
+.st-quesiti{margin:0;padding-left:1.6em}
+.st-quesito{margin:0 0 16px}
+.st-quesito>p{margin:0 0 6px;font-weight:600}
+.st-soluzioni .st-quesito>p{font-weight:400}
+.st-opzioni{list-style:none;margin:0;padding:0}
+.st-opzioni li{margin:3px 0}
+.st-righe{margin-top:4px}
+.st-riga{height:9mm;border-bottom:1px solid #888}
+.st-deve{margin:4px 0 0;font-size:.9em;color:#444}
+.st-soluzioni{border-top:2px dashed #999;margin-top:26px;padding-top:6px}
+
+@media print{
+  @page{size:A4;margin:15mm 14mm}
+  body[data-vista="stampa"]{background:#fff!important;color:#000;padding:0!important;font-size:11pt}
+  body[data-vista="stampa"]::before,
+  body[data-vista="stampa"] .rail,
+  body[data-vista="stampa"] .nota,
+  body[data-vista="stampa"] .st-comandi{display:none!important}
+  body[data-vista="stampa"] .wrap{max-width:none;margin:0}
+  body[data-vista="stampa"] #v-stampa{padding:0}
+  .foglio{border:0;border-radius:0;box-shadow:none;padding:0;margin:0;font-size:11pt}
+  .st-salto{break-before:page;page-break-before:always;border-top:0;margin-top:0;padding-top:0}
+  .st-quesito,.st-voce,.st-nodi li,.st-mappa,.st-testa{break-inside:avoid;page-break-inside:avoid}
+  .st-mappa svg.mappa{max-height:240mm;width:100%}
+  h2{break-after:avoid;page-break-after:avoid}
+}

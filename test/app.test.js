@@ -6,6 +6,7 @@ import vm from "node:vm";
 
 const ctx = vm.createContext({ console, Math, Date, JSON, Promise, setTimeout, clearTimeout, setInterval, clearInterval });
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(readFileSync(new URL("../stampa.js", import.meta.url), "utf8"), ctx);
 const run = (expr) => vm.runInContext(expr, ctx);
 
 test("curva del voto del prototipo: 0% vale 3, 60% vale 6, 100% vale 10, al mezzo punto", () => {
@@ -188,4 +189,65 @@ test("mappa: in verticale i figli stanno sotto e più a destra del padre; in ori
   const o = JSON.parse(run(`JSON.stringify(layoutMappa(${JSON.stringify(ALBERO)}, 900))`));
   assert.ok(nodo(o, "k1-1").x >= nodo(o, "k1").x + nodo(o, "k1").w);
   assert.equal(run(`svgMappa(layoutMappa({ titolo: "<b>x</b>", nodi: [] }, 375), {})`).includes("<b>"), false, "testo non escapato");
+});
+
+// ---------------------------------------------------------------- stampa (issue #3)
+const INFO = { nome: "Samira", materia: "storia", titolo: "La peste <del> Trecento", data: "2026-10-30T10:00:00Z" };
+const stampa = (tipo, dati) => run(`componiStampa(${JSON.stringify({ tipo, info: INFO, dati })})`);
+const intestazioneOk = (html) => {
+  assert.match(html, /Samira/);
+  assert.match(html, /storia/);
+  assert.match(html, /La peste &lt;del&gt; Trecento/); // titolo escapato
+  assert.doesNotMatch(html, /<del>/);
+  assert.doesNotMatch(html, /<button/); // niente pulsanti nel documento
+};
+
+test("stampa della mappa: l'SVG e sotto l'elenco dei nodi con le loro ancore", () => {
+  const html = stampa("mappa", { albero: { ...ALBERO, nodi: [{ ...ALBERO.nodi[1], ancora: "si frustavano in pubblico" }, ALBERO.nodi[0]] }, stati: { k2: "rosso" } });
+  intestazioneOk(html);
+  assert.match(html, /<svg class="mappa"/);
+  assert.match(html, /Mappa concettuale/);
+  assert.match(html, /I flagellanti[\s\S]*si frustavano in pubblico/);
+  assert.match(html, /Caffa, in Crimea, assediata dai mongoli/); // anche il terzo livello nell'elenco
+});
+
+test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e ancora", () => {
+  const html = stampa("studiare", [
+    { id: "b", titolo: "I flagellanti", ancora: "si frustavano", stato: "rosso", sbagliato: 2 },
+    { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
+  ]);
+  intestazioneOk(html);
+  assert.match(html, /✕[\s\S]*da rifare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*si frustavano/);
+  assert.match(html, /○[\s\S]*mai verificato[\s\S]*Mai chiesto/);
+});
+
+test("verifica da stampare: prima solo le domande, poi su un'altra pagina il foglio soluzioni con le lettere giuste", () => {
+  const html = stampa("verifica", [
+    { tipo: "chiusa", testo: "Quando arrivò la peste?", opzioni: ["1347", "1492", "1215", "1789"], corretta: 0, _ord: [2, 0, 3, 1] },
+    { tipo: "aperta", testo: "Chi erano i flagellanti?", risposta_attesa: "Penitenti che si frustavano in pubblico", elementi: ["penitenti", "frusta"] },
+  ]);
+  intestazioneOk(html);
+  const [domande, soluzioni] = html.split('<section class="st-soluzioni');
+  assert.ok(soluzioni, "manca il foglio soluzioni");
+  assert.match(domande, /<section class="st-domande/);
+  assert.match(domande, /Quando arrivò la peste\?[\s\S]*A\.[\s\S]*1215[\s\S]*B\.[\s\S]*1347[\s\S]*C\.[\s\S]*1789[\s\S]*D\.[\s\S]*1492/);
+  assert.match(domande, /Chi erano i flagellanti\?[\s\S]*class="st-righe/);
+  assert.doesNotMatch(domande, /Penitenti che si frustavano|penitenti/); // nessuna soluzione fra le domande
+  assert.match(soluzioni, /^ st-salto/); // il foglio soluzioni comincia su una pagina nuova
+  assert.match(soluzioni, /Soluzioni/);
+  assert.match(soluzioni, /B\. 1347/);
+  assert.match(soluzioni, /Penitenti che si frustavano in pubblico[\s\S]*penitenti[\s\S]*frusta/);
+});
+
+test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e ancora", () => {
+  const html = stampa("esito", { indice: 60, voto: 6, verdetto: "Ci siamo quasi.", righe: [
+    { titolo: "Arrivo della peste", media: 9, stato: "verde", ancora: "nel 1347" },
+    { titolo: "Le cause", media: 2.5, stato: "rosso", ancora: "le pulci dei ratti", errore_appunti: "negli appunti: 1348" },
+    { titolo: "Il contagio", media: 6, stato: "giallo", ancora: "per via dei commerci" },
+  ] });
+  intestazioneOk(html);
+  assert.match(html, /voto stimato 6/i);
+  assert.match(html, /prontezza 60%/);
+  // dal più debole: rosso, giallo, verde
+  assert.match(html, /✕[\s\S]*da rifare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
 });

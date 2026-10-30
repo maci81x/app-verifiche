@@ -15,7 +15,7 @@
 <title>Pronta per la verifica</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="wrap">
@@ -177,6 +177,7 @@
     <button class="azione" id="btn-ripassa-arg">Interrogami su questo</button>
     <button class="minore" id="btn-mappa">Mappa</button>
     <button class="minore" id="btn-studiare">Cosa studiare</button>
+    <button class="minore" id="btn-stampa-verifica">Verifica da stampare</button>
     <button class="minore" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
     <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i concetti</button>
     <button class="minore pericolo" id="btn-elimina">Elimina argomento</button>
@@ -198,13 +199,14 @@
     <div id="ancora-mappa" class="ancora-mappa" aria-live="polite" hidden></div>
     <div class="bottoni">
       <button class="minore" id="btn-rigenera">Rigenera</button>
-      <button class="minore" id="btn-stampa" disabled title="Arriva con il prossimo aggiornamento">Stampa (presto)</button>
+      <button class="minore" id="btn-stampa" disabled>Stampa / Salva PDF</button>
     </div>
   </div>
   <div id="pannello-studiare" role="tabpanel" aria-labelledby="tab-studiare" hidden>
     <p class="aiuto">In cima i concetti andati male nell'ultima prova. Rileggi la frase degli appunti, poi rifai la verifica.</p>
     <div id="lista-studiare"></div>
     <div id="stato-studiare"></div>
+    <div class="bottoni"><button class="minore" id="btn-stampa-studiare">Stampa / Salva PDF</button></div>
   </div>
   <div class="bottoni"><button class="minore" id="btn-torna-scheda">Torna all'argomento</button></div>
   <div id="err-mappa"></div>
@@ -218,7 +220,8 @@
   <p class="occhiello">Materia</p>
   <div class="livelli" id="scelta-materia"></div>
   <div id="opz-ripasso"></div>
-  <div class="bottoni"><button class="azione" id="btn-genera-ripasso">Preparami il ripasso</button></div>
+  <div class="bottoni"><button class="azione" id="btn-genera-ripasso">Preparami il ripasso</button>
+    <button class="minore" id="btn-stampa-ripasso">Verifica da stampare</button></div>
   <div id="err-rip"></div>
   <div id="stato-rip"></div>
 </section>
@@ -281,15 +284,38 @@
   <div id="err-esito"></div>
   <div class="bottoni">
     <button class="azione" id="btn-ancora">Rifai la verifica</button>
+    <button class="minore" id="btn-stampa-esito">Stampa / Salva PDF</button>
     <button class="minore" id="btn-torna-storico" hidden>Torna allo storico</button>
     <button class="minore" id="btn-torna-lib">Torna alla libreria</button>
   </div>
+</section>
+
+<!-- ============ STAMPA ============ -->
+<!-- In stampa si vede solo #doc-stampa: comandi, barra e nota sono nascosti da @media print. -->
+<section id="v-stampa" hidden>
+  <div class="st-comandi">
+    <div id="opz-stampa" hidden>
+      <h2>Verifica da fare sulla carta</h2>
+      <p class="aiuto">Domande sulle prime pagine, soluzioni su un foglio a parte. Non finisce nello storico.</p>
+      <div id="scelte-stampa"></div>
+      <div class="bottoni"><button class="azione" id="btn-prepara-stampa">Prepara la verifica</button></div>
+    </div>
+    <div class="bottoni">
+      <button class="azione" id="btn-stampa-ora">Stampa / Salva PDF</button>
+      <button class="minore" id="btn-stampa-indietro">Indietro</button>
+    </div>
+    <p class="aiuto" id="aiuto-stampa" hidden>Su iPhone: Condividi → Stampa → allarga l'anteprima con due dita → Condividi → Salva in File. Su Mac: Stampa → PDF → Salva come PDF.</p>
+    <div id="err-stampa"></div>
+    <div id="stato-stampa"></div>
+  </div>
+  <article class="foglio" id="doc-stampa"></article>
 </section>
 
 <p class="nota">Argomenti, foto e risultati restano salvati nel tuo profilo e li ritrovi a fine quadrimestre. Il voto è una stima: dice quanto sei pronta su quello che hai fotografato, non quello che deciderà la prof.</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
+<script src="stampa.js?v=5"></script>
 </body>
 </html>

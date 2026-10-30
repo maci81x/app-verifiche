@@ -4,7 +4,8 @@
 // POST { azione: "trascrivi", immagini: [base64 jpeg, max 4], aggiunta?: bool } → { trascrizione }
 // POST { azione: "concetti", materia, titolo, testo, pagine, esistenti?: [titoli] } → { concetti, ... }
 //      I concetti la cui ancora non regge sul testo (filtro al 60%) vengono scartati qui.
-// POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita } → { domande, scartate }
+// POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante? } → { domande, scartate }
+//      quante (10, 15 o 20) solo per la verifica da stampare; senza, il numero dipende dal livello.
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
@@ -19,7 +20,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json-schema";
 import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
-  promptMappa,
+  promptMappa, DOMANDE_DA_STAMPARE,
 } from "../_shared/prompt.js";
 import { costruisciMappa, MAX_NODI } from "../_shared/mappa.js";
 import { concettiAncorati } from "../_shared/concetti.js";
@@ -206,7 +207,8 @@ Deno.serve(async (req) => {
 
     if (b.azione === "domande") {
       const ids = Array.isArray(b.argomenti) ? b.argomenti.filter((x: unknown) => typeof x === "string").slice(0, 200) : [];
-      if (!ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita))
+      if (!ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita) ||
+          (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)))
         return json({ errore: "richiesta non valida" }, 400);
       const db = comeUtente(req);
       // studente_id = chi chiama: il genitore legge gli argomenti ma non prepara prove.
@@ -227,6 +229,7 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
+        quante: b.quante,
       }), SCHEMA_DOMANDE);
       const esito = tieniAncorate(r.domande as unknown[], indice, argomenti);
       if (!esito.domande.length) return json({ errore: "nessuna_ancorata", scartate: esito.scartate }, 422);

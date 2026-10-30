@@ -67,11 +67,25 @@ export function promptConcettiNuovi(titoliEsistenti, testo, pagine = 1) {
   ].join("\n\n");
 }
 
+// Verifica da stampare (ticket #3, 30 ottobre 2026): il numero di domande si sceglie.
+// Le miste sono metà chiuse e metà aperte. Senza scelta resta il testo del prototipo.
+export const DOMANDE_DA_STAMPARE = [10, 15, 20];
+const IN_LETTERE = ["zero", "una", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci",
+  "undici", "dodici", "tredici", "quattordici", "quindici"];
+function regoleScelte(n, tipo) {
+  const chiuse = Math.ceil(n / 2);
+  return n + " domande: " + (
+    tipo === "chiuse" ? "tutte a scelta multipla con quattro opzioni plausibili e una sola corretta"
+    : tipo === "aperte" ? "tutte aperte, da rispondere con parole proprie"
+    : IN_LETTERE[chiuse] + " chiuse a quattro opzioni e " + IN_LETTERE[n - chiuse] + " aperte") + ". ";
+}
+
 // Domande della prova (prototipo, preparaVerifica). Testo identico al prototipo.
 // contesto: [{ id, argomento, materia, titolo, descrizione, ancora, andamento }]
 // gia: testi delle ultime domande fatte; materiale: [{ titolo, trascrizione }]
-export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale }) {
-  const quante = { semplice: 7, medio: 8, difficile: 6 }[livello];
+// quante: solo per la verifica da stampare, uno di DOMANDE_DA_STAMPARE.
+export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante }) {
+  const perLivello = { semplice: 7, medio: 8, difficile: 6 }[livello];
   const taglio = {
     semplice: "Resta sul riconoscimento: definizioni, date, termini, fatti espliciti nel materiale.",
     medio: "Chiedi di spiegare con parole proprie e di collegare due concetti fra loro.",
@@ -82,7 +96,7 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
     medio: "quattro chiuse a quattro opzioni e quattro aperte brevi",
     difficile: "due chiuse difficili e quattro aperte lunghe",
   }[livello];
-  const regole = quante + " domande: " + (
+  const regole = DOMANDE_DA_STAMPARE.includes(quante) ? regoleScelte(quante, tipo) + taglio : perLivello + " domande: " + (
     tipo === "chiuse" ? "tutte a scelta multipla con quattro opzioni plausibili e una sola corretta"
     : tipo === "aperte" ? "tutte aperte, da rispondere con parole proprie"
     : misto) + ". " + taglio;

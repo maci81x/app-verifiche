@@ -134,6 +134,18 @@ function leggiOpzioni(d) {
 // cima; a pari stato prima quello verificato più di recente.
 // righe: [{ concetto_id, sessione_id, data, punteggio }].
 const SBAGLIATA = 8, ORDINE_STATO = { rosso: 0, giallo: 1, mai: 2, verde: 3 };
+function testoVolte(x) {
+  if (x.sbagliato) return "sbagliato " + x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte");
+  return x.stato === "mai" ? "mai verificato" : "mai sbagliato";
+}
+// Titolo e materia di una prova su uno o più argomenti (il ripasso ne mescola diversi).
+function titoloEMateria(args, ripasso) {
+  const mats = [...new Set(args.map((a) => a.materia))];
+  return {
+    materia: mats.length === 1 ? mats[0] : "varie",
+    titolo: ripasso ? ("Ripasso" + (mats.length === 1 ? " di " + mats[0] : " del quadrimestre")) : args[0].titolo,
+  };
+}
 function cosaStudiare(concetti, righe) {
   const perConcetto = {};
   (righe || []).filter((r) => r.concetto_id).forEach((r) => {
@@ -280,6 +292,8 @@ let domande = [], idx = 0, risposte = {}, scartate = 0, argsProva = [];
 let livello = "medio", tipo = "miste", modalita = "scritta";
 let titoloProva = "", materiaProva = "", timer = null;
 let dettaglio = [], soloErrori = false;
+// Ultimo "Cosa studiare" e ultimo esito mostrati: li riusa la stampa (stampa.js).
+let listaStudiare = [], esitoMostrato = null;
 
 /* =================================================================== utilità DOM */
 
@@ -313,10 +327,11 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], mappa: ["Mappa", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
+  document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
   $("nome-passo").textContent = info[0];
   document.querySelectorAll(".tacche i").forEach((el) => { el.dataset.on = (+el.dataset.t <= info[1]) ? "1" : "0"; });
@@ -1071,8 +1086,10 @@ async function mostraSessione(x, daScheda) {
     const k = d.concetto_titolo, c = perC[k] || (perC[k] = { s: 0, n: 0, ancora: (d.concetti && d.concetti.ancora) || d.ancora });
     c.s += Number(r.punteggio || 0); c.n++;
   });
-  const righe = Object.keys(perC).map((k) => ({ titolo: k, media: perC[k].s / perC[k].n, ancora: perC[k].ancora }));
-  disegnaSemaforo(righe.map((r) => ({ titolo: r.titolo, media: r.media, stato: statoDaMedia(r.media), ancora: r.ancora })));
+  const righe = Object.keys(perC).map((k) => ({ titolo: k, media: perC[k].s / perC[k].n, ancora: perC[k].ancora }))
+    .map((r) => ({ ...r, stato: statoDaMedia(r.media) }));
+  esitoMostrato = { info: { titolo: x.titolo, materia: x.materia, data: x.data }, dati: { indice: x.indice, voto: Number(x.voto), verdetto: "", righe } };
+  disegnaSemaforo(righe.map((r) => ({ ...r })));
   dettaglio = (data || []).map((d) => {
     const r = (d.risposte || [])[0] || {};
     return { n: d.ordine, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
@@ -1098,7 +1115,7 @@ let mappa = null; // { argomento_id, albero, generata, scartati } dell'argomento
 let mappaInCorso = null; // argomento_id della mappa che il modello sta preparando
 
 function apriMappa(a, pannello) {
-  corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id;
+  corrente = a; mappa = null; $("btn-rigenera").disabled = mappaInCorso === a.id; $("btn-stampa").disabled = true;
   $("t-mappa").textContent = a.titolo;
   errore($("err-mappa"), ""); attesa($("stato-mappa"), null);
   $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; $("ancora-mappa").hidden = true;
@@ -1151,22 +1168,32 @@ async function generaMappa(a) {
   }
 }
 
-// Disegna con la stima della larghezza delle lettere; se nel browser una riga sborda
-// dal suo riquadro, ridisegna con una stima più larga.
+// Scrive in `el` l'HTML di componi(carattere) con la stima della larghezza delle lettere;
+// se nel browser una riga della mappa sborda dal suo riquadro, riprova con una stima più larga.
+function disegnaAdattando(el, componi) {
+  for (let car = MAPPA.carattere; car <= 0.8; car += 0.04) {
+    el.innerHTML = componi(car);
+    if (!sborda(el)) return;
+  }
+}
+
 function disegnaMappa() {
   if (!mappa || $("v-mappa").hidden || $("pannello-mappa").hidden) return;
   const box = $("disegno-mappa"), larghezza = box.clientWidth || 340;
-  const stati = {}; corrente.concetti.forEach((c) => { stati[c.id] = c.stato || "mai"; });
-  for (let car = MAPPA.carattere; car <= 0.8; car += 0.04) {
-    box.innerHTML = svgMappa(layoutMappa(mappa.albero, larghezza, car), stati);
-    if (!sborda(box)) break;
-  }
+  const stati = statiConcetti(corrente);
+  disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car), stati));
   box.dataset.larghezza = String(larghezza);
   const n = contaNodiMappa(mappa.albero.nodi);
   $("meta-mappa").textContent = n + " nodi presi dagli appunti · fatta il " + dataIt(mappa.generata) +
     (mappa.scartati ? " · " + mappa.scartati + (mappa.scartati === 1 ? " nodo tolto perché" : " nodi tolti perché") + " non si ritrovava negli appunti" : "") +
     ". Tocca un riquadro per vedere la frase degli appunti.";
   $("ancora-mappa").hidden = true;
+  $("btn-stampa").disabled = false;
+}
+// { concetto_id: stato } per il pallino dei concetti sulla mappa (anche quella stampata).
+function statiConcetti(a) {
+  const stati = {}; a.concetti.forEach((c) => { stati[c.id] = c.stato || "mai"; });
+  return stati;
 }
 const contaNodiMappa = (nodi) => (nodi || []).reduce((s, n) => s + 1 + contaNodiMappa(n.figli), 0);
 
@@ -1205,11 +1232,10 @@ async function caricaStudiare(a) {
   const righe = (data || []).filter((d) => (d.risposte || []).length && d.sessioni).map((d) => ({
     concetto_id: d.concetto_id, sessione_id: d.sessione_id, data: d.sessioni.data, punteggio: d.risposte[0].punteggio,
   }));
-  cosaStudiare(a.concetti, righe).forEach((x) => {
+  listaStudiare = cosaStudiare(a.concetti, righe);
+  listaStudiare.forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
-    const volte = x.sbagliato ? "sbagliato " + x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte")
-      : (x.stato === "mai" ? "mai verificato" : "mai sbagliato");
-    d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + volte + "</span></h3>" +
+    d.innerHTML = '<h3><span class="pallino"></span>' + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" +
       '<p>Rileggi qui: <span class="citazione">' + esc(x.ancora) + "</span></p>" +
       (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
     lista.appendChild(d);
@@ -1224,9 +1250,7 @@ async function preparaVerifica(args, btn, elStato, elErr) {
     ? ["Scelgo i concetti più deboli del quadrimestre", "Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti"]
     : ["Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti", "Scarto quelle campate in aria"]);
   if (!args.some((a) => a.concetti.length)) { attesa(elStato, null); btn.disabled = false; errore(elErr, "Non ci sono concetti su cui interrogarti."); return; }
-  const mats = [...new Set(args.map((a) => a.materia))];
-  materiaProva = mats.length === 1 ? mats[0] : "varie";
-  titoloProva = modo === "ripasso" ? ("Ripasso" + (mats.length === 1 ? " di " + mats[0] : " del quadrimestre")) : args[0].titolo;
+  ({ titolo: titoloProva, materia: materiaProva } = titoloEMateria(args, modo === "ripasso"));
   try {
     const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso", livello, tipo, modalita });
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
@@ -1510,10 +1534,13 @@ async function mostraEsito(per) {
   else rs.hidden = true;
 
   const concettoDi = {}; argsProva.forEach((a) => a.concetti.forEach((c) => { concettoDi[c.id] = { c, a }; }));
-  disegnaSemaforo(es.concetti.filter((x) => concettoDi[x.concetto_id]).map((x) => {
+  const righe = es.concetti.filter((x) => concettoDi[x.concetto_id]).map((x) => {
     const { c, a } = concettoDi[x.concetto_id];
     return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || c.descrizione, errore_appunti: c.errore_appunti, da: modo === "ripasso" ? a.titolo : null };
-  }));
+  });
+  esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },
+    dati: { indice: es.indice, voto: es.voto, verdetto: $("verdetto-t").textContent + " " + $("verdetto-p").textContent, righe } };
+  disegnaSemaforo(righe.map((r) => ({ ...r })));
   dettaglio = domande.map((d, i) => {
     const r = risposte[d.id] || {}, p = per[d.id];
     return { n: i + 1, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
@@ -1559,9 +1586,18 @@ async function salvaProva(es, per) {
   await caricaLibreria();
 }
 
+// Argomenti della materia scelta nel ripasso; null (con l'errore a schermo) se non ce ne sono.
+function argomentiDelRipasso() {
+  const m = document.querySelector('input[name="mat-rip"]:checked').value;
+  const scelti = argomenti.filter((a) => !m || a.materia === m);
+  if (!scelti.length) { errore($("err-rip"), "Nessun argomento per questa materia."); return null; }
+  return scelti;
+}
+
 /* =================================================================== avvio */
 
 function collega() {
+  collegaStampa();
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
@@ -1648,9 +1684,8 @@ function collega() {
     errore($("err-rip"), ""); disegnaOpzioni("opz-ripasso"); vai("ripasso");
   });
   $("btn-genera-ripasso").addEventListener("click", () => {
-    const m = document.querySelector('input[name="mat-rip"]:checked').value;
-    const scelti = argomenti.filter((a) => !m || a.materia === m);
-    if (!scelti.length) { errore($("err-rip"), "Nessun argomento per questa materia."); return; }
+    const scelti = argomentiDelRipasso();
+    if (!scelti) return;
     modo = "ripasso";
     preparaVerifica(scelti, $("btn-genera-ripasso"), $("stato-rip"), $("err-rip"));
   });

@@ -64,3 +64,15 @@ test("il prompt delle domande cambia con livello, tipo e modalità come nel prot
   assert.match(scritta, /verifica scritta/);
   assert.match(scritta, /non riproporle uguali[\s\S]*"Q1"/);
 });
+
+test("verifica da stampare: il numero di domande si sceglie (10, 15, 20); senza scelta il prompt resta quello del prototipo", () => {
+  const base = { contesto: [], gia: [], materiale: [ARG], livello: "medio", modalita: "scritta" };
+  const miste = promptDomande({ ...base, tipo: "miste", quante: 15 });
+  assert.match(miste, /15 domande: otto chiuse a quattro opzioni e sette aperte/);
+  assert.match(promptDomande({ ...base, tipo: "chiuse", quante: 20 }), /20 domande: tutte a scelta multipla/);
+  assert.match(promptDomande({ ...base, tipo: "aperte", quante: 10 }), /10 domande: tutte aperte/);
+  // senza quante, o con un numero non previsto, lo stesso testo di prima
+  const prima = promptDomande({ ...base, tipo: "miste" });
+  assert.match(prima, /8 domande: quattro chiuse a quattro opzioni e quattro aperte brevi/);
+  assert.equal(promptDomande({ ...base, tipo: "miste", quante: 13 }), prima);
+});
