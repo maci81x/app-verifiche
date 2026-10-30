@@ -68,11 +68,24 @@ test("il prompt delle domande cambia con livello, tipo e modalità come nel prot
 test("verifica da stampare: il numero di domande si sceglie (10, 15, 20); senza scelta il prompt resta quello del prototipo", () => {
   const base = { contesto: [], gia: [], materiale: [ARG], livello: "medio", modalita: "scritta" };
   const miste = promptDomande({ ...base, tipo: "miste", quante: 15 });
-  assert.match(miste, /15 domande: otto chiuse a quattro opzioni e sette aperte/);
+  assert.match(miste, /15 domande: otto chiuse a quattro opzioni e sette aperte brevi\./);
   assert.match(promptDomande({ ...base, tipo: "chiuse", quante: 20 }), /20 domande: tutte a scelta multipla/);
   assert.match(promptDomande({ ...base, tipo: "aperte", quante: 10 }), /10 domande: tutte aperte/);
   // senza quante, o con un numero non previsto, lo stesso testo di prima
   const prima = promptDomande({ ...base, tipo: "miste" });
   assert.match(prima, /8 domande: quattro chiuse a quattro opzioni e quattro aperte brevi/);
   assert.equal(promptDomande({ ...base, tipo: "miste", quante: 13 }), prima);
+});
+
+test("verifica da stampare: con le miste resta la proporzione chiuse/aperte del livello, riscalata, e il suo taglio", () => {
+  const base = { contesto: [], gia: [], materiale: [ARG], modalita: "scritta", tipo: "miste" };
+  const p = (livello, quante) => promptDomande({ ...base, livello, quante });
+  // semplice: 5 chiuse e 2 aperte su 7 → circa 70% chiuse
+  assert.match(p("semplice", 10), /10 domande: sette chiuse a quattro opzioni e tre aperte brevissime\. Resta sul riconoscimento/);
+  assert.match(p("semplice", 20), /20 domande: quattordici chiuse a quattro opzioni e sei aperte brevissime\./);
+  // medio: metà e metà
+  assert.match(p("medio", 10), /10 domande: cinque chiuse a quattro opzioni e cinque aperte brevi\. Chiedi di spiegare/);
+  // difficile: 2 chiuse e 4 aperte su 6 → un terzo chiuse
+  assert.match(p("difficile", 15), /15 domande: cinque chiuse difficili e dieci aperte lunghe\. Chiedi cause e conseguenze/);
+  assert.match(p("difficile", 20), /20 domande: sette chiuse difficili e tredici aperte lunghe\./);
 });
