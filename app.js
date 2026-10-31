@@ -1385,6 +1385,44 @@ function avanza() {
 
 const Riconoscimento = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 let voceAttiva = false, ascoltatore = null, orologio = null;
+// Perché il microfono non ha funzionato: codice dell'errore del browser, o nostro
+// ("no-mic", "muto"). Serve a dire alla ragazza cosa fare invece di un errore generico.
+let erroreVoce = "", micProvato = false;
+
+function messaggioVoce(codice) {
+  const ios = typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent || "");
+  const m = {
+    "not-allowed": ios
+      ? "Il microfono è bloccato. Apri Impostazioni › Safari › Microfono e scegli Consenti. Se usi l'app dalla schermata Home e non va, aprila da Safari."
+      : "Il microfono è bloccato per questa pagina. Tocca il lucchetto accanto all'indirizzo, consenti il microfono e tocca Riprendi.",
+    "service-not-allowed": ios
+      ? "Su iPhone l'interrogazione a voce funziona in Safari: apri l'app da Safari, non dalla schermata Home. Oppure rispondi scrivendo."
+      : "Questo browser non permette il riconoscimento vocale. Usa Chrome o Safari, oppure rispondi scrivendo.",
+    "audio-capture": "Il microfono non manda audio. Sul Mac: Impostazioni di Sistema › Privacy e sicurezza › Microfono, attiva il browser, poi chiudilo e riaprilo.",
+    "no-mic": "Non trovo nessun microfono collegato. Collegane uno, oppure rispondi scrivendo.",
+    "network": "Il riconoscimento vocale non risponde. Serve internet, e funziona solo in Chrome, Edge e Safari (non in Firefox, Brave, Arc o Opera). Oppure rispondi scrivendo.",
+    "language-not-supported": "Questo browser non capisce l'italiano a voce. Rispondi scrivendo.",
+    "muto": "Il microfono non ha sentito niente. Controlla che sia acceso e non silenziato, poi tocca Riprendi.",
+  };
+  return m[codice] || ("Il microfono non ha funzionato" + (codice ? " (" + codice + ")" : "") + ". Rispondi scrivendo.");
+}
+
+// Prima della prima domanda: chiede il permesso e controlla che un microfono ci sia.
+async function provaMicrofono() {
+  if (micProvato) return true;
+  const md = typeof navigator !== "undefined" && navigator.mediaDevices;
+  if (!md || !md.getUserMedia) return true; // niente modo di controllare: ci pensa il riconoscimento
+  try {
+    const flusso = await md.getUserMedia({ audio: true });
+    flusso.getTracks().forEach((t) => t.stop());
+    micProvato = true;
+    return true;
+  } catch (e) {
+    erroreVoce = e && e.name === "NotAllowedError" ? "not-allowed"
+      : e && (e.name === "NotFoundError" || e.name === "OverconstrainedError") ? "no-mic" : "audio-capture";
+    return false;
+  }
+}
 
 function statoVoce(stato, titolo, testo) {
   const v = $("voce"); v.hidden = false; v.dataset.stato = stato;
@@ -1409,11 +1447,18 @@ function ascolta(silenzioMs) {
     if (!Riconoscimento) return res(null);
     const r = new Riconoscimento();
     r.lang = "it-IT"; r.continuous = true; r.interimResults = true;
-    let finale = "", parziale = "", ultimoSuono = Date.now(), finito = false;
+    let finale = "", parziale = "", ultimoSuono = Date.now(), finito = false, audio = false;
     const inizio = Date.now();
-    const chiudi = () => { if (finito) return; finito = true; clearInterval(orologio); try { r.stop(); } catch (e) { /* già fermo */ } res((finale + " " + parziale).trim()); };
+    const fallisci = (codice) => { if (finito) return; finito = true; clearInterval(orologio); erroreVoce = codice; try { r.stop(); } catch (e) { /* già fermo */ } res(null); };
+    const chiudi = () => {
+      if (finito) return;
+      // Il microfono non è mai partito e non è arrivata nessuna parola: non è silenzio, è un guasto.
+      if (!audio && !finale && !parziale) return fallisci("muto");
+      finito = true; clearInterval(orologio); try { r.stop(); } catch (e) { /* già fermo */ } res((finale + " " + parziale).trim());
+    };
+    r.onaudiostart = () => { audio = true; };
     r.onresult = (ev) => {
-      parziale = "";
+      audio = true; parziale = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
         if (ev.results[i].isFinal) finale += " " + ev.results[i][0].transcript; else parziale += ev.results[i][0].transcript;
       }
@@ -1423,7 +1468,9 @@ function ascolta(silenzioMs) {
       const ta = $("risp-aperta"); if (ta) ta.value = detto;
       if (/\b(ho finito|basta cosi)$/.test(piatto(detto))) chiudi();
     };
-    r.onerror = (ev) => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") { finito = true; clearInterval(orologio); res(null); } };
+    // "no-speech" e "aborted" sono normali (silenzio, riavvio): si riparte da onend.
+    // Tutti gli altri errori fermano l'ascolto e dicono il perché, invece di girare a vuoto.
+    r.onerror = (ev) => { if (ev.error !== "no-speech" && ev.error !== "aborted") fallisci(ev.error || "sconosciuto"); };
     r.onend = () => { if (!finito) { try { r.start(); } catch (e) { chiudi(); } } }; // Safari si ferma da solo: si riparte finché non tace
     ascoltatore = { stop: chiudi };
     statoVoce("ascolto", "Ti ascolto", "rispondi quando vuoi");
@@ -1480,6 +1527,11 @@ async function avviaOrale() {
   voceAttiva = true;
   $("btn-ripeti").hidden = false; $("btn-pausa").hidden = false; $("btn-pausa").textContent = "Pausa";
   mostraDomanda();
+  if (Riconoscimento && !(await provaMicrofono())) {
+    voceAttiva = false; $("btn-pausa").textContent = "Riprendi";
+    statoVoce("", "Microfono non disponibile", messaggioVoce(erroreVoce));
+    return;
+  }
   if (!Riconoscimento) {
     statoVoce("", "Il microfono qui non funziona", "Ti leggo le domande; rispondi con il microfono della tastiera o scrivendo.");
   }
@@ -1488,7 +1540,12 @@ async function avviaOrale() {
     if (!Riconoscimento) { await parla(d.tipo === "chiusa" ? d.testo + " " + leggiOpzioni(d) : d.testo); return; }
     const r = await domandaAVoce();
     if (!voceAttiva) return;
-    if (r === null) { voceAttiva = false; statoVoce("", "Microfono non disponibile", "Consenti il microfono nelle impostazioni, oppure rispondi scrivendo."); return; }
+    if (r === null) {
+      voceAttiva = false; if (ascoltatore) ascoltatore = null; clearInterval(orologio);
+      $("btn-pausa").textContent = "Riprendi";
+      statoVoce("", "Microfono non disponibile", messaggioVoce(erroreVoce));
+      return;
+    }
     if (r.vuota) salvaCorrente(true);
     else {
       if (d.tipo === "chiusa") { const i = document.querySelector('input[name="' + d.id + '"][value="' + r.scelta + '"]'); if (i) i.checked = true; }

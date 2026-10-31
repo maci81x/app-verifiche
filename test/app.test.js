@@ -600,3 +600,12 @@ test("sintesi: un concetto tolto dall'argomento prende \"\" e la mappa non la ri
   assert.deepEqual(u.nodi.map((n) => n.sintesi), ["Frase.", "", undefined]);
   assert.equal(run(`mancanoSintesi(${JSON.stringify(u)})`), false);
 });
+
+test("a voce: per ogni guasto del microfono dice cosa fare, mai un errore muto", () => {
+  for (const c of ["not-allowed", "service-not-allowed", "audio-capture", "no-mic", "network", "language-not-supported", "muto"]) {
+    const m = run(`messaggioVoce(${JSON.stringify(c)})`);
+    assert.ok(m.length > 30, c);
+    assert.ok(!m.includes("(" + c + ")"), "codice noto senza spiegazione: " + c);
+  }
+  assert.match(run('messaggioVoce("bad-grammar")'), /\(bad-grammar\)/); // un codice nuovo si vede, per capire il guasto
+});
