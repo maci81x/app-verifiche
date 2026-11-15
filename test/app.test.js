@@ -97,10 +97,10 @@ test("accesso: la risposta del server decide se entrare, aspettare o riprovare",
 });
 
 test("elenco profili: solo righe valide, ognuna con la sua chiave di sessione; l'ultimo usato in cima", () => {
-  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Mia",classe:"2"},{id:"s",nome:"Samira",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
+  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Ada",classe:"2"},{id:"s",nome:"Leo",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
   assert.deepEqual(JSON.parse(l), [
-    { id: "b", nome: "Mia", classe: "2", chiave: "sb-verifiche-b" },
-    { id: "s", nome: "Samira", classe: "", chiave: "sb-verifiche-s" },
+    { id: "b", nome: "Ada", classe: "2", chiave: "sb-verifiche-b" },
+    { id: "s", nome: "Leo", classe: "", chiave: "sb-verifiche-s" },
   ]);
   assert.equal(run("profiliDaElenco({errore:'x'})"), null);
   assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], "s").map((p) => p.id).join()`), "s,b");
@@ -212,10 +212,10 @@ test("mappa: in verticale i figli stanno sotto e più a destra del padre; in ori
 });
 
 // ---------------------------------------------------------------- stampa (issue #3)
-const INFO = { nome: "Samira", materia: "storia", titolo: "La peste <del> Trecento", data: "2026-10-30T10:00:00Z" };
+const INFO = { nome: "Leo", materia: "storia", titolo: "La peste <del> Trecento", data: "2026-10-30T10:00:00Z" };
 const stampa = (tipo, dati) => run(`componiStampa(${JSON.stringify({ tipo, info: INFO, dati })})`);
 const intestazioneOk = (html) => {
-  assert.match(html, /Samira/);
+  assert.match(html, /Leo/);
   assert.match(html, /storia/);
   assert.match(html, /La peste &lt;del&gt; Trecento/); // titolo escapato
   assert.doesNotMatch(html, /<del>/);
@@ -650,4 +650,9 @@ test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la map
   assert.equal((html.match(/data-s="rosso"/g) || []).length, 2); // barra e conteggio sotto, non anche nella riga della materia
   const senza = run(`htmlPrimo(${JSON.stringify(a)}, null)`);
   assert.match(senza, /class="azione" data-azione="mappa">Apri la mappa</);
+});
+
+test("libreria: «Fotografa gli appunti» pieno solo se non c'è la card gialla", () => {
+  assert.equal(run(`classeFotografa(true)`), "minore");
+  assert.equal(run(`classeFotografa(false)`), "azione");
 });

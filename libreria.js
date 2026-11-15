@@ -156,6 +156,9 @@ function disegnaPrimo(a) {
   };
 }
 
+// Un solo pulsante pieno: con la card gialla il pieno è «Ripassa questo», «Fotografa» va a contorno.
+const classeFotografa = (conCard) => (conCard ? "minore" : "azione");
+
 function disegnaLibreria() {
   const som = $("sommario"), lista = $("lista-argomenti");
   const tot = riepilogoStati(argomenti);
@@ -163,7 +166,9 @@ function disegnaLibreria() {
     ? '<div class="chips" role="group" aria-label="Riepilogo dei punti da studiare">' + ["verde", "giallo", "rosso"].map((s) => htmlChip(s, tot[s])).join("") + "</div>"
     : "";
   if (profilo && libreriaCaricata) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
-  disegnaPrimo(daRipassarePrima(argomenti));
+  const primo = daRipassarePrima(argomenti);
+  disegnaPrimo(primo);
+  $("btn-nuovo").className = classeFotografa(!!primo);
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
   if (!argomenti.length) {
