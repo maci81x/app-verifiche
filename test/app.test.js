@@ -651,8 +651,3 @@ test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la map
   const senza = run(`htmlPrimo(${JSON.stringify(a)}, null)`);
   assert.match(senza, /class="azione" data-azione="mappa">Apri la mappa</);
 });
-
-test("libreria: «Fotografa gli appunti» pieno solo se non c'è la card gialla", () => {
-  assert.equal(run(`classeFotografa(true)`), "minore");
-  assert.equal(run(`classeFotografa(false)`), "azione");
-});

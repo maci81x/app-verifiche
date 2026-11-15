@@ -100,7 +100,7 @@ test("evidenziatore: la frase del quaderno escapata dentro <mark class=\"evidenz
 });
 
 test("correzioni prima del merge: niente sovrapposizioni, tinta per riga, nota solo su profili ed esito", () => {
-  assert.doesNotMatch(css.match(/\.barra-fissa\{[^}]*\}/)[0], /position:fixed/);
+  assert.doesNotMatch(css, /\.barra-fissa\{[^}]*position:fixed/);
   assert.match(css, /\[style\*="--h"\]\{--tinta:hsl\(var\(--h\) var\(--s\) var\(--l\)\)\}/);
   assert.match(css, /\*,\*::before,\*::after\{box-sizing:border-box\}/);
   assert.match(css, /\.nota\{display:none\}/);
@@ -110,4 +110,25 @@ test("correzioni prima del merge: niente sovrapposizioni, tinta per riga, nota s
   assert.match(html, /<div class="tacche" id="tacche"/);
   assert.doesNotMatch(html.match(/<section id="v-libreria"[\s\S]*?<\/section>\n/)[0], /btn-svuota/);
   assert.match(html.match(/<section id="v-impostazioni"[\s\S]*?<\/section>\n/)[0], /id="btn-svuota"/);
+});
+
+test("nessun nome globale doppio fra gli script: uno caricato dopo sovrascriverebbe l'altro", () => {
+  const visti = {};
+  for (const f of JS) {
+    for (const m of leggi(f).matchAll(/^(?:async\s+)?function\s+(\w+)|^(?:const|let|var)\s+(\w+)/gm)) {
+      const nome = m[1] || m[2];
+      assert.ok(!visti[nome], nome + " è sia in " + visti[nome] + " sia in " + f);
+      visti[nome] = f;
+    }
+  }
+});
+
+test("barra in basso bilanciata: due voci per lato, fotocamera al centro esatto", () => {
+  const barra = html.match(/<nav class="barra-basso"[\s\S]*?<\/nav>/)[0];
+  const pulsanti = [...barra.matchAll(/<button[^>]*>/g)].map((m) => m[0]);
+  assert.equal(pulsanti.length, 5);
+  assert.match(pulsanti[2], /id="btn-nuovo"/);
+  assert.deepEqual(pulsanti.filter((b) => /voce-barra/.test(b)).map((b) => b.match(/data-vai="(\w+)"/)[1]), ["libreria", "argomenti", "storico", "profili"]);
+  assert.match(barra, /<span>Profilo<\/span>/);
+  assert.match(css, /\.barra-basso\{[^}]*grid-template-columns:1fr 1fr 84px 1fr 1fr/);
 });
