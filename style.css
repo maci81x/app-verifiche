@@ -813,7 +813,7 @@ details.sezione[open]{padding-bottom:16px}
 .prerequisito p{margin:0 0 8px}
 .pr-lista .esercizio{margin-top:12px}
 .po-livelli{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
-.po-livelli [aria-pressed="true"]{background:var(--inchiostro);color:var(--evidenziatore);border-color:var(--inchiostro)}
+.po-livelli [aria-pressed="true"]{background:var(--inchiostro);color:var(--carta);border-color:var(--inchiostro)}
 .poesia{font-size:1.15rem;line-height:1.7;margin:8px 0 6px}
 .poesia .strofa{margin:0 0 18px}
 .poesia .buco{letter-spacing:.08em;color:var(--inchiostro-2);font-variant-numeric:tabular-nums}
