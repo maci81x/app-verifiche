@@ -375,5 +375,5 @@ test("prompt dei gemelli e degli esercizi mirati", () => {
     mirati: { concetto: "Lo stesso denominatore", calcolo: "1/6 + 2/9 = 3/18 + 4/18 = 7/18", testo: TESTO_PAOLO } });
   assert.match(m, /dal più facile al più difficile/i);
   assert.match(m, /Lo stesso denominatore/);
-  assert.match(m, /problema a parole/i);
+  assert.match(m, /problemi a parole/i);
 });
