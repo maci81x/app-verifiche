@@ -382,7 +382,7 @@ function vai(v, materia, titolo) {
   });
   $("btn-menu").hidden = v !== "scheda";
   document.querySelectorAll(".tacche i").forEach((el) => { el.dataset.on = (+el.dataset.t <= info[1]) ? "1" : "0"; });
-  $("conta-passo").textContent = info[1] ? ("passo " + info[1] + " di 4") : (profilo ? profilo.nome : "");
+  $("conta-passo").textContent = info[1] ? ("passo " + info[1] + " di 4") : ""; // il profilo sta nel tondo di Oggi
   $("btn-rail-indietro").hidden = v === "argomenti" || v === "storico";
   const chip = $("chip-materia");
   // Accanto al titolo solo il segno colorato: il nome della materia lo legge lo screen reader.
@@ -566,8 +566,9 @@ async function genEntra() {
   $("imp-accesso").hidden = true; $("imp-pannello").hidden = false;
   disegnaImpostazioni();
 }
-function genEsci() {
-  if (genitore) genitore.auth.signOut({ scope: "local" });
+async function genEsci() {
+  // Si aspetta l'uscita: niente richiesta lasciata a metà quando si cambia schermata.
+  if (genitore) await genitore.auth.signOut({ scope: "local" }).catch(() => {});
   genitore = null;
   $("imp-accesso").hidden = false; $("imp-pannello").hidden = true;
   $("gen-email").value = ""; $("gen-password").value = "";
@@ -1299,7 +1300,7 @@ function apriMappa(a, pannello) {
   $("t-mappa").textContent = a.titolo;
   errore($("err-mappa"), ""); attesa($("stato-mappa"), null);
   $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; statiMappa = null; chiudiCardNodo(false);
-  vai("mappa", a.materia);
+  vai("mappa", a.materia, a.titolo);
   mostraPannello(pannello);
 }
 
