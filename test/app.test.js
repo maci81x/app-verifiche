@@ -237,7 +237,7 @@ test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e anc
     { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
   ]);
   intestazioneOk(html);
-  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
+  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*non ancora per 2 volte[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
   assert.match(html, /○ Ancora da provare[\s\S]*Mai chiesto/);
 });
 
@@ -314,8 +314,8 @@ test("Teoria/Esercizi solo per le materie di matematica, con le varianti", () =>
 });
 
 test("libreria: un argomento di esercizi conta i tipi, gli altri i concetti", () => {
-  assert.equal(run(`contaVoci({ percorso: "teoria", concetti: [1, 2, 3] })`), "3 concetti");
-  assert.equal(run(`contaVoci({ concetti: [1] })`), "1 concetti");
+  assert.equal(run(`contaVoci({ percorso: "teoria", concetti: [1, 2, 3] })`), "3 punti da studiare");
+  assert.equal(run(`contaVoci({ concetti: [1] })`), "1 punto da studiare");
   assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}, {}] })`), "2 tipi di esercizio");
   assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}] })`), "1 tipo di esercizio");
 });
@@ -348,7 +348,7 @@ const ESERCIZIO = {
 
 test("esercizio: consegna, dati e figura in vista; passaggi e risultato solo dentro la soluzione", () => {
   const html = run(`htmlEsercizio(${JSON.stringify(ESERCIZIO)}, 2)`);
-  assert.match(html, /Esercizio 3 · Teorema di &lt;Pitagora&gt;/);
+  assert.match(html, /Esercizio 3: Teorema di &lt;Pitagora&gt;/);
   assert.match(html, /<svg [^>]*class="figura"/);
   const [fuori, dentro] = html.split("<details>");
   assert.doesNotMatch(fuori, /15 cm|Applico/, "la soluzione non si vede prima di chiederla");
@@ -362,8 +362,8 @@ test("esercizio: consegna, dati e figura in vista; passaggi e risultato solo den
 
 test("nota sugli esercizi scartati dal ricalcolo", () => {
   assert.equal(run("notaScartatiEsercizi(0)"), "");
-  assert.match(run("notaScartatiEsercizi(1)"), /^1 esercizio l'ho tolto/);
-  assert.match(run("notaScartatiEsercizi(3)"), /^3 esercizi li ho tolti/);
+  assert.match(run("notaScartatiEsercizi(1)"), /^Ho tolto 1 esercizio:/);
+  assert.match(run("notaScartatiEsercizi(3)"), /^Ho tolto 3 esercizi:/);
 });
 
 // ---------------------------------------------------------------- prova di esercizi (issue #5, fetta #8)
@@ -391,7 +391,7 @@ test("aprire la soluzione prima di correggere vale al massimo 5 punti", () => {
 test("correzione: risposta e risultato affiancati, passaggi con il primo errore cerchiato, tipo, spiegazione ed esempio", () => {
   const giusta = run(`htmlCorrezione({ esito: "giusto", punti: 10, risposta: "5/4" }, ${JSON.stringify(PROVA[0])})`);
   assert.match(giusta, /data-s="verde"[\s\S]*✓<\/span> Giusto[\s\S]*10\/10/);
-  assert.match(giusta, /La tua risposta<\/span><b>5\/4<\/b>[\s\S]*Risultato<\/span><b>5\/4<\/b>/);
+  assert.match(giusta, /La tua risposta<\/span><b>5\/4<\/b>[\s\S]*Risultato giusto<\/span><b>5\/4<\/b>/);
   assert.doesNotMatch(giusta, /Ecco come si fa/);
   const sbagliata = run(`htmlCorrezione({ esito: "sbagliato", punti: 0, risposta: "4/6", svolgimento: "3/4 + 1/2 = 4/6 <b>\\n4/6 = 2/3",
     primo_errore: "3/4 + 1/2 = 4/6 <b>", tipo_errore: "calcolo", spiegazione: "Hai sommato i denominatori.", esempio: "1/3 + 1/3 = 2/3" }, ${JSON.stringify(PROVA[0])})`);
@@ -458,10 +458,10 @@ test("quadretti: dentro il loro viewBox, più alti per gli esercizi con più pas
 test("esito degli esercizi da stampare: semaforo per tipo con simbolo e parola, poi ogni esercizio", () => {
   const dati = run(`datiEsitoEsercizi(${JSON.stringify(DA_STAMPARE)}, [{ esito: "giusto", punti: 10, risposta: "15 cm" }, { esito: "sbagliato", punti: 0, risposta: "4/6" }])`);
   const html = run(`componiStampa({ tipo: "esito_esercizi", info: { titolo: "Pitagora", materia: "matematica" }, dati: ${JSON.stringify(dati)} })`);
-  assert.match(html, /Esito degli esercizi/);
+  assert.match(html, /Com'è andata con gli esercizi/);
   assert.match(html, /✕ Da ripassare<\/span><b>Frazioni<\/b>[\s\S]*● Lo sai<\/span><b>Pitagora<\/b>/, "dal tipo peggiore, con simbolo e parola");
-  assert.match(html, /0,0\/10 · 1 esercizio/);
-  assert.match(html, /Hai scritto: 4\/6 · giusto: 5\/4[\s\S]*Non torna<\/b> · 0\/10/);
+  assert.match(html, /0,0\/10, 1 esercizio/);
+  assert.match(html, /Hai scritto: 4\/6\. Risultato giusto: 5\/4[\s\S]*Non ancora<\/b>, 0\/10/);
   assert.match(html, /Voto della prova /);
 });
 
@@ -490,7 +490,7 @@ test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione
   const html = run(`htmlCardNodo(${JSON.stringify(concetto)}, { concetto: ${JSON.stringify(concetto)}, errore: "negli appunti: un quarto", stato: "rosso" })`);
   assert.match(html, /<h3 id="card-nodo-titolo">Le vittime<\/h3>/);
   assert.match(html, /✕<\/i> Da ripassare/);
-  assert.match(html, /Dagli appunti<\/p><blockquote class="quaderno"><mark class="evidenzia">Uccise circa un terzo della popolazione\.<\/mark><\/blockquote>/);
+  assert.match(html, /Dai tuoi appunti<\/p><blockquote class="quaderno"><mark class="evidenzia">Uccise circa un terzo della popolazione\.<\/mark><\/blockquote>/);
   assert.match(html, /class="avviso-appunti" role="note">.*negli appunti: un quarto/);
   assert.match(html, /In breve<\/p><p class="in-breve" data-tipo="ok" aria-live="polite">La peste uccise una persona su tre\.<\/p>/);
   assert.match(html, /data-azione="prova">Mettiti alla prova<\/button>/);
@@ -506,7 +506,7 @@ test("card: riassunto in preparazione, non ancora pronto, o non sicuro (issue #1
     /data-tipo="attesa" aria-live="polite">Sto preparando il riassunto…/);
   assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai" })`), /data-tipo="vecchia" aria-live="polite">Il riassunto non c'è ancora/);
   const vuoto = { ...senza, sintesi: "" };
-  assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota" aria-live="polite">Per questo concetto non ho un riassunto sicuro/);
+  assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota" aria-live="polite">Su questo punto non ho un riassunto affidabile/);
   // Anche con la sintesi in arrivo, i pulsanti restano: niente si blocca.
   assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai", sintesiInArrivo: true })`), /data-azione="prova"/);
 });
@@ -530,7 +530,7 @@ test("card di un sotto-punto: la sua ancora, il riassunto e la prova del suo con
   const sp = { id: "c1-2", titolo: "Aumentano i salari", ancora: "i salari aumentano", fonte: "appunti", figli: [] };
   const html = run(`htmlCardNodo(${JSON.stringify(sp)}, { concetto: ${JSON.stringify(c)}, stato: "giallo" })`);
   assert.match(html, /<blockquote class="quaderno"><mark class="evidenzia">i salari aumentano<\/mark><\/blockquote>/);
-  assert.match(html, /In breve · Le conseguenze/);
+  assert.match(html, /In breve, su «Le conseguenze»/);
   assert.match(html, /Mettiti alla prova su «Le conseguenze»/);
 });
 
@@ -574,11 +574,11 @@ test("libreria: barra verde/giallo/rosso con le parole per chi non vede i colori
 test("profili: tinta fissa per id, sottotitolo con classe e da ripassare solo se noto", () => {
   assert.equal(run(`tintaProfilo("abc")`), run(`tintaProfilo("abc")`));
   assert.ok(run(`tintaProfilo("abc")`) >= 0 && run(`tintaProfilo("abc")`) < 360);
-  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media · 3 da ripassare");
-  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media · niente da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media, 3 da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media, niente da ripassare");
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, null)`), "2ª media");
   assert.equal(run(`sottotitoloProfilo({}, null)`), "");
-  assert.equal(run(`sottotitoloProfilo({ classe: "3" }, 2)`), "3ª media · 2 da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "3" }, 2)`), "3ª media, 2 da ripassare");
 });
 
 test("un lavoro del modello per argomento: due argomenti non si liberano a vicenda (revisione #13)", () => {

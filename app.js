@@ -1,4 +1,4 @@
-// Pronta per la verifica. Nasce dal prototipo validato (prototipo/prova-verifiche.html):
+// 10+ (issue #18). Nasce dal prototipo validato (prototipo/prova-verifiche.html):
 // stessa struttura, stesse viste, stessi testi. Al posto della sessione claude.ai ci
 // sono Supabase (dati, foto, profili) e la Edge Function `modello` (lettura delle
 // foto, concetti, domande con filtro di ancoraggio, correzione).
@@ -16,17 +16,18 @@ const GRUPPO_ILLEGGIBILE = "[gruppo di foto non leggibile]";
 /* =================================================================== logica pura */
 
 const MATERIE = [
-  ["matematica", ["matemat", "geometr", "algebr", "aritmet"], 196, 62],
-  ["storia", ["storia", "storic", "civilt", "medioev"], 24, 62],
-  ["geografia", ["geograf"], 168, 52],
-  ["scienze", ["scienz", "biolog", "chimic", "fisica"], 280, 44],
-  ["inglese", ["ingles", "english"], 320, 46],
-  ["spagnolo", ["spagnol", "frances", "tedesc"], 42, 68],
-  ["arte", ["arte", "immagin", "disegn"], 350, 52],
-  ["tecnologia", ["tecnolog", "informat"], 150, 44],
-  ["musica", ["music"], 262, 48],
-  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 46],
-  ["italiano", ["italian", "grammat", "letterat", "epic", "antolog"], 224, 56],
+  // Tappi di pennarello (issue #18): tinta, saturazione, luminosità. Solo per il segno della materia.
+  ["matematica", ["matemat", "geometr", "algebr", "aritmet"], 196, 72, 40],
+  ["storia", ["storia", "storic", "civilt", "medioev"], 24, 78, 46],
+  ["geografia", ["geograf"], 168, 62, 36],
+  ["scienze", ["scienz", "biolog", "chimic", "fisica"], 280, 52, 48],
+  ["inglese", ["ingles", "english"], 320, 56, 44],
+  ["spagnolo", ["spagnol", "frances", "tedesc"], 42, 80, 42],
+  ["arte", ["arte", "immagin", "disegn"], 350, 64, 46],
+  ["tecnologia", ["tecnolog", "informat"], 150, 56, 34],
+  ["musica", ["music"], 262, 58, 50],
+  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 56, 34],
+  ["italiano", ["italian", "grammat", "letterat", "epic", "antolog"], 224, 70, 46],
 ];
 function slugMateria(nome) {
   const n = String(nome || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -135,8 +136,8 @@ function leggiOpzioni(d) {
 // righe: [{ concetto_id, sessione_id, data, punteggio }].
 const SBAGLIATA = 8, ORDINE_STATO = { rosso: 0, giallo: 1, mai: 2, verde: 3 };
 function testoVolte(x) {
-  if (x.sbagliato) return "sbagliato " + x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte");
-  return x.stato === "mai" ? "mai verificato" : "mai sbagliato";
+  if (x.sbagliato) return "non ancora per " + x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte");
+  return x.stato === "mai" ? "mai provato" : "sempre giusto";
 }
 // Titolo e materia di una prova su uno o più argomenti (il ripasso ne mescola diversi).
 function titoloEMateria(args, ripasso) {
@@ -294,7 +295,7 @@ function svgMappa(layout) {
       '<rect x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="10"/>' +
       '<text style="font-size:' + corpo + 'px">' + righe + "</text></g>");
   });
-  return '<svg class="mappa" viewBox="0 0 ' + layout.w + " " + layout.h + '" width="100%" aria-label="Mappa concettuale">' + parti.join("") + "</svg>";
+  return '<svg class="mappa" viewBox="0 0 ' + layout.w + " " + layout.h + '" width="100%" aria-label="Mappa dell’argomento">' + parti.join("") + "</svg>";
 }
 
 /* =================================================================== stato */
@@ -320,8 +321,8 @@ function dataOraIt(iso) { try { return new Date(iso).toLocaleString("it-IT", { d
 function dataIt(iso) { try { return new Date(iso).toLocaleDateString("it-IT", { day: "numeric", month: "short" }); } catch (e) { return ""; } }
 function tinta(el, nome) {
   const m = slugMateria(nome);
-  if (!m) { el.style.removeProperty("--h"); el.style.removeProperty("--s"); return; }
-  el.style.setProperty("--h", m[2]); el.style.setProperty("--s", m[3] + "%");
+  if (!m) { ["--h", "--s", "--l"].forEach((k) => el.style.removeProperty(k)); return; }
+  el.style.setProperty("--h", m[2]); el.style.setProperty("--s", m[3] + "%"); el.style.setProperty("--l", m[4] + "%");
 }
 function attesa(el, frasi) {
   if (timer) { clearInterval(timer); timer = null; }
@@ -344,7 +345,7 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Concetti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
 function vai(v, materia) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   if (v !== "verifica") fermaVoce();
@@ -373,7 +374,9 @@ function vai(v, materia) {
 
 const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
 const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
-const MSG_NESSUN_PROFILO = "Ancora nessun profilo: il genitore li crea da Impostazioni, qui sotto.";
+const NOTA_QUADERNO = "Da correggere sul quaderno, "; // davanti a errore_appunti («negli appunti: …»)
+const MSG_SENZA_PUNTI = "Questo argomento non ha ancora punti. Torna all'argomento e tocca Ritrova i punti.";
+const MSG_NESSUN_PROFILO = "Qui non c'è ancora nessun profilo. Chiedi a un genitore di crearlo da Impostazioni, qui sotto.";
 
 const chiaveSessione = (id) => "sb-verifiche-" + id;
 
@@ -486,8 +489,8 @@ async function verificaCodice() {
   if (p !== codiceProfilo) return; // nel frattempo è tornata indietro
 
   if (es.tipo === "attendi") { bloccoFino = { ...bloccoFino, [p.id]: Date.now() + es.secondi * 1000 }; sbagliato(""); mostraBlocco(); return; }
-  if (es.tipo === "sbagliato") { sbagliato("Codice sbagliato."); return; }
-  if (es.tipo !== "dentro") { sbagliato(es.tipo === "rete" ? "Non riesco a controllare il codice: serve la connessione." : "Non riesco a entrare adesso. Riprova fra poco."); return; }
+  if (es.tipo === "sbagliato") { sbagliato("Non è il codice giusto. Riprova."); return; }
+  if (es.tipo !== "dentro") { sbagliato(es.tipo === "rete" ? "Non riesco a controllare il codice. Controlla la connessione e riprova." : "Non riesco a entrare adesso. Riprova fra poco."); return; }
 
   const client = clientPer(chiaveSessione(p.id));
   const { error } = await client.auth.setSession(es.sessione);
@@ -515,9 +518,9 @@ async function genEntra() {
   $("btn-gen-entra").disabled = true;
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   $("btn-gen-entra").disabled = false; $("gen-password").value = "";
-  if (error) { errore($("err-imp"), "Email o password non corretti."); return; }
+  if (error) { errore($("err-imp"), "Email o password non giuste. Controllale e riprova."); return; }
   if (!data.user.app_metadata || data.user.app_metadata.ruolo !== "genitore") {
-    await client.auth.signOut({ scope: "local" }); errore($("err-imp"), "Questo account non è segnato come genitore."); return;
+    await client.auth.signOut({ scope: "local" }); errore($("err-imp"), "Questo non è un account genitore. Entra con l'email del genitore."); return;
   }
   genitore = client;
   $("imp-accesso").hidden = true; $("imp-pannello").hidden = false;
@@ -548,12 +551,12 @@ let figlie = [];
 async function disegnaImpostazioni() {
   const box = $("imp-profili"); box.innerHTML = "";
   const { data, error } = await genitore.from("studenti").select("id, nome, classe").order("nome");
-  if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Riprova."); return; }
+  if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Controlla la connessione e riprova."); return; }
   figlie = data || [];
-  if (!figlie.length) box.innerHTML = '<p class="legenda">Nessuno ancora.</p>';
+  if (!figlie.length) box.innerHTML = '<p class="legenda">Ancora nessun profilo. Crealo qui sotto.</p>';
   figlie.forEach((s) => {
     const d = document.createElement("div"); d.className = "riga-profilo";
-    const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " · " + s.classe : ""); d.appendChild(b);
+    const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " (" + s.classe + ")" : ""); d.appendChild(b);
     const campo = document.createElement("input");
     campo.type = "password"; campo.inputMode = "numeric"; campo.maxLength = 4; campo.autocomplete = "off";
     campo.placeholder = "nuovo codice"; campo.className = "codice-nuovo"; campo.setAttribute("aria-label", "Nuovo codice per " + s.nome);
@@ -570,12 +573,12 @@ async function creaProfilo() {
   errore($("err-imp"), "");
   if (!nome) { errore($("err-imp"), "Scrivi il nome."); return; }
   if (!codiceValido(codice)) { errore($("err-imp"), "Il codice deve essere di 4 cifre."); return; }
-  if (figlie.some((p) => p.nome.toLowerCase() === nome.toLowerCase())) { errore($("err-imp"), "C'è già un profilo con questo nome."); return; }
+  if (figlie.some((p) => p.nome.toLowerCase() === nome.toLowerCase())) { errore($("err-imp"), "C'è già un profilo con questo nome. Scegline un altro."); return; }
   $("btn-np-crea").disabled = true; attesa($("stato-imp"), ["Creo il profilo di " + nome]);
   try {
     await funzioneProfili({ azione: "crea", nome, classe, codice });
     ["np-nome", "np-classe", "np-codice"].forEach((id) => { $(id).value = ""; });
-    avviso($("err-imp"), "Profilo di " + nome + " pronto: da qualsiasi telefono tocca il nome e digita il codice.");
+    avviso($("err-imp"), "Profilo di " + nome + " creato. Da qualsiasi telefono tocca il nome e digita il codice.");
     caricaProfili();
   } catch (e) {
     console.warn("crea profilo:", e);
@@ -658,7 +661,7 @@ async function conRiprova(f) {
 }
 function messaggioModello(e, predefinito) {
   if (e instanceof Definitivo && e.message === "rate_limited") return "Troppe richieste in poco tempo. Aspetta un minuto e riprova.";
-  if (e instanceof Definitivo) return "Non riesco a parlare con il modello: rientra nel profilo e riprova.";
+  if (e instanceof Definitivo) return "Non riesco a collegarmi. Esci, rientra nel tuo profilo e riprova.";
   return predefinito;
 }
 
@@ -715,7 +718,7 @@ function base64(blob) {
 
 function disegnaMiniature() {
   const c = $("miniature"); c.innerHTML = "";
-  $("conta-foto").textContent = foto.length ? (foto.length + " foto · aggiungine quante vuoi") : "Nessuna foto ancora";
+  $("conta-foto").textContent = foto.length ? (foto.length + " foto. Aggiungine quante vuoi.") : "Ancora nessuna foto: scatta o scegli le pagine degli appunti.";
   foto.forEach((f, i) => {
     const fig = document.createElement("figure");
     const img = document.createElement("img"); img.alt = "foto " + (i + 1); img.src = URL.createObjectURL(f);
@@ -786,7 +789,7 @@ async function leggiMateriale(manuale) {
     a.trascrizione = testi.join("\n\n");
     if (!a.trascrizione.trim() || testi.every((t) => t === GRUPPO_ILLEGGIBILE)) throw new Error("vuoto");
     await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
-    passoAttesa(st, "Separo i concetti uno per uno");
+    passoAttesa(st, "Separo i punti uno per uno");
     const r = await modello({ azione: "concetti", materia, titolo, testo: a.trascrizione, pagine: pagineMateriale(foto.length, manuale) });
     if (!r.concetti.length) throw new Error("vuoto");
     const { data: ins, error: e2 } = await sb.from("concetti")
@@ -829,7 +832,7 @@ function mostraConcetti() {
     alto.appendChild(h); alto.appendChild(pesi); alto.appendChild(via); d.appendChild(alto);
     const p = document.createElement("p"); p.textContent = x.descrizione; d.appendChild(p);
     if (x.ancora) { const q = document.createElement("span"); q.className = "citazione"; q.innerHTML = evidenzia(x.ancora); d.appendChild(q); }
-    if (x.errore_appunti) { const e = document.createElement("span"); e.className = "errore-appunti"; e.textContent = "✎ " + x.errore_appunti; d.appendChild(e); }
+    if (x.errore_appunti) { const e = document.createElement("span"); e.className = "errore-appunti"; e.textContent = NOTA_QUADERNO + x.errore_appunti; d.appendChild(e); }
     c.appendChild(d);
   });
   disegnaOpzioni("opz-concetti");
@@ -847,13 +850,13 @@ async function salvaConcetti() {
 function apriScheda(a) {
   corrente = a; modo = "argomento";
   $("t-scheda").textContent = a.titolo;
-  $("meta-scheda").textContent = a.materia + " · " + a.concetti.length + " concetti · salvato il " + dataIt(a.creato) +
-    (a.ultima ? (" · ultima verifica " + a.ultima.indice + "% il " + dataIt(a.ultima.data)) : " · mai verificato");
+  $("meta-scheda").textContent = a.materia + ", " + a.concetti.length + (a.concetti.length === 1 ? " punto" : " punti") + " da sapere. Salvato il " + dataIt(a.creato) + ". " +
+    (a.ultima ? ("Ultima verifica il " + dataIt(a.ultima.data) + ", prontezza " + a.ultima.indice + "%.") : "Ancora nessuna verifica.");
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato || "mai";
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + (x.media == null ? "—" : votoIt(Math.round(x.media * 2) / 2) + "/10") + "</span></h3>" +
-      htmlStato(x.stato) + (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
+      htmlStato(x.stato) + (x.errore_appunti ? '<span class="errore-appunti">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "");
     sc.appendChild(d);
   });
   disegnaStoricoArgomento(a);
@@ -870,7 +873,7 @@ function apriScheda(a) {
 
 async function disegnaFotoScheda(a) {
   const fs = $("foto-scheda"); fs.innerHTML = "";
-  if (!a.foto.length) { fs.innerHTML = '<p class="legenda">Nessuna foto conservata per questo argomento.</p>'; return; }
+  if (!a.foto.length) { fs.innerHTML = '<p class="legenda">Qui non ci sono foto. Puoi aggiungerle quando vuoi.</p>'; return; }
   const { data } = await sb.storage.from(BUCKET).createSignedUrls(a.foto.map((f) => f.storage_path), 3600);
   a.foto.forEach((f, i) => {
     const fig = document.createElement("figure");
@@ -921,7 +924,7 @@ async function aggiungiFoto(nuove) {
     if (!testo.trim()) throw new Error("vuoto");
     a.trascrizione = ((a.trascrizione || "") + "\n\n" + testo).trim();
     await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
-    passoAttesa(st, "Cerco i concetti nuovi");
+    passoAttesa(st, "Cerco i punti nuovi");
     const r = await modello({ azione: "concetti", testo, pagine: blobs.length, esistenti: a.concetti.map((c) => c.titolo) });
     const primo = a.concetti.reduce((m, c) => Math.max(m, c.ordine + 1), 0);
     if (r.concetti.length)
@@ -929,7 +932,7 @@ async function aggiungiFoto(nuove) {
     attesa(st, null);
     await caricaLibreria();
     apriScheda(argomenti.find((x) => x.id === a.id) || a);
-    if (!r.concetti.length) avviso($("err-scheda"), "Foto aggiunte. Non ho trovato concetti nuovi: erano già tutti in elenco.");
+    if (!r.concetti.length) avviso($("err-scheda"), "Foto aggiunte. Non ho trovato punti nuovi: erano già tutti nell'elenco.");
   } catch (e) {
     attesa(st, null);
     errore($("err-scheda"), messaggioModello(e, "Non sono riuscito a leggere le nuove foto. Riprova, magari con più luce."));
@@ -940,7 +943,7 @@ async function aggiungiFoto(nuove) {
 // Se l'estrazione dei concetti si era interrotta, la si rifà dal testo già letto.
 async function ritrovaConcetti() {
   const a = corrente, st = $("stato-scheda");
-  attesa(st, ["Separo i concetti uno per uno"]);
+  attesa(st, ["Separo i punti uno per uno"]);
   try {
     const r = await modello({ azione: "concetti", materia: a.materia, titolo: a.titolo, testo: a.trascrizione, pagine: Math.max(1, a.foto.length) });
     if (!r.concetti.length) throw new Error("vuoto");
@@ -950,7 +953,7 @@ async function ritrovaConcetti() {
     await caricaLibreria();
     corrente = argomenti.find((x) => x.id === a.id) || a; concettiTolti = []; mostraConcetti();
   } catch (e) {
-    attesa(st, null); errore($("err-scheda"), messaggioModello(e, "Non sono riuscito a ritrovare i concetti. Riprova fra un momento."));
+    attesa(st, null); errore($("err-scheda"), messaggioModello(e, "Non sono riuscito a ritrovare i punti. Riprova fra un momento."));
   }
 }
 
@@ -979,9 +982,9 @@ async function svuotaMemoria() {
 /* =================================================================== opzioni della prova */
 
 const OPZIONI = [
-  ["Livello", "livello", [["semplice", "Semplice", "Definizioni, date e termini"],
+  ["Livello", "livello", [["semplice", "Semplice", "Definizioni e parole chiave"],
     ["medio", "Medio", "Come una verifica normale"],
-    ["difficile", "Difficile", "Cause, conseguenze e collegamenti"]]],
+    ["difficile", "Difficile", "Perché, collegamenti e ragionamenti"]]],
   ["Tipo di domande", "tipo", [["miste", "Miste", "Un po' a scelta multipla, un po' da spiegare"],
     ["chiuse", "Solo chiuse", "Tutte a scelta multipla"],
     ["aperte", "Solo aperte", "Tutte da spiegare con parole tue"]]],
@@ -1028,7 +1031,7 @@ function rigaSessione(x, titolo) {
   const b = document.createElement("button"); b.className = "sessione"; b.type = "button"; tinta(b, x.materia);
   b.innerHTML = '<div class="alto"><span class="tit">' + esc(titolo) + '</span><span class="v" data-s="' + fasciaVoto(x.voto) + '">' + votoIt(Number(x.voto)) + "</span></div>" +
     '<div class="meta">' + dataOraIt(x.data) + " · " + esc(x.materia) + " · " + (x.percorso === "esercizi" ? "esercizi" : (x.modalita === "orale" ? "interrogazione" : "scritta") + " · livello " + esc(x.livello)) +
-    " · prontezza " + x.indice + "%" + (x.n_errori ? " · " + x.n_errori + (x.n_errori === 1 ? " errore" : " errori") : " · nessun errore") + "</div>";
+    " · prontezza " + x.indice + "%" + (x.n_errori ? " · " + x.n_errori + " da rivedere" : " · tutte giuste") + "</div>";
   b.onclick = () => mostraSessione(x);
   return b;
 }
@@ -1041,7 +1044,7 @@ function disegnaStorico() {
     const lista = perMat[m].slice().sort((a, b) => new Date(a.data) - new Date(b.data));
     const an = andamento(lista.map((x) => Number(x.voto)));
     const d = document.createElement("div"); d.className = "andam"; tinta(d, m);
-    d.innerHTML = '<div class="testa"><b>' + esc(m) + "</b><span>" + lista.length + (lista.length === 1 ? " prova" : " prove") + " · ultima " + dataIt(lista[lista.length - 1].data) + "</span></div>" +
+    d.innerHTML = '<div class="testa"><b>' + esc(m) + "</b><span>" + lista.length + (lista.length === 1 ? " prova" : " prove") + ", l'ultima il " + dataIt(lista[lista.length - 1].data) + "</span></div>" +
       sparkline(an.voti) + '<div><div class="media">' + votoIt(an.media) + '</div><div class="frecc ' + an.verso + '">' + ({ su: "in salita", giu: "in calo", pari: "stabile" })[an.verso] + "</div></div>";
     box.appendChild(d);
   });
@@ -1110,7 +1113,7 @@ async function mostraSessione(x, daScheda) {
 // riapre da lì. "Rigenera" la richiede e sovrascrive. "Cosa studiare" è solo una
 // query sulle prove già fatte: nessuna chiamata al modello.
 
-const FRASI_MAPPA = ["Rileggo gli appunti", "Cerco i sotto-punti di ogni concetto", "Controllo che ogni nodo stia negli appunti", "Disegno la mappa"];
+const FRASI_MAPPA = ["Rileggo gli appunti", "Cerco i dettagli di ogni punto", "Controllo che ogni riquadro venga dagli appunti", "Disegno la mappa"];
 let mappa = null; // { argomento_id, albero, generata, scartati } dell'argomento aperto
 // Un lavoro del modello per argomento alla volta (issue #13): { argomento_id → "mappa" | "sintesi" | "arricchisci" }.
 // Ogni lavoro libera solo il suo argomento: due argomenti non si liberano a vicenda.
@@ -1146,7 +1149,7 @@ function mostraPannello(p) {
 }
 
 async function caricaMappa(a) {
-  if (!a.concetti.length) { avviso($("meta-mappa"), "Questo argomento non ha ancora concetti: torna all'argomento e tocca Ritrova i concetti."); $("btn-rigenera").hidden = true; return; }
+  if (!a.concetti.length) { avviso($("meta-mappa"), MSG_SENZA_PUNTI); $("btn-rigenera").hidden = true; return; }
   $("btn-rigenera").hidden = false;
   // Gli stati dalle prove arrivano in parallelo: la mappa si disegna subito e si ridisegna dopo.
   const stati = caricaStatiMappa(a).then(() => { if (stessoArgomento(corrente, a) && mappa && mappa.argomento_id === a.id) disegnaMappa(); });
@@ -1177,7 +1180,7 @@ async function generaMappa(a) {
   aggiornaBottoniMappa(); errore($("err-mappa"), "");
   const prima = mappa && mappa.argomento_id === a.id ? mappa : null;
   if (!prima) { mappa = { argomento_id: a.id, albero: alberoProvvisorio(a), scartati: 0, generata: new Date().toISOString(), provvisoria: true }; disegnaMappa(); }
-  attesa($("stato-mappa"), ["Aggiungo i sotto-punti presi dagli appunti", "Controllo che ogni nodo stia negli appunti"]);
+  attesa($("stato-mappa"), ["Aggiungo i dettagli presi dagli appunti", "Controllo che ogni riquadro venga dagli appunti"]);
   let salvata = false;
   try {
     const r = await conRiprova(() => modello({ azione: "mappa", argomento_id: a.id }));
@@ -1190,7 +1193,7 @@ async function generaMappa(a) {
     if (stessoArgomento(corrente, a)) {
       if (mappa && mappa.provvisoria) { chiudiCardNodo(false); mappa = prima; $("disegno-mappa").innerHTML = ""; $("meta-mappa").textContent = ""; if (prima) disegnaMappa(); }
       const nessuno = e.dati && e.dati.errore === "nessun_concetto";
-      errore($("err-mappa"), nessuno ? "Questo argomento non ha ancora concetti." : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
+      errore($("err-mappa"), nessuno ? MSG_SENZA_PUNTI : messaggioModello(e, "Non sono riuscito a preparare la mappa. Riprova fra un momento."));
     }
   } finally {
     finisciLavoro(a.id, "mappa");
@@ -1225,10 +1228,10 @@ function disegnaMappa() {
   disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car, stati)));
   box.dataset.larghezza = String(larghezza);
   const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
-  $("meta-mappa").textContent = n + " nodi presi dagli appunti" + (web ? " e " + web + " dal web" : "") + " · fatta il " + dataIt(mappa.generata) +
-    (mappa.scartati ? " · " + mappa.scartati + (mappa.scartati === 1 ? " nodo tolto perché" : " nodi tolti perché") + " non si ritrovava negli appunti" : "") +
-    ". Tocca un riquadro per la frase degli appunti, il riassunto e la prova su quel concetto.";
-  if (mappa.provvisoria) $("meta-mappa").textContent = "Ecco i concetti: sto aggiungendo i sotto-punti presi dagli appunti.";
+  $("meta-mappa").textContent = n + (n === 1 ? " riquadro preso" : " riquadri presi") + " dagli appunti" + (web ? " e " + web + " dal web" : "") + ", mappa fatta il " + dataIt(mappa.generata) + "." +
+    (mappa.scartati ? " Ho tolto " + mappa.scartati + (mappa.scartati === 1 ? " riquadro che negli appunti non c'era." : " riquadri che negli appunti non c'erano.") : "") +
+    " Tocca un riquadro: trovi la frase del quaderno, un riassunto e una prova veloce.";
+  if (mappa.provvisoria) $("meta-mappa").textContent = "Ecco i punti. Ora aggiungo i dettagli presi dagli appunti.";
   aggiornaBottoniMappa();
 }
 // Righe delle prove fatte su un argomento (anche dai ripassi: portano l'argomento da cui vengono).
@@ -1270,7 +1273,7 @@ function trovaNodo(nodi, id) {
 }
 async function caricaStudiare(a) {
   const lista = $("lista-studiare"); lista.innerHTML = "";
-  if (!a.concetti.length) { lista.innerHTML = '<p class="legenda">Questo argomento non ha ancora concetti.</p>'; return; }
+  if (!a.concetti.length) { lista.innerHTML = '<p class="legenda">' + MSG_SENZA_PUNTI + "</p>"; return; }
   attesa($("stato-studiare"), ["Guardo le ultime prove"]);
   let righe;
   try { righe = await righeProve(a); } catch (e) { righe = null; }
@@ -1283,7 +1286,7 @@ async function caricaStudiare(a) {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" + htmlStato(x.stato) +
       '<p><span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span></p>" +
-      (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
+      (x.errore_appunti ? '<span class="errore-appunti">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "");
     if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);
   });
@@ -1296,13 +1299,13 @@ async function caricaStudiare(a) {
 async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
   errore(elErr, ""); btn.disabled = true;
   attesa(elStato, modo === "ripasso"
-    ? ["Scelgo i concetti più deboli del quadrimestre", "Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti"]
-    : ["Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti", "Scarto quelle campate in aria"]);
-  if (!args.some((a) => a.concetti.length)) { attesa(elStato, null); btn.disabled = false; errore(elErr, "Non ci sono concetti su cui interrogarti."); return; }
+    ? ["Scelgo i punti più deboli del quadrimestre", "Preparo le domande", "Controllo che ogni domanda nasca dai tuoi appunti"]
+    : ["Preparo le domande", "Controllo che ogni domanda nasca dai tuoi appunti", "Scarto quelle campate in aria"]);
+  if (!args.some((a) => a.concetti.length)) { attesa(elStato, null); btn.disabled = false; errore(elErr, "Non ci sono punti su cui farti domande. Aggiungi foto o appunti all'argomento."); return; }
   ({ titolo: titoloProva, materia: materiaProva } = titoloEMateria(args, modo === "ripasso"));
   const lampo = extra.concetto || null, solo = lampo ? [lampo] : (extra.concetti || null);
-  if (lampo) titoloProva += " · " + lampo.titolo;
-  else if (solo) titoloProva += " · ripasso dei rossi";
+  if (lampo) titoloProva += ": " + lampo.titolo;
+  else if (solo) titoloProva += ": i punti da ripassare";
   try {
     const r = await modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso: modo === "ripasso" && !solo, livello, tipo, modalita,
       ...(solo ? { concetti: solo.map((c) => c.id) } : {}) });
@@ -1319,7 +1322,7 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
   } catch (e) {
     attesa(elStato, null); btn.disabled = false;
     errore(elErr, e.message === "nessuna_ancorata"
-      ? "Tutte le domande parlavano di cose che negli appunti non ci sono, quindi le ho scartate. Il materiale è probabilmente troppo scarno: aggiungi una foto."
+      ? "Le domande parlavano di cose che negli appunti non ci sono, quindi le ho tolte tutte. Gli appunti sono pochi: aggiungi una foto o qualche riga."
       : messaggioModello(e, "Non sono riuscito a preparare la verifica. Riprova fra un momento."));
   }
 }
@@ -1329,8 +1332,8 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
 function mostraDomanda() {
   const d = domande[idx];
   if (d.tipo === "chiusa" && !d._ord) d._ord = mescola(d.opzioni.length); // ogni prova arriva con domande nuove: opzioni mescolate a ogni tentativo
-  $("q-conta").textContent = "DOMANDA " + (idx + 1) + " DI " + domande.length;
-  $("q-tipo").textContent = (modalita === "orale" ? "ti chiede · " : "") + (d.tipo === "aperta" ? "risposta aperta" : "scelta multipla");
+  $("q-conta").textContent = "Domanda " + (idx + 1) + " di " + domande.length;
+  $("q-tipo").textContent = (modalita === "orale" ? "a voce, " : "") + (d.tipo === "aperta" ? "risposta aperta" : "scelta multipla");
   $("q-prog").style.width = Math.round(idx / domande.length * 100) + "%";
   const da = $("q-da");
   if (modo === "ripasso") { da.hidden = false; da.textContent = "da: " + d.argomento_titolo; tinta(document.documentElement, d.materia); }
@@ -1516,7 +1519,7 @@ async function domandaAVoce() {
 // comincia con un tocco su Comincia, poi va avanti da sola.
 function prontaOrale() {
   $("btn-pausa").hidden = false; $("btn-pausa").textContent = "Comincia l'interrogazione";
-  statoVoce("", "Pronta?", Riconoscimento ? "Tocca Comincia: da lì ti leggo le domande e ascolto le risposte." : "Ti leggo le domande; rispondi con il microfono della tastiera o scrivendo.");
+  statoVoce("", "Si comincia?", Riconoscimento ? "Tocca Comincia: da lì ti leggo le domande e ascolto le risposte." : "Ti leggo le domande; rispondi con il microfono della tastiera o scrivendo.");
 }
 function sbloccaVoce() {
   if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
@@ -1562,7 +1565,7 @@ async function avviaOrale() {
 async function correggi() {
   fermaVoce();
   $("btn-avanti").disabled = true; $("btn-nonso").disabled = true;
-  attesa($("stato-ver"), ["Correggo le risposte", "Valuto completezza, correttezza e linguaggio", "Salvo la prova nello storico"]);
+  attesa($("stato-ver"), ["Correggo le risposte", "Guardo se hai detto tutto, se è giusto e come l'hai detto", "Salvo la prova nello storico"]);
   const pacchetto = domande.filter((d) => d.tipo === "aperta" && (risposte[d.id] || {}).testo)
     .map((d) => ({ id: d.id, domanda: d.testo, risposta_attesa: d.risposta_attesa, elementi: d.elementi || [], risposta_alunna: risposte[d.id].testo }));
   let val = [];
@@ -1578,12 +1581,12 @@ async function correggi() {
     const r = risposte[d.id] || {};
     if (d.tipo === "chiusa") {
       const ok = r.scelta != null && r.scelta === d.corretta;
-      per[d.id] = { punti: ok ? 10 : 0, commento: ok ? "Giusta." : "La risposta corretta era: " + (d.opzioni[d.corretta] || "—") };
+      per[d.id] = { punti: ok ? 10 : 0, commento: ok ? "Giusta." : "La risposta giusta era: " + (d.opzioni[d.corretta] || "—") };
     } else if (!r.testo) per[d.id] = { punti: 0, commento: "Non hai risposto." };
     else {
       const v = val.find((x) => x.id === d.id);
       const tot = v ? Math.min(10, Math.max(0, +v.totale || ((+v.completezza || 0) + (+v.correttezza || 0) + (+v.linguaggio || 0)))) : 5;
-      per[d.id] = { punti: tot, commento: v ? v.commento : "Non sono riuscito a valutare questa risposta.",
+      per[d.id] = { punti: tot, commento: v ? v.commento : "Non sono riuscito a correggere questa risposta. Confrontala tu con quello che ci voleva.",
         rubrica: v ? { completezza: v.completezza, correttezza: v.correttezza, linguaggio: v.linguaggio } : null };
     }
   });
@@ -1603,11 +1606,15 @@ function disegnaQuadrante(indice, v) {
 // Frase dell'esito: dice com'è andata e da dove ripartire, senza giudicare.
 function verdettoEsito(es) {
   const rossi = (es.concetti || []).filter((c) => c.stato === "rosso").length;
-  if (es.pronta && !rossi) return ["Sei pronta!", "Un ripasso veloce sui punti gialli e sei a posto."];
+  const gialli = (es.concetti || []).filter((c) => c.stato === "giallo").length;
+  if (es.pronta && !rossi) return ["Tutto a posto per la verifica.", gialli
+    ? "Ripassa veloce " + (gialli === 1 ? "il punto segnato Quasi." : "i " + gialli + " punti segnati Quasi.")
+    : "Hai saputo tutti i punti di questa prova."];
   if (es.rossiPesanti) return ["Non ancora, ma sai da dove ripartire.",
-    (es.rossiPesanti === 1 ? "C'è un concetto importante" : "Ci sono " + es.rossiPesanti + " concetti importanti") + " da riprendere: comincia dal primo qui sotto."];
-  if (rossi) return ["Ci siamo quasi!", "Riprendi i punti con la ✕ qui sotto, poi rifai la verifica: manca poco."];
-  return ["Ci siamo quasi!", "Rileggi i punti gialli e rifai la verifica: manca poco."];
+    (es.rossiPesanti === 1 ? "C'è un punto importante" : "Ci sono " + es.rossiPesanti + " punti importanti") + " da riprendere. Comincia dal primo qui sotto."];
+  if (rossi) return ["Non ancora, ma sai da dove ripartire.",
+    (rossi === 1 ? "Riprendi il punto segnato Da ripassare" : "Riprendi i " + rossi + " punti segnati Da ripassare") + " qui sotto, poi rifai la verifica."];
+  return ["Ci sei quasi.", "Rileggi i punti segnati Quasi e rifai la verifica."];
 }
 // righe: [{ titolo, media, stato, ancora, errore_appunti?, da?, concetto_id?, materia? }], dal più debole
 function disegnaSemaforo(righe) {
@@ -1622,7 +1629,7 @@ function disegnaSemaforo(righe) {
     // Evidenziata solo la frase vera del quaderno: la descrizione del modello resta testo normale.
     else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + (x.ancora ? '<span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span>" : esc(x.descrizione || ""));
     d.appendChild(p);
-    if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = "✎ " + x.errore_appunti; d.appendChild(s); }
+    if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = NOTA_QUADERNO + x.errore_appunti; d.appendChild(s); }
     if (x.concetto_id && x.stato !== "verde")
       d.appendChild(bottoneSpiega({ concetto_id: x.concetto_id, titolo: x.titolo, ancora: x.ancora, materia: x.materia }));
     e.appendChild(d);
@@ -1632,14 +1639,14 @@ function disegnaSemaforo(righe) {
 function disegnaDettaglio() {
   const det = $("dettaglio"); det.innerHTML = "";
   const lista = soloErrori ? dettaglio.filter((x) => x.punti < 8) : dettaglio;
-  $("btn-solo-errori").textContent = soloErrori ? "Mostra tutte le domande" : "Mostra solo quelle sbagliate";
+  $("btn-solo-errori").textContent = soloErrori ? "Mostra tutte le domande" : "Mostra solo quelle da rivedere";
   const sbagliate = dettaglio.filter((x) => x.punti < 8).length;
   $("btn-solo-errori").hidden = !sbagliate || sbagliate === dettaglio.length;
-  if (!lista.length) { det.innerHTML = '<p class="legenda" style="padding:14px 0">Nessun errore: sono andate tutte bene.</p>'; return; }
+  if (!lista.length) { det.innerHTML = '<p class="legenda" style="padding:14px 0">Nessuna domanda da rivedere: le hai fatte tutte bene.</p>'; return; }
   lista.forEach((x) => {
     const st = x.punti >= 8 ? "verde" : (x.punti >= 5 ? "giallo" : "rosso");
     const w = document.createElement("div"); w.className = "rispo"; w.dataset.s = st;
-    let h = '<div class="cap">DOMANDA ' + x.n + " · " + votoIt(x.punti) + "/10" + (x.concetto ? " · " + esc(x.concetto) : "") + "</div>" +
+    let h = '<div class="cap">Domanda ' + x.n + " · " + votoIt(x.punti) + "/10" + (x.concetto ? " · " + esc(x.concetto) : "") + "</div>" +
       (x.guidata ? '<span class="guidata">risposta con un aiuto</span>' : "") +
       '<p class="dom">' + esc(x.testo) + "</p>" +
       "<p><b>Hai risposto:</b> " + esc(x.mia) + "</p>";
@@ -1662,7 +1669,7 @@ async function mostraEsito(per) {
   $("voto-num").textContent = "prontezza " + es.indice + "% · livello " + livello + " · " + (modalita === "orale" ? "interrogazione" : "verifica scritta") + " · " + dataOraIt(new Date().toISOString());
   [$("verdetto-t").textContent, $("verdetto-p").textContent] = verdettoEsito(es);
   const rs = $("riga-scartate");
-  if (scartate) { rs.hidden = false; rs.textContent = "Ho scartato " + scartate + (scartate === 1 ? " domanda perché non era ancorata" : " domande perché non erano ancorate") + " agli appunti."; }
+  if (scartate) { rs.hidden = false; rs.textContent = "Ho tolto " + scartate + (scartate === 1 ? " domanda perché parlava" : " domande perché parlavano") + " di cose che non sono nei tuoi appunti."; }
   else rs.hidden = true;
 
   const concettoDi = {}; argsProva.forEach((a) => a.concetti.forEach((c) => { concettoDi[c.id] = { c, a }; }));
@@ -1737,7 +1744,7 @@ async function salvaProva(es, per) {
 function argomentiDelRipasso() {
   const m = document.querySelector('input[name="mat-rip"]:checked').value;
   const scelti = argomenti.filter((a) => (!m || a.materia === m) && !conEsercizi(a)); // gli esercizi non hanno domande di teoria
-  if (!scelti.length) { errore($("err-rip"), "Nessun argomento per questa materia."); return null; }
+  if (!scelti.length) { errore($("err-rip"), "Per questa materia non ci sono argomenti. Scegli un'altra materia."); return null; }
   return scelti;
 }
 
@@ -1756,7 +1763,7 @@ function collega() {
   $("btn-gen-esci").addEventListener("click", genEsci);
   $("btn-np-crea").addEventListener("click", creaProfilo);
   $("btn-storico").addEventListener("click", () => {
-    if (!sessioni.length) { avviso($("avviso-db"), "Nessuna prova ancora. Lo storico si riempie da solo dalla prima verifica."); return; }
+    if (!sessioni.length) { avviso($("avviso-db"), "Lo storico è vuoto. Fai la prima verifica e qui trovi com'è andata."); return; }
     filtroMat = ""; disegnaStorico(); vai("storico");
   });
   $("btn-torna-lib").addEventListener("click", () => { disegnaLibreria(); vai("libreria"); });
@@ -1788,7 +1795,7 @@ function collega() {
   $("btn-salva-basta").addEventListener("click", async () => { await salvaConcetti(); await caricaLibreria(); vai("libreria"); });
   $("btn-genera").addEventListener("click", async () => {
     errore($("err-con"), "");
-    if (!corrente.concetti.length) { errore($("err-con"), "Non è rimasto nessun concetto."); return; }
+    if (!corrente.concetti.length) { errore($("err-con"), "Hai tolto tutti i punti. Per fare la verifica ne serve almeno uno."); return; }
     await salvaConcetti(); modo = "argomento";
     preparaVerifica([corrente], $("btn-genera"), $("stato-con"), $("err-con"));
   });
@@ -1825,7 +1832,7 @@ function collega() {
   $("btn-svuota").addEventListener("click", function () { doppioTocco(this, "Tocca di nuovo: cancello tutto, foto e prove comprese", svuotaMemoria); });
 
   $("btn-ripasso").addEventListener("click", () => {
-    if (!argomenti.length) { avviso($("avviso-db"), "Prima serve almeno un argomento in libreria."); return; }
+    if (!argomenti.length) { avviso($("avviso-db"), "Per il ripasso serve almeno un argomento. Fotografa i tuoi appunti per cominciare."); return; }
     const box = $("scelta-materia"); box.innerHTML = "";
     const materie = [...new Set(argomenti.map((a) => a.materia))];
     [["", "Tutte le materie", argomenti.length + " argomenti"]].concat(materie.map((m) => [m, m, argomenti.filter((a) => a.materia === m).length + " argomenti"]))
@@ -1855,7 +1862,7 @@ function collega() {
   });
   $("btn-ripeti").addEventListener("click", () => { fermaVoce(); avviaOrale(); });
   $("btn-pausa").addEventListener("click", () => {
-    if (voceAttiva) { fermaVoce(); $("btn-pausa").hidden = false; $("btn-ripeti").hidden = false; $("btn-pausa").textContent = "Riprendi"; statoVoce("", "In pausa", "tocca Riprendi quando sei pronta"); }
+    if (voceAttiva) { fermaVoce(); $("btn-pausa").hidden = false; $("btn-ripeti").hidden = false; $("btn-pausa").textContent = "Riprendi"; statoVoce("", "In pausa", "tocca Riprendi quando vuoi"); }
     else avviaOrale();
   });
   $("btn-solo-errori").addEventListener("click", () => { soloErrori = !soloErrori; disegnaDettaglio(); });
@@ -1868,7 +1875,7 @@ function collega() {
 async function avvia() {
   collega();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  if (!window.supabase) { errore($("err-profili"), "Serve la connessione a internet per aprire i tuoi argomenti."); vai("profili"); return; }
+  if (!window.supabase) { errore($("err-profili"), "Non riesco a collegarmi. Controlla la connessione e riapri l'app."); vai("profili"); return; }
   // Si parte sempre dai nomi: tocco il nome, digito il codice, entro.
   vai("profili"); caricaProfili();
 }

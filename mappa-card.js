@@ -7,7 +7,7 @@
 
 const MSG_SINTESI_ATTESA = "Sto preparando il riassunto…";
 const MSG_SINTESI_VECCHIA = "Il riassunto non c'è ancora: riapri la mappa fra poco.";
-const MSG_SINTESI_VUOTA = "Per questo concetto non ho un riassunto sicuro: leggi la frase degli appunti.";
+const MSG_SINTESI_VUOTA = "Su questo punto non ho un riassunto affidabile: leggi la frase dei tuoi appunti qui sopra.";
 
 // "ok" con il testo, "vuota" se la sintesi non reggeva, "attesa" se la si sta preparando
 // (issue #13: arriva dopo la mappa), "vecchia" se non c'è e nessuno la sta preparando.
@@ -29,11 +29,11 @@ function htmlCardNodo(n, ctx) {
   const sotto = c.id !== n.id;
   const s = sintesiDelConcetto(c, !!ctx.sintesiInArrivo);
   return testa(htmlStato(ctx.stato)) +
-    '<p class="occhiello">Dagli appunti</p><blockquote class="quaderno">' + evidenzia(n.ancora) + "</blockquote>" +
+    '<p class="occhiello">Dai tuoi appunti</p><blockquote class="quaderno">' + evidenzia(n.ancora) + "</blockquote>" +
     (ctx.errore ? '<p class="avviso-appunti" role="note"><span aria-hidden="true">✎</span> ' + esc(ctx.errore) + "</p>" : "") +
-    '<p class="occhiello">In breve' + (sotto ? " · " + esc(c.titolo) : "") + "</p>" +
+    '<p class="occhiello">In breve' + (sotto ? ", su «" + esc(c.titolo) + "»" : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +
-    (ctx.senzaConcetto ? '<p class="legenda">Questo concetto non c\'è più nell\'argomento: rigenera la mappa.</p>'
+    (ctx.senzaConcetto ? '<p class="legenda">Questo punto non c\'è più nell\'argomento: tocca Rigenera per rifare la mappa.</p>'
       : '<div class="bottoni card-azioni">' +
         '<button type="button" class="azione" data-azione="prova">Mettiti alla prova' + (sotto ? " su «" + esc(c.titolo) + "»" : "") + "</button>" +
         '<button type="button" class="minore" data-azione="spiega">Spiegamelo meglio</button></div>');

@@ -15,7 +15,7 @@ const conEsercizi = (a) => !!a && a.percorso === PERCORSO_ESERCIZI;
 
 // "3 concetti" o "2 tipi di esercizio", per le schede della libreria.
 function contaVoci(a) {
-  if (!conEsercizi(a)) return a.concetti.length + " concetti";
+  if (!conEsercizi(a)) return a.concetti.length + (a.concetti.length === 1 ? " punto da studiare" : " punti da studiare");
   const n = (a.tipi || []).length;
   return n + (n === 1 ? " tipo di esercizio" : " tipi di esercizio");
 }
@@ -37,7 +37,7 @@ function htmlEsercizio(e, i) {
   const passaggi = (e.passaggi || []).map((p) =>
     "<li>" + esc(p.testo) + (p.formula ? '<span class="riga-formula">' + formulaHtml(p.formula) + "</span>" : "") + "</li>").join("");
   return '<article class="esercizio">' +
-    '<p class="occhiello">Esercizio ' + (i + 1) + " · " + esc(e.tipo) + "</p>" +
+    '<p class="occhiello">Esercizio ' + (i + 1) + ": " + esc(e.tipo) + "</p>" +
     '<p class="consegna">' + esc(e.testo) + "</p>" +
     (e.dati ? '<p class="dati-es">Dati: ' + esc(e.dati) + "</p>" : "") +
     (e.figura ? '<div class="figura-es">' + svgFigura(e.figura) + "</div>" : "") +
@@ -49,8 +49,8 @@ function htmlEsercizio(e, i) {
 // Quanti esercizi il controllo dei conti ha tolto, detto in breve.
 function notaScartatiEsercizi(n) {
   if (!n) return "";
-  return n === 1 ? "1 esercizio l'ho tolto perché il risultato non tornava al ricalcolo."
-    : n + " esercizi li ho tolti perché il risultato non tornava al ricalcolo.";
+  return n === 1 ? "Ho tolto 1 esercizio: rifacendo i conti, il risultato non tornava."
+    : "Ho tolto " + n + " esercizi: rifacendo i conti, il risultato non tornava.";
 }
 
 /* =================================================================== scelta Teoria / Esercizi */
@@ -146,7 +146,7 @@ function rigaTipo(t, i) {
   c.onchange = () => { tipiScelti = tipiScelti.map((v, j) => (j === i ? c.checked : v)); };
   const corpo = document.createElement("span");
   corpo.innerHTML = "<b>" + esc(t.titolo) + "</b>" +
-    '<small>difficoltà <span aria-label="' + t.difficolta + ' su 3">' + pallini(t.difficolta) + "</span>" + (t.figura ? " · con figura" : "") + "</small>" +
+    '<small>difficoltà <span aria-label="' + t.difficolta + ' su 3">' + pallini(t.difficolta) + "</span>" + (t.figura ? ", con figura" : "") + "</small>" +
     '<span class="citazione">' + evidenzia(t.ancora) + "</span>";
   l.appendChild(c); l.appendChild(corpo);
   return l;
@@ -164,7 +164,7 @@ function mostraTipi(a, r) {
     avviso($("err-tipi"), (a.tipi || []).length ? "Non ho trovato tipi di esercizio nuovi: erano già tutti in elenco."
       : "Non ho riconosciuto esercizi in queste foto. Le foto restano nell'argomento: prova ad aggiungerne di più nitide.");
   $("nota-scartati-tipi").textContent = r.scartati
-    ? r.scartati + (r.scartati === 1 ? " tipo l'ho tolto" : " tipi li ho tolti") + " perché il suo esercizio non si ritrova nelle foto." : "";
+    ? (r.scartati === 1 ? "Ho tolto 1 tipo: il suo esercizio non c'è nelle foto." : "Ho tolto " + r.scartati + " tipi: i loro esercizi non ci sono nelle foto.") : "";
   $("btn-conferma-tipi").hidden = !tipiProposti.length;
   vai("tipi", a.materia);
 }
@@ -193,7 +193,7 @@ function adattaSchedaEsercizi(a) {
   $("btn-esercizi").hidden = !es || !(a.tipi || []).length;
   if (!es) return;
   BOTTONI_TEORIA.forEach((id) => { $(id).hidden = true; });
-  $("meta-scheda").textContent = a.materia + " · esercizi · " + contaVoci(a) + " · salvato il " + dataIt(a.creato);
+  $("meta-scheda").textContent = a.materia + ", esercizi, " + contaVoci(a) + ", salvato il " + dataIt(a.creato);
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   (a.tipi || []).forEach((t) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = t.stato || "mai";

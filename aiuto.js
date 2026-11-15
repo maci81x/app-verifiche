@@ -79,7 +79,7 @@ async function generaSpiegazione() {
   attesa($("stato-spiega"), FRASI_SPIEGA);
   try {
     const s = await conRiprova(() => modello({ azione: "spiega", concetto_id: c.concetto_id, ...(c.errore ? { errore: c.errore } : {}) }));
-    // Salvata anche se intanto ha cambiato pagina: la prossima volta è già pronta. Senza fonti
+    // Salvata anche se intanto ha cambiato pagina: la prossima volta la trova già. Senza fonti
     // non si salva, così un nuovo tentativo può trovarne.
     const { error } = (s.fonti || []).length
       ? await sb.from("spiegazioni").upsert(
@@ -87,7 +87,7 @@ async function generaSpiegazione() {
       : { error: null };
     if (mia !== richiestaSpiega) return;
     $("corpo-spiega").innerHTML = htmlSpiegazione(s);
-    if (error) avviso($("err-spiega"), "Non sono riuscito a salvarla: la vedi adesso, ma la prossima volta va richiesta di nuovo.");
+    if (error) avviso($("err-spiega"), "La spiegazione non si è salvata: la vedi adesso, ma la prossima volta va chiesta di nuovo.");
   } catch (e) {
     if (mia !== richiestaSpiega) return;
     errore($("err-spiega"), messaggioWeb(e, "Non sono riuscito a preparare la spiegazione. Riprova fra un momento."));
@@ -133,7 +133,7 @@ async function arricchisciDalWeb() {
     mappa = { ...mappa, albero: r.albero };
     disegnaMappa();
     if (error) avviso($("err-mappa"), "Non sono riuscito a salvare i nodi nuovi: li vedi adesso, ma la prossima volta vanno cercati di nuovo.");
-    else avviso($("err-mappa"), "Ho aggiunto " + r.aggiunti + (r.aggiunti === 1 ? " nodo" : " nodi") + " dal web: li riconosci dall'etichetta. Tocca per leggere e aprire la fonte.");
+    else avviso($("err-mappa"), "Ho aggiunto " + r.aggiunti + (r.aggiunti === 1 ? " nodo" : " nodi") + " dal web: li riconosci dalla scritta «dal web». Toccali per leggerli e aprire la fonte.");
   } catch (e) {
     if (stessoArgomento(corrente, a)) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
       ? "Prima serve la mappa: tocca Rigenera."

@@ -130,7 +130,7 @@ test("Codice: codice sbagliato → messaggio, nessuna sessione", async () => {
   await a.run("caricaProfili()");
   a.el("scelta-profilo").children[0].onclick();
   await digita(a, "0000");
-  assert.equal(a.el("cod-msg").textContent, "Codice sbagliato.");
+  assert.equal(a.el("cod-msg").textContent, "Non è il codice giusto. Riprova.");
   assert.equal(a.el("tastierino").getAttribute("aria-disabled"), "false");
   assert.equal(a.sessioni.length, 0);
   a.run("clearInterval(timerBlocco)");

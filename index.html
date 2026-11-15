@@ -6,16 +6,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Verifiche">
-<meta name="theme-color" content="#FCFCFA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#111317" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-title" content="10+">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15151A" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
-<title>Pronta per la verifica</title>
+<title>10+</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 <div class="wrap">
@@ -33,9 +34,9 @@
 <!-- ============ PROFILI ============ -->
 <section id="v-profili" hidden>
   <header>
-    <div class="quadretti" aria-hidden="true"></div>
+    <span class="logo" role="img" aria-label="10+">10<span class="logo-piu" aria-hidden="true">+</span></span>
     <h1>Chi studia<br>adesso?</h1>
-    <p class="sotto">Ognuna ha i suoi argomenti, le sue foto e il suo storico. Nessuna vede quelli dell'altra.</p>
+    <p class="sotto">Ogni profilo ha i suoi argomenti, le sue foto e i suoi risultati. Nessuno vede quelli degli altri.</p>
   </header>
   <div class="nomi" id="scelta-profilo"></div>
   <div id="err-profili"></div>
@@ -47,7 +48,7 @@
   <div class="codice">
     <span class="iniziale grande" id="cod-iniziale"></span>
     <h2 id="cod-nome"></h2>
-    <p class="aiuto" id="cod-aiuto">Il tuo codice</p>
+    <p class="aiuto" id="cod-aiuto">Scrivi il tuo codice</p>
     <div class="pallini" id="cod-pallini" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <p class="cod-msg" id="cod-msg" aria-live="assertive"></p>
     <div class="tastierino" id="tastierino" role="group" aria-label="Tastierino numerico">
@@ -72,7 +73,7 @@
   </div>
   <div id="imp-pannello" hidden>
     <p class="occhiello">Profili</p>
-    <p class="aiuto">Ognuna entra da qualsiasi telefono toccando il suo nome e digitando il codice.</p>
+    <p class="aiuto">Da qualsiasi telefono si entra toccando il proprio nome e scrivendo il codice.</p>
     <div id="imp-profili"></div>
     <p class="occhiello">Nuovo profilo</p>
     <div class="riga-campi">
@@ -92,31 +93,31 @@
 <!-- ============ LIBRERIA ============ -->
 <section id="v-libreria" hidden>
   <header>
-    <div class="quadretti" aria-hidden="true"></div>
-    <h1>Cosa ripassiamo<br>oggi?</h1>
-    <p class="sotto">Ti interrogo su quello che c'è scritto nei tuoi appunti, e tengo tutto da parte per i ripassi.</p>
+    <span class="logo" role="img" aria-label="10+">10<span class="logo-piu" aria-hidden="true">+</span></span>
+    <h1>Cosa ripassi<br>oggi?</h1>
+    <p class="sotto">Ti faccio domande solo su quello che c'è nei tuoi appunti. Tengo tutto da parte per quando ripassi.</p>
     <div class="profili" id="profili" role="group" aria-label="Profilo"></div>
   </header>
   <div class="sommario" id="sommario"></div>
   <section class="primo" id="da-ripassare" aria-label="Da ripassare prima" hidden></section>
   <div class="bottoni">
     <button class="minore" id="btn-ripasso">Ripasso del quadrimestre</button>
-    <button class="minore" id="btn-storico">Storico e andamento</button>
+    <button class="minore" id="btn-storico">I tuoi risultati</button>
   </div>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
   <div id="stato-lib"></div>
   <div class="bottoni">
-    <button class="minore pericolo" id="btn-svuota" hidden>Svuota tutta la memoria</button>
+    <button class="minore pericolo" id="btn-svuota" hidden>Cancella tutti gli argomenti</button>
   </div>
-  <div class="barra-fissa"><button class="azione" id="btn-nuovo"><span aria-hidden="true">📷</span> Fotografa gli appunti</button></div>
+  <div class="barra-fissa"><button class="azione" id="btn-nuovo">Fotografa gli appunti</button></div>
 </section>
 
 <!-- ============ NUOVO MATERIALE ============ -->
 <section id="v-materiale" hidden>
-  <h2>Il materiale di studio</h2>
-  <p class="aiuto">Fotografa tutte le pagine che servono: quaderno, libro, lavagna. Non c'è un limite, le leggo a gruppi.</p>
+  <h2>Fotografa gli appunti</h2>
+  <p class="aiuto">Fotografa tutte le pagine che ti servono: quaderno, libro, lavagna. Non c'è un limite.</p>
   <label class="scatto" for="foto">
     <span class="ico" aria-hidden="true">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>
@@ -137,29 +138,29 @@
     <div><label class="etichetta" for="materia">Materia *</label><input type="text" id="materia" placeholder="storia, geografia, scienze" autocomplete="off" list="elenco-materie"><datalist id="elenco-materie"></datalist></div>
     <div><label class="etichetta" for="argomento">Argomento *</label><input type="text" id="argomento" placeholder="la peste del Trecento" autocomplete="off"></div>
   </div>
-  <p class="legenda">Servono per ritrovare l'argomento in libreria e per cercarlo fra mesi: non li salto.</p>
+  <p class="legenda">Servono per ritrovare l'argomento anche fra qualche mese.</p>
   <div id="scelta-percorso" hidden>
     <p class="occhiello">Cosa hai fotografato?</p>
     <div class="livelli">
-      <label><input type="radio" name="percorso" value="teoria" checked><b>Teoria</b><small>Definizioni, regole, formule: ti interrogo come nelle altre materie</small></label>
+      <label><input type="radio" name="percorso" value="teoria" checked><b>Teoria</b><small>Definizioni, regole, formule: ti faccio domande come nelle altre materie</small></label>
       <label><input type="radio" name="percorso" value="esercizi"><b>Esercizi</b><small>Riconosco i tipi di esercizio e te ne preparo di simili</small></label>
     </div>
   </div>
-  <div class="bottoni"><button class="azione" id="btn-analizza">Leggi il materiale</button></div>
+  <div class="bottoni"><button class="azione" id="btn-analizza">Leggi gli appunti</button></div>
   <div id="err-mat"></div>
   <div id="stato-mat"></div>
 </section>
 
 <!-- ============ CONCETTI ============ -->
 <section id="v-concetti" hidden>
-  <h2 id="t-concetti">I concetti da sapere</h2>
+  <h2 id="t-concetti">I punti da sapere</h2>
   <p class="aiuto">Togli quelli che non c'entrano e alza il peso di quelli su cui la prof ha insistito. Il materiale è già salvato in libreria.</p>
   <div id="lista-concetti"></div>
-  <p class="legenda">I pallini sono il peso del concetto: contano nel calcolo di quanto sei pronta.</p>
+  <p class="legenda">Più pallini ha un punto, più conta nel voto.</p>
   <div id="opz-concetti"></div>
   <div class="bottoni">
     <button class="azione" id="btn-genera">Preparami la verifica</button>
-    <button class="minore" id="btn-salva-basta">Salva e basta</button>
+    <button class="minore" id="btn-salva-basta">Salva e fai dopo</button>
   </div>
   <div id="err-con"></div>
   <div id="stato-con"></div>
@@ -196,7 +197,7 @@
   <div id="lista-es"></div>
   <p class="legenda" id="nota-scartati-es"></p>
   <div class="bottoni">
-    <button class="azione" id="btn-correggi-es" hidden>Ho finito: correggi</button>
+    <button class="azione" id="btn-correggi-es" hidden>Correggi</button>
     <button class="azione" id="btn-salva-es" hidden>Riprova a salvare</button>
     <button class="minore" id="btn-stampa-es" hidden>Stampa la scheda</button>
     <button class="minore" id="btn-stampa-esito-es" hidden>Stampa l'esito</button>
@@ -230,7 +231,7 @@
     <button class="minore" id="btn-studiare">Cosa studiare</button>
     <button class="minore" id="btn-stampa-verifica">Verifica da stampare</button>
     <button class="minore" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
-    <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i concetti</button>
+    <button class="minore" id="btn-rileggi-concetti" hidden>Ritrova i punti</button>
     <button class="minore" id="btn-ritrova-tipi" hidden>Ritrova i tipi di esercizio</button>
     <button class="minore pericolo" id="btn-elimina">Elimina argomento</button>
   </div>
@@ -247,19 +248,19 @@
   </div>
   <div id="pannello-mappa" role="tabpanel" aria-labelledby="tab-mappa">
     <p class="aiuto" id="meta-mappa"></p>
-    <p class="legenda-sem"><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span><span class="sem" data-s="giallo"><i aria-hidden="true">▲</i> Quasi</span><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span><span class="sem" data-s="mai"><i aria-hidden="true">○</i> Mai provato</span></p>
+    <p class="legenda-sem"><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span><span class="sem" data-s="giallo"><i aria-hidden="true">▲</i> Quasi</span><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span><span class="sem" data-s="mai"><i aria-hidden="true">○</i> Ancora da provare</span></p>
     <div id="disegno-mappa"></div>
     <div class="bottoni">
-      <button class="minore" id="btn-rigenera">Rigenera</button>
+      <button class="minore" id="btn-rigenera">Rifai la mappa</button>
       <button class="minore" id="btn-arricchisci" disabled>Arricchisci dal web</button>
-      <button class="minore" id="btn-stampa" disabled>Stampa / Salva PDF</button>
+      <button class="minore" id="btn-stampa" disabled>Stampa o salva PDF</button>
     </div>
   </div>
   <div id="pannello-studiare" role="tabpanel" aria-labelledby="tab-studiare" hidden>
-    <p class="aiuto">In cima i concetti andati male nell'ultima prova. Rileggi la frase degli appunti, poi rifai la verifica.</p>
+    <p class="aiuto">In cima i punti andati peggio nell'ultima prova. Rileggi la frase evidenziata, poi rifai la verifica.</p>
     <div id="lista-studiare"></div>
     <div id="stato-studiare"></div>
-    <div class="bottoni"><button class="minore" id="btn-stampa-studiare">Stampa / Salva PDF</button></div>
+    <div class="bottoni"><button class="minore" id="btn-stampa-studiare">Stampa o salva PDF</button></div>
   </div>
   <div class="bottoni"><button class="minore" id="btn-torna-scheda">Torna all'argomento</button></div>
   <div id="err-mappa"></div>
@@ -274,7 +275,7 @@
 <!-- ============ RIPASSO QUADRIMESTRE ============ -->
 <section id="v-ripasso" hidden>
   <h2>Ripasso del quadrimestre</h2>
-  <p class="aiuto">Pesco dai concetti più deboli di tutti gli argomenti salvati, dando la precedenza ai rossi e a quelli che pesano di più.</p>
+  <p class="aiuto">Prendo i punti più deboli di tutti gli argomenti salvati. Prima quelli da ripassare e quelli che contano di più.</p>
   <p class="occhiello">Materia</p>
   <div class="livelli" id="scelta-materia"></div>
   <div id="opz-ripasso"></div>
@@ -286,7 +287,7 @@
 
 <!-- ============ STORICO ============ -->
 <section id="v-storico" hidden>
-  <h2>Storico e andamento</h2>
+  <h2>I tuoi risultati</h2>
   <p class="aiuto">Tutte le prove fatte, dalla più recente. Tocca una riga per rivedere le domande e gli errori di quel giorno.</p>
   <div id="andamento"></div>
   <p class="occhiello">Filtra per materia</p>
@@ -328,7 +329,7 @@
       <circle cx="52" cy="52" r="44" fill="none" stroke="var(--bordo)" stroke-width="9"></circle>
       <circle id="arco" cx="52" cy="52" r="44" fill="none" stroke="var(--tinta)" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 999" transform="rotate(-90 52 52)"></circle>
       <text id="arco-num" class="num" x="52" y="49" text-anchor="middle" dominant-baseline="middle">—</text>
-      <text class="lab" x="52" y="70" text-anchor="middle">VOTO</text>
+      <text class="lab" x="52" y="70" text-anchor="middle">voto</text>
     </svg>
     <div class="testo"><b id="verdetto-t"></b><p id="verdetto-p"></p>
       <p class="voto-stima"><span id="voto-num"></span></p></div>
@@ -336,14 +337,14 @@
   <p class="occhiello" id="occhiello-concetti">Cosa studiare, in quest'ordine</p>
   <div id="esito-concetti"></div>
   <details class="risposte" id="box-risposte"><summary>Rivedi le risposte una per una</summary>
-    <div class="bottoni" style="margin:0 0 6px"><button class="minore" id="btn-solo-errori">Mostra solo quelle sbagliate</button></div>
+    <div class="bottoni" style="margin:0 0 6px"><button class="minore" id="btn-solo-errori">Mostra solo quelle da rivedere</button></div>
     <div id="dettaglio"></div>
   </details>
   <div id="err-esito"></div>
   <div id="stato-esito"></div>
   <div class="bottoni bottoni-esito">
-    <button class="azione" id="btn-ripassa-rossi" hidden>Ripassa i rossi</button>
-    <button class="minore" id="btn-stampa-esito">Stampa / PDF</button>
+    <button class="azione" id="btn-ripassa-rossi" hidden>Ripassa i punti deboli</button>
+    <button class="minore" id="btn-stampa-esito">Stampa o salva PDF</button>
     <button class="minore" id="btn-ancora">Rifai la verifica</button>
     <button class="minore" id="btn-torna-storico" hidden>Torna allo storico</button>
     <button class="minore" id="btn-torna-lib">Torna alla libreria</button>
@@ -377,29 +378,29 @@
       <div class="bottoni"><button class="azione" id="btn-prepara-stampa">Prepara la verifica</button></div>
     </div>
     <div class="bottoni">
-      <button class="azione" id="btn-stampa-ora">Stampa / Salva PDF</button>
+      <button class="azione" id="btn-stampa-ora">Stampa o salva PDF</button>
       <button class="minore" id="btn-stampa-indietro">Indietro</button>
     </div>
-    <p class="aiuto" id="aiuto-stampa" hidden>Su iPhone: Condividi → Stampa → allarga l'anteprima con due dita → Condividi → Salva in File. Su Mac: Stampa → PDF → Salva come PDF.</p>
+    <p class="aiuto" id="aiuto-stampa" hidden>Su iPhone: tocca Condividi, poi Stampa. Allarga l'anteprima con due dita, poi Condividi e Salva in File. Su Mac: Stampa, poi PDF, poi Salva come PDF.</p>
     <div id="err-stampa"></div>
     <div id="stato-stampa"></div>
   </div>
   <article class="foglio" id="doc-stampa"></article>
 </section>
 
-<p class="nota">Argomenti, foto e risultati restano salvati nel tuo profilo e li ritrovi a fine quadrimestre. Il voto è una stima: dice quanto sei pronta su quello che hai fotografato, non quello che deciderà la prof.</p>
+<p class="nota">Argomenti, foto e risultati restano salvati nel tuo profilo e li ritrovi a fine quadrimestre. Il voto è una stima: dice a che punto sei su quello che hai fotografato. Il voto vero lo decide la prof.</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=14"></script>
-<script src="app.js?v=14"></script>
-<script src="libreria.js?v=14"></script>
-<script src="stampa.js?v=14"></script>
-<script src="aiuto.js?v=14"></script>
-<script src="mappa-card.js?v=14"></script>
-<script src="figure.js?v=14"></script>
-<script src="formule.js?v=14"></script>
-<script src="esercizi.js?v=14"></script>
-<script src="prova-esercizi.js?v=14"></script>
+<script src="semaforo.js?v=15"></script>
+<script src="app.js?v=15"></script>
+<script src="libreria.js?v=15"></script>
+<script src="stampa.js?v=15"></script>
+<script src="aiuto.js?v=15"></script>
+<script src="mappa-card.js?v=15"></script>
+<script src="figure.js?v=15"></script>
+<script src="formule.js?v=15"></script>
+<script src="esercizi.js?v=15"></script>
+<script src="prova-esercizi.js?v=15"></script>
 </body>
 </html>

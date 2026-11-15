@@ -7,10 +7,10 @@
 /* =================================================================== composizione (pura) */
 
 // In bianco e nero il colore non basta: ogni stato ha anche un simbolo e una parola.
-// Stesse forme e parole dell'app (semaforo.js): ✕ Da ripassare, ▲ Quasi, ● Lo sai, ○ Mai provato.
+// Stesse forme e parole dell'app (semaforo.js): ✕ Da ripassare, ▲ Quasi, ● Lo sai, ○ Ancora da provare.
 const DOCUMENTI_STAMPA = {
-  mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Esito della prova",
-  esercizi: "Esercizi", esito_esercizi: "Esito degli esercizi",
+  mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Com'è andata la prova",
+  esercizi: "Esercizi", esito_esercizi: "Com'è andata con gli esercizi",
 };
 const LARGHEZZA_MAPPA_STAMPA = 700; // circa la larghezza utile di un A4, in pixel CSS
 const LETTERE = "ABCD";
@@ -21,7 +21,7 @@ function statoStampa(stato) {
 
 function testaStampa(tipo, info) {
   return '<header class="st-testa"><p class="st-tipo">' + DOCUMENTI_STAMPA[tipo] + "</p><h1>" + esc(info.titolo) + "</h1>" +
-    '<p class="st-chi">' + [info.nome, info.materia, dataIt(info.data)].filter(Boolean).map(esc).join(" · ") + "</p></header>";
+    '<p class="st-chi">' + [info.nome, info.materia, dataIt(info.data)].filter(Boolean).map(esc).join(", ") + "</p></header>";
 }
 
 // Elenco dei nodi con le loro frasi: resta leggibile anche se la mappa è fitta.
@@ -35,7 +35,7 @@ function elencoNodi(nodi) {
 
 function corpoMappa({ albero, stati }, carattere) {
   return '<div class="st-mappa">' + svgMappa(layoutMappa(albero, LARGHEZZA_MAPPA_STAMPA, carattere, stati || {})) + "</div>" +
-    '<h2>I nodi e le frasi degli appunti</h2>' + elencoNodi(albero.nodi);
+    '<h2>I punti della mappa e le frasi dei tuoi appunti</h2>' + elencoNodi(albero.nodi);
 }
 
 function corpoStudiare(lista) {
@@ -61,7 +61,7 @@ function corpoVerifica(domande) {
     }
     const elementi = d.elementi || [];
     return '<li class="st-quesito"><p>' + esc(d.risposta_attesa) + "</p>" + (elementi.length
-      ? '<p class="st-deve">Deve comparire:</p><ul>' + elementi.map((e) => "<li>" + esc(e) + "</li>").join("") + "</ul>" : "") + "</li>";
+      ? '<p class="st-deve">Nella risposta ci deve essere:</p><ul>' + elementi.map((e) => "<li>" + esc(e) + "</li>").join("") + "</ul>" : "") + "</li>";
   }).join("");
   return '<section class="st-domande"><ol class="st-quesiti">' + quesiti + "</ol></section>" +
     '<section class="st-soluzioni st-salto"><h2>Soluzioni</h2><ol class="st-quesiti">' + soluzioni + "</ol></section>";
@@ -69,7 +69,7 @@ function corpoVerifica(domande) {
 
 function corpoEsito({ indice, voto, verdetto, righe }) {
   const ordinate = [...righe].sort((a, b) => a.media - b.media);
-  return '<p class="st-voto">Voto stimato ' + votoIt(Number(voto)) + " · prontezza " + Number(indice) + "%</p>" +
+  return '<p class="st-voto">Voto stimato ' + votoIt(Number(voto)) + ", prontezza " + Number(indice) + "%</p>" +
     (verdetto ? '<p class="st-verdetto">' + esc(verdetto) + "</p>" : "") +
     '<ol class="st-lista">' + ordinate.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
       "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10</span>" +
@@ -115,12 +115,12 @@ function corpoEsitoEsercizi({ voto, righe, dettaglio }) {
   const ordinate = [...righe].sort((a, b) => a.media - b.media);
   return '<p class="st-voto">Voto della prova ' + votoIt(Number(voto)) + "</p>" +
     '<ol class="st-lista">' + ordinate.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
-      "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10 · " +
+      "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10, " +
       x.n + (x.n === 1 ? " esercizio" : " esercizi") + "</span></li>").join("") + "</ol>" +
     "<h2>Esercizio per esercizio</h2>" +
     '<ol class="st-quesiti">' + (dettaglio || []).map((d) => '<li class="st-quesito"><p>' + esc(d.testo) + "</p>" +
-      '<p class="st-nota">Hai scritto: ' + esc(d.risposta || "—") + " · giusto: " + esc(d.giusta) + "</p>" +
-      "<p><b>" + esc(d.esito) + "</b> · " + d.punti + "/10</p></li>").join("") + "</ol>";
+      '<p class="st-nota">Hai scritto: ' + esc(d.risposta || "—") + ". Risultato giusto: " + esc(d.giusta) + "</p>" +
+      "<p><b>" + esc(d.esito) + "</b>, " + d.punti + "/10</p></li>").join("") + "</ol>";
 }
 
 const CORPI_STAMPA = {
@@ -184,7 +184,7 @@ function esciDaStampa() {
 // Gli stessi numeri di DOMANDE_DA_STAMPARE in _shared/prompt.js (la funzione rifiuta gli altri).
 const QUANTE_STAMPA = [[10, "Un compito breve"], [15, "Come in classe"], [20, "Un ripasso lungo"]];
 function apriVerificaDaStampare(args, ripasso, elErr) {
-  if (!args.some((a) => a.concetti.length)) { errore(elErr, "Non ci sono concetti su cui preparare la verifica."); return; }
+  if (!args.some((a) => a.concetti.length)) { errore(elErr, "Non ci sono ancora punti da cui fare la verifica. Aggiungi le foto degli appunti e riprova."); return; }
   verificaDaStampare = { args, ripasso };
   sceltaStampa = { ...sceltaStampa, livello, tipo };
   const { titolo, materia } = titoloEMateria(args, ripasso);
@@ -219,7 +219,7 @@ async function preparaVerificaDaStampare() {
   const richiesta = verificaDaStampare, { args, ripasso } = richiesta, scelta = sceltaStampa;
   const btn = $("btn-prepara-stampa");
   btn.disabled = true; errore($("err-stampa"), "");
-  attesa($("stato-stampa"), ["Preparo le domande", "Controllo che ognuna nasca dai tuoi appunti", "Scrivo il foglio delle soluzioni"]);
+  attesa($("stato-stampa"), ["Preparo le domande", "Controllo che ogni domanda venga dai tuoi appunti", "Scrivo il foglio delle soluzioni"]);
   try {
     const r = await conRiprova(() => modello({ azione: "domande", argomenti: args.map((a) => a.id), ripasso,
       livello: scelta.livello, tipo: scelta.tipo, modalita: "scritta", quante: scelta.quante }));
@@ -230,12 +230,12 @@ async function preparaVerificaDaStampare() {
     disegnaStampa();
     $("btn-stampa-ora").disabled = false;
     if (r.domande.length < scelta.quante)
-      avviso($("err-stampa"), "Sono uscite " + r.domande.length + " domande invece di " + scelta.quante + ": le altre non erano ancorate agli appunti e le ho scartate.");
+      avviso($("err-stampa"), "Ho preparato " + r.domande.length + " domande invece di " + scelta.quante + ": le altre non venivano dai tuoi appunti, quindi le ho tolte.");
   } catch (e) {
     if (verificaDaStampare !== richiesta) return;
     errore($("err-stampa"), e.message === "nessuna_ancorata"
-      ? "Tutte le domande parlavano di cose che negli appunti non ci sono, quindi le ho scartate. Aggiungi una foto e riprova."
-      : messaggioModello(e, "Non sono riuscito a preparare la verifica. Riprova fra un momento."));
+      ? "Le domande parlavano di cose che nei tuoi appunti non ci sono, quindi le ho tolte tutte. Aggiungi una foto degli appunti e riprova."
+      : messaggioModello(e, "Non riesco a preparare la verifica adesso. Riprova fra un momento."));
   } finally {
     if (verificaDaStampare === richiesta) { attesa($("stato-stampa"), null); btn.disabled = false; }
   }

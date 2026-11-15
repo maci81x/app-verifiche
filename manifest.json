@@ -1,17 +1,32 @@
 {
-  "name": "Pronta per la verifica",
-  "short_name": "Verifiche",
-  "description": "Ti interroga sui tuoi appunti, a voce o per iscritto, e ti dice su cosa tornare.",
+  "name": "10+",
+  "short_name": "10+",
+  "description": "Studia bene, studia rapido. Ti fa domande sui tuoi appunti, a voce o per iscritto, e ti dice cosa ripassare.",
   "lang": "it",
   "start_url": "/app-verifiche/",
   "scope": "/app-verifiche/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FCFCFA",
-  "theme_color": "#FCFCFA",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

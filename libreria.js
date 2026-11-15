@@ -68,7 +68,7 @@ function sottotitoloProfilo(p, daRipassare) {
   const parti = [];
   if (p.classe) parti.push(classeIt(p.classe));
   if (Number.isInteger(daRipassare)) parti.push(daRipassare ? daRipassare + " da ripassare" : "niente da ripassare");
-  return parti.join(" · ");
+  return parti.join(", ");
 }
 
 /* =================================================================== profili */
@@ -126,8 +126,8 @@ function disegnaPrimo(a) {
   const debole = a.percorso === "esercizi" ? null : concettoPiuDebole(a);
   box.innerHTML = '<p class="occhiello">Da ripassare prima</p>' +
     '<h2 class="primo-tit">' + esc(a.titolo) + "</h2>" +
-    '<p class="primo-meta">' + esc(a.materia) + " · " + (c.rosso ? htmlStato("rosso") + " " + c.rosso : "") +
-    (c.rosso && c.giallo ? " · " : "") + (c.giallo ? htmlStato("giallo") + " " + c.giallo : "") + "</p>" +
+    '<p class="primo-meta">' + esc(a.materia) + ", " + (c.rosso ? htmlStato("rosso") + " " + c.rosso : "") +
+    (c.rosso && c.giallo ? ", " : "") + (c.giallo ? htmlStato("giallo") + " " + c.giallo : "") + "</p>" +
     htmlBarra(c) +
     '<div class="bottoni">' +
     (a.percorso === "esercizi"
@@ -152,7 +152,7 @@ function disegnaLibreria() {
   const som = $("sommario"), lista = $("lista-argomenti");
   const tot = riepilogoStati(argomenti);
   som.innerHTML = argomenti.length
-    ? '<div class="chips" role="group" aria-label="Riepilogo dei concetti">' + ["verde", "giallo", "rosso"].map((s) => htmlChip(s, tot[s])).join("") + "</div>"
+    ? '<div class="chips" role="group" aria-label="Riepilogo dei punti da studiare">' + ["verde", "giallo", "rosso"].map((s) => htmlChip(s, tot[s])).join("") + "</div>"
     : "";
   if (profilo && libreriaCaricata) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
   disegnaPrimo(daRipassarePrima(argomenti));
@@ -160,7 +160,7 @@ function disegnaLibreria() {
   $("occhiello-lib").hidden = !argomenti.length;
   $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
   if (!argomenti.length) {
-    lista.innerHTML = '<div class="vuoto"><b>Qui non c\'è ancora niente</b>Fotografa il primo argomento: da quel momento resta in libreria, con le sue foto, e lo ritrovi per i ripassi.</div>';
+    lista.innerHTML = '<div class="vuoto"><b>Comincia dal primo argomento</b>Fotografa i tuoi appunti: restano qui, con le foto, e li ritrovi ogni volta che ripassi.</div>';
     return;
   }
   argomenti.forEach((a) => {
@@ -168,7 +168,7 @@ function disegnaLibreria() {
     tinta(b, a.materia);
     const c = contaStati(a);
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
-      '<span class="voto-arg"><span class="solo-lettore">' + (a.ultima ? "voto " : "mai verificato") + "</span>" + (a.ultima ? votoArgomento(a) : '<span aria-hidden="true">—</span>') + "</span></div>" +
+      '<span class="voto-arg"><span class="solo-lettore">' + (a.ultima ? "voto " : "nessuna verifica fatta") + "</span>" + (a.ultima ? votoArgomento(a) : '<span aria-hidden="true">—</span>') + "</span></div>" +
       htmlBarra(c) +
       '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + contaVoci(a) + "</span><span>" + dataIt(a.aggiornato) + "</span></div>";
     b.onclick = () => apriScheda(a);
