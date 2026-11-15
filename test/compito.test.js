@@ -323,3 +323,57 @@ test("Cosa sai: ogni dato con il suo significato (le stringhe vecchie restano va
   assert.deepEqual(pulisciCompito(copia(PAOLO)).dati[0], { valore: "1/6", significato: "" });
   assert.match(promptCompito({ classe: "2", testo: TESTO_PAOLO }), /significato/);
 });
+
+// ------------------------------------------------------------------ gemelli ed esercizi mirati (#27, aggiunte di Roby)
+import { numeriAdatti, motivoGemello, pulisciGemelli, TIPI_GEMELLI } from "../supabase/functions/_shared/compito.js";
+import { promptGemelli, promptEserciziGenera as genera } from "../supabase/functions/_shared/prompt.js";
+
+const GIULIA = { tipo: "vicino", testo: "Giulia spende 1/5 della paghetta per un libro, 3/10 per il cinema, 6 € per una merenda e le restano 9 €. Quanto è la paghetta?",
+  passi: [
+    { titolo: "Frazioni spese", calcolo: "1/5 + 3/10 = 2/10 + 3/10 = 5/10" },
+    { titolo: "Frazione che resta", calcolo: "10/10 - 5/10 = 5/10" },
+    { titolo: "Cosa sono i due importi in euro", calcolo: "6 + 9 = 15" },
+    { titolo: "Collego frazione ed euro", calcolo: "" },
+    { titolo: "Trovo 1/10", calcolo: "15 : 5 = 3" },
+    { titolo: "Trovo l'intero", calcolo: "3 × 10 = 30" }],
+  risultato: { valore: "30", unita: "€" } };
+
+test("gemelli: numeri intermedi interi o frazioni semplici, niente 7,333", () => {
+  assert.equal(numeriAdatti("1/5 + 3/10 = 2/10 + 3/10 = 5/10"), true);
+  assert.equal(numeriAdatti("36 : 3 × 4 = 48"), true);
+  assert.equal(numeriAdatti("12,50 + 7,50 = 20"), true); // euro con i centesimi
+  assert.equal(numeriAdatti("22 : 3 = 7,33"), false);
+  assert.equal(numeriAdatti("16 : 2 × 3 = 24"), true);
+  assert.equal(numeriAdatti("29 : 2 = 14,5"), true);
+  assert.equal(numeriAdatti("29 : 3 = 9,67"), false);
+});
+
+test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri si scartano", () => {
+  assert.equal(motivoGemello(GIULIA, PAOLO), null);
+  const rotto = copia(GIULIA); rotto.passi[4].calcolo = "15 : 5 = 4";
+  assert.equal(motivoGemello(rotto, PAOLO), "conto");
+  const corto = copia(GIULIA); corto.passi = corto.passi.slice(0, 4);
+  assert.equal(motivoGemello(corto, PAOLO), "passi");
+  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "30 - 9 = 21" }], risultato: { valore: "21", unita: "€" } }, PAOLO), null); // la variante può avere un passo in più
+  const strano = copia(GIULIA); strano.passi[4].calcolo = "16 : 3 = 5,33"; strano.passi[5].calcolo = "5,33 × 10 = 53,3"; strano.risultato.valore = "53,3";
+  assert.equal(motivoGemello(strano, PAOLO), "numeri");
+  assert.equal(motivoGemello({ ...copia(GIULIA), testo: PAOLO.testo }, PAOLO), "contesto");
+  const fine = copia(GIULIA); fine.risultato.valore = "31";
+  assert.equal(motivoGemello(fine, PAOLO), "risultato");
+  const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: "Una pizza è divisa…" }] }, PAOLO);
+  assert.deepEqual(r.gemelli.map((g) => g.tipo), ["vicino", "lontano"]);
+  assert.equal(r.scartati, 1);
+  assert.deepEqual(r.mancano, ["variante"]);
+  assert.deepEqual(TIPI_GEMELLI, ["vicino", "lontano", "variante"]);
+});
+
+test("prompt dei gemelli e degli esercizi mirati", () => {
+  const p = promptGemelli({ classe: "2", compito: PAOLO, tipi: ["vicino", "lontano", "variante"] });
+  for (const r of [/stessa strategia/i, /gemello vicino/i, /gemello lontano/i, /variante/i, /interi/i, /nomi/i]) assert.match(p, r);
+  assert.doesNotMatch(p, /alunna|ragazza/);
+  const m = genera({ materia: "matematica", titolo: "", classe: "2", quanti: 5, tipi: [{ breve: "t1", titolo: "x", ancora: "y", difficolta: 2, figura: false }],
+    mirati: { concetto: "Lo stesso denominatore", calcolo: "1/6 + 2/9 = 3/18 + 4/18 = 7/18", testo: TESTO_PAOLO } });
+  assert.match(m, /dal più facile al più difficile/i);
+  assert.match(m, /Lo stesso denominatore/);
+  assert.match(m, /problema a parole/i);
+});

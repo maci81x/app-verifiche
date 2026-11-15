@@ -130,3 +130,38 @@ test("Cosa sai: il dato in grassetto e il suo significato; l'evidenziatura usa i
   assert.match(run(`htmlTestoConDati("ha speso 1/6 e restano 305 €.", ${JSON.stringify(dati)})`), /<mark class="evidenzia">1\/6<\/mark>[\s\S]*<mark class="evidenzia">305 €<\/mark>/);
   assert.equal(run(`htmlSai([{ valore: "<b>", significato: "<i>" }])`), "<li><b>&lt;b&gt;</b>: &lt;i&gt;</li>");
 });
+
+// ------------------------------------------------------------------ segnali, esercizi mirati, ripasso 1-3-7 (#27)
+const PASSI = [{ titolo: "Frazioni spese", concetto: "Lo stesso denominatore" }, { titolo: "Frazione che resta", concetto: "Trovare cosa resta" },
+  { titolo: "Trovo 1/18", concetto: "Trovare l'intero se conosci una parte" }];
+
+test("segnali di difficoltà: indizi, domande e Prova tu sbagliati o saltati, mappati sui concetti dei passi", () => {
+  const segnali = [{ tipo: "indizio", passo: 1 }, { tipo: "domanda", passo: 1 }, { tipo: "prova", passo: 1, esito: "sbagliato" },
+    { tipo: "domanda", passo: 3 }, { tipo: "prova", passo: 2, esito: "giusto" }, { tipo: "domanda", passo: 0 }];
+  assert.deepEqual(json(`concettiDifficili(${JSON.stringify(segnali)}, ${JSON.stringify(PASSI)})`),
+    [{ concetto: "Lo stesso denominatore", passo: 1, segnali: 3 }, { concetto: "Trovare l'intero se conosci una parte", passo: 3, segnali: 1 }]);
+  assert.deepEqual(json(`concettiDifficili([], ${JSON.stringify(PASSI)})`), []);
+  // al massimo 3 concetti
+  const tanti = [1, 2, 3, 1, 2, 3, 4].map((p) => ({ tipo: "indizio", passo: p }));
+  assert.equal(json(`concettiDifficili(${JSON.stringify(tanti)}, ${JSON.stringify([...PASSI, { titolo: "x", concetto: "Quarto" }])})`).length, 3);
+});
+
+test("esercizi mirati: complimento preciso solo con 3 su 3", () => {
+  assert.equal(run(`esitoAllenamento("Lo stesso denominatore", [true, true, true])`), "«Lo stesso denominatore» adesso lo sai fare: 3 su 3.");
+  assert.equal(run(`esitoAllenamento("Lo stesso denominatore", [true, false, true])`), "2 su 3: rifai quello segnato Non ancora, poi provane uno in più.");
+});
+
+test("ripasso a 1, 3 e 7 giorni; dopo un errore si riparte da 1", () => {
+  const v = json(`nuovoRipasso({ testo: "Paolo…" }, new Date("2026-11-15T10:00:00Z"))`);
+  assert.equal(v.giorni, 1); assert.equal(v.prossimo, "2026-11-16");
+  assert.deepEqual(json(`ripassiDovuti([${JSON.stringify(v)}], new Date("2026-11-15T20:00:00Z"))`), []);
+  assert.equal(json(`ripassiDovuti([${JSON.stringify(v)}], new Date("2026-11-16T08:00:00Z"))`).length, 1);
+  const tre = json(`aggiornaRipasso(${JSON.stringify(v)}, true, new Date("2026-11-16T08:00:00Z"))`);
+  assert.equal(tre.giorni, 3); assert.equal(tre.prossimo, "2026-11-19");
+  const sette = json(`aggiornaRipasso(${JSON.stringify(tre)}, true, new Date("2026-11-19T08:00:00Z"))`);
+  assert.equal(sette.giorni, 7); assert.equal(sette.prossimo, "2026-11-26");
+  assert.equal(json(`aggiornaRipasso(${JSON.stringify(sette)}, true, new Date("2026-11-26T08:00:00Z"))`).finito, true);
+  const daCapo = json(`aggiornaRipasso(${JSON.stringify(sette)}, false, new Date("2026-11-26T08:00:00Z"))`);
+  assert.equal(daCapo.giorni, 1); assert.equal(daCapo.prossimo, "2026-11-27");
+  assert.deepEqual(json(`ripassiDovuti([{ ...${JSON.stringify(sette)}, finito: true }, null], new Date("2026-12-30T08:00:00Z"))`), []);
+});
