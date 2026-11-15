@@ -250,3 +250,10 @@ test("in avanti va bene anche una catena con più uguali nel primo controllo", (
   c.verifica.controlli = [{ testo: "", calcolo: "48 - (48 : 4 + 4) = 48 - 16 = 32" }, { testo: "", calcolo: "32 - (32 : 4 + 4) = 20" }];
   assert.deepEqual(controllaCompito(c), { ok: true });
 });
+
+import { rimborsoAiuti } from "../supabase/functions/_shared/compito.js";
+test("aiuto prenotato prima del modello e restituito se la risposta non riesce", () => {
+  assert.deepEqual(rimborsoAiuti({ aiuti: { giorno: "2026-11-15", n: 5 } }, "2026-11-15"), { giorno: "2026-11-15", n: 4 });
+  assert.deepEqual(rimborsoAiuti({ aiuti: { giorno: "2026-11-15", n: 0 } }, "2026-11-15"), { giorno: "2026-11-15", n: 0 });
+  assert.equal(rimborsoAiuti({ aiuti: { giorno: "2026-11-14", n: 5 } }, "2026-11-15"), null); // giorno nuovo: niente da restituire
+});

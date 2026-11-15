@@ -123,6 +123,11 @@ export function correggiProvaTu(risposta, atteso) {
 // Limite degli aiuti (compito e compito_domanda): 30 al giorno per profilo, il giorno di Roma.
 export const MAX_AIUTI_GIORNO = 30;
 export const giornoRoma = (d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(d);
+// Un aiuto prenotato e non usato (la risposta non è riuscita) torna indietro, nello stesso giorno.
+export function rimborsoAiuti(appMetadata, giorno) {
+  const a = appMetadata?.aiuti;
+  return a && a.giorno === giorno ? { giorno, n: Math.max(0, (Number(a.n) || 0) - 1) } : null;
+}
 export function contaAiuti(appMetadata, giorno) {
   const a = appMetadata?.aiuti;
   const n = a && a.giorno === giorno ? Number(a.n) || 0 : 0;
