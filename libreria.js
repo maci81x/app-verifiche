@@ -225,6 +225,7 @@ function disegnaLibreria() {
   $("ciao").textContent = profilo ? "Ciao " + profilo.nome + "." : "Ciao.";
   $("frase-oggi").textContent = fraseOggi(argomenti);
   disegnaPrimo(daRipassarePrima(argomenti));
+  if (typeof disegnaRipassoOggi === "function") disegnaRipassoOggi(); // compito.js: ripasso 1-3-7 e allenamento di ieri
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
   if (!argomenti.length) {

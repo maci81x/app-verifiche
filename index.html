@@ -109,6 +109,7 @@
   <p class="sotto" id="frase-oggi"></p>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
+  <div id="ripasso-oggi"></div>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
@@ -171,11 +172,29 @@
     <div class="chat" id="cp-chat" aria-live="polite"></div>
     <div id="stato-chat"></div>
     <div class="bottoni">
+      <button class="minore" id="btn-cp-gemelli">Allenati con problemi gemelli</button>
       <button class="minore" id="btn-cp-simile">Fammi un esercizio simile</button>
       <button class="minore" id="btn-cp-fine">Ho finito</button>
     </div>
     <div id="stato-simile"></div>
     <div id="cp-simile"></div>
+  </div>
+  <div id="cp-allenati" hidden>
+    <div id="cp-blocco-difficili">
+      <h2>Allenati su quello che ti ha messo in difficoltà</h2>
+      <p class="aiuto">Tre esercizi veloci, dal più facile al problema a parole. I conti li ho già rifatti.</p>
+      <div class="scelte" id="cp-difficili"></div>
+      <div id="stato-mirati"></div>
+      <div id="cp-mirati"></div>
+    </div>
+    <div id="cp-blocco-gemelli">
+      <h3 class="sez-titolo">Problemi gemelli</h3>
+      <p class="aiuto">Stessi passi, storie diverse: così la strategia resta.</p>
+      <div class="bottoni"><button class="minore" id="btn-cp-gemelli-2">Allenati con problemi gemelli</button></div>
+    </div>
+    <div id="stato-gemelli"></div>
+    <div id="cp-gemelli"></div>
+    <div class="bottoni"><button class="minore" id="btn-cp-oggi">Torna a Oggi</button></div>
   </div>
   <div class="fondo-fisso chiedi" id="cp-chiedi" hidden>
     <label class="solo-lettore" for="cp-domanda">La tua domanda</label>

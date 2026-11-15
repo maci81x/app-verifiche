@@ -171,6 +171,7 @@ export function pulisciCompito(r) {
     indizi: lista(r.indizi, MAX_INDIZI),
     passi: (Array.isArray(r.passi) ? r.passi : []).slice(0, MAX_PASSI).map((p) => ({
       titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 1200), calcolo: testo(p?.calcolo, 400), ancora: testo(p?.ancora, 400),
+      concetto: testo(p?.concetto, 80),
     })).filter((p) => p.titolo || p.spiegazione),
     risultato: { valore: testo(r.risultato?.valore, 60), unita: testo(r.risultato?.unita, 20) },
     verifica: { spiegazione: testo(r.verifica?.spiegazione, 1200), controlli: controlliDi(r.verifica) },
@@ -187,10 +188,56 @@ export function pulisciRisposta(r) {
   const f = r.figura, parti = Number(f?.parti), colorate = Number(f?.colorate);
   const figura = f && f.tipo === "barra_frazioni" && Number.isInteger(parti) && parti >= 1 && parti <= MAX_PARTI_BARRA &&
     Number.isInteger(colorate) && colorate >= 0 && colorate <= parti ? { tipo: "barra_frazioni", parti, colorate, etichetta: testo(f.etichetta, 40) } : null;
-  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: pulisciProvaTu(r.prova_tu) };
+  const passo = Number(r.passo);
+  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: pulisciProvaTu(r.prova_tu), passo: Number.isInteger(passo) && passo >= 1 && passo <= MAX_PASSI ? passo : null };
 }
 export const calcoliCheNonTornano = (r) => (r.calcoli || []).filter((x) => !contoTorna(x));
 
 // Cronologia della chat per il prompt: ultimi 10 messaggi, solo testo.
 export const cronologiaPulita = (c) => (Array.isArray(c) ? c : []).slice(-MAX_CRONOLOGIA)
   .map((m) => ({ chi: m?.chi === "io" ? "io" : "app", testo: testo(m?.testo, 1500) })).filter((m) => m.testo);
+
+/* ---- problemi gemelli (aggiunta 2 di Roby) ---- */
+export const TIPI_GEMELLI = ["vicino", "lontano", "variante"];
+const mcd = (a, b) => (b ? mcd(b, a % b) : a);
+// Numeri adatti alla classe in ogni pezzo della catena: interi, euro con i centesimi, o frazioni
+// semplici (il valore torna intero con i denominatori scritti nel pezzo). Niente 7,333…
+export function numeriAdatti(calcolo) {
+  return senzaUnita(conPer(testo(calcolo, 400))).split("=").every((p) => {
+    const v = valutaSicuro(p.trim());
+    if (v === null) return false;
+    const den = [...p.matchAll(/\/\s*(\d+)/g)].map((m) => Number(m[1])).filter((d) => d > 0 && d <= 1000);
+    const l = den.reduce((a, d) => (a * d) / mcd(a, d), 1);
+    const intero = (x) => Math.abs(x - Math.round(x)) < 1e-9;
+    return intero(v * 100) || (l > 1 && l <= 1000 && intero(v * l));
+  });
+}
+// null se il gemello va bene, altrimenti il motivo: stesso numero di passi con un conto (la variante
+// ne può avere uno in più o in meno), contesto diverso, ogni conto torna con numeri adatti, l'ultimo
+// arriva al risultato.
+export function motivoGemello(g, c) {
+  if (!g || !testo(g.testo) || !TIPI_GEMELLI.includes(g.tipo)) return "forma";
+  if (testo(g.testo).toLowerCase() === testo(c.testo).toLowerCase()) return "contesto";
+  const conti = (g.passi || []).map((p) => testo(p?.calcolo, 400)).filter(Boolean);
+  const attesi = (c.passi || []).filter((p) => p.calcolo).length;
+  if (g.tipo === "variante" ? Math.abs(conti.length - attesi) > 1 : conti.length !== attesi) return "passi";
+  if (!conti.every(contoTorna)) return "conto";
+  if (!conti.every(numeriAdatti)) return "numeri";
+  const valore = testo(g.risultato?.valore, 40);
+  if (valutaSicuro(valore) === null || !coincide(finale(conti[conti.length - 1]), valore)) return "risultato";
+  return null;
+}
+// I gemelli buoni, uno per tipo, nell'ordine vicino, lontano, variante; quanti scartati e i tipi mancanti.
+export function pulisciGemelli(r, c) {
+  const buoni = new Map(); let scartati = 0;
+  for (const g of Array.isArray(r?.gemelli) ? r.gemelli : []) {
+    if (motivoGemello(g, c)) { scartati++; continue; } // non rispetta le regole: si scarta (e si rigenera)
+    if (buoni.has(g.tipo)) continue;                     // un doppione buono non è uno scarto
+    buoni.set(g.tipo, {
+      tipo: g.tipo, testo: testo(g.testo, 1500),
+      passi: g.passi.map((p) => ({ titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 600), calcolo: testo(p?.calcolo, 400) })).filter((p) => p.titolo || p.calcolo).slice(0, MAX_PASSI + 1),
+      risultato: { valore: testo(g.risultato.valore, 40), unita: testo(g.risultato?.unita, 20) },
+    });
+  }
+  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
+}
