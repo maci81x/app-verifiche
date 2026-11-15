@@ -158,3 +158,74 @@ test("nessun indizio dice già il risultato", () => {
   const c = { ...copia(PAOLO), indizi: ["Somma le frazioni.", "Alla fine viene 1260 €.", "Pensa a 1.260 euro."] };
   assert.deepEqual(indiziSenzaRisultato(c), ["Somma le frazioni."]);
 });
+
+// ------------------------------------------------------------------ nucleo: strategia, verifica con ✓, Prova tu, limite (#27)
+import { pulisciProvaTu, correggiProvaTu, contaAiuti, giornoRoma, MAX_AIUTI_GIORNO } from "../supabase/functions/_shared/compito.js";
+
+const TESTO_LINDA = "Linda fa a casa dei panini e li va a vendere al mercato. Nella prima ora vende 1/4 dei panini più 4 panini. Nella seconda ora vende 1/4 dei panini rimasti più altri 4 panini. A questo punto le rimangono 20 panini. Quanti panini aveva preparato? [48]";
+const LINDA = {
+  esercizi: [], materia: "matematica", matematica: true, testo: TESTO_LINDA, dati: ["1/4", "4", "20"], cerca: "quanti panini aveva preparato Linda",
+  soluzione_libro: "48", strategia: { nome: "Andare a ritroso", perche: "Conosciamo la fine (20 panini): si parte da lì e si torna indietro." },
+  indizi: ["Parti dalla fine: quanti panini restano?", "Prima di vendere gli ultimi 4, quanti ne aveva?"],
+  passi: [
+    { titolo: "Punto di partenza", spiegazione: "Alla fine restano 20 panini.", calcolo: "", ancora: "" },
+    { titolo: "Torno indietro nella seconda ora", spiegazione: "Rimetto i 4 panini venduti in più.", calcolo: "20 + 4 = 24", ancora: "" },
+    { titolo: "24 sono i 3/4", spiegazione: "Aveva tolto 1/4, quindi 24 sono i 3/4 di quelli di allora.", calcolo: "24 : 3 = 8", ancora: "" },
+    { titolo: "L'intero della seconda ora", spiegazione: "Un quarto è 8, l'intero sono 4 quarti.", calcolo: "8 × 4 = 32", ancora: "" },
+    { titolo: "Torno indietro nella prima ora", spiegazione: "Rimetto i 4 panini.", calcolo: "32 + 4 = 36", ancora: "" },
+    { titolo: "36 sono i 3/4", spiegazione: "Divido per 3 e moltiplico per 4.", calcolo: "36 : 3 × 4 = 48", ancora: "" },
+  ],
+  risultato: { valore: "48", unita: "panini" },
+  verifica: { spiegazione: "Vado avanti con 48 panini.", controlli: [
+    { testo: "Prima ora: vende 12 + 4 = 16, restano 32", calcolo: "48 - (48 : 4 + 4) = 32" },
+    { testo: "Seconda ora: vende 8 + 4 = 12, restano 20", calcolo: "32 - (32 : 4 + 4) = 20" }] },
+  trucco: "Quando torni indietro fai le operazioni al contrario e in ordine inverso.",
+  domande_pronte: ["Perché parto dalla fine?", "Perché divido per 3?", "Me lo spieghi con un disegno?"],
+};
+
+test("Linda: andare a ritroso, verifica andando avanti con un controllo per ora", () => {
+  assert.deepEqual(controllaCompito(LINDA), { ok: true });
+  const finta = copia(LINDA); finta.verifica.controlli = [{ testo: "", calcolo: "48 - 28 = 20" }];
+  assert.equal(controllaCompito(finta).motivo, "verifica"); // non rimette i dati del testo
+  const rotta = copia(LINDA); rotta.verifica.controlli[1].calcolo = "32 - (32 : 4 + 4) = 21";
+  assert.equal(controllaCompito(rotta).motivo, "verifica");
+  const c = pulisciCompito(LINDA);
+  assert.deepEqual(c.strategia, LINDA.strategia);
+  assert.equal(c.verifica.controlli.length, 2);
+  // la vecchia forma con un calcolo solo diventa un controllo
+  assert.deepEqual(pulisciCompito(PAOLO).verifica.controlli, [{ testo: "", calcolo: "210 + 280 + 465 + 305 = 1260" }]);
+});
+
+test("Prova tu: tenuto solo se il suo conto torna; la risposta si corregge con correzione.js", () => {
+  const p = { testo: "Se 11 fette valgono 770 €, quanto vale 1 fetta?", risultato: { valore: "70", unita: "€" }, calcolo: "770 : 11 = 70", passo: 5, spiegazione: "Dividi 770 per 11." };
+  assert.deepEqual(pulisciProvaTu(p), p);
+  assert.equal(pulisciProvaTu({ ...p, calcolo: "770 : 11 = 77" }), null);
+  assert.equal(pulisciProvaTu({ ...p, risultato: { valore: "77", unita: "€" } }), null);
+  assert.equal(pulisciProvaTu({ ...p, testo: "" }), null);
+  assert.equal(correggiProvaTu("70 €", p.risultato).giusto, true);
+  assert.equal(correggiProvaTu("70", p.risultato).esito, "senza_unita");
+  assert.equal(correggiProvaTu("77 €", p.risultato).giusto, false);
+  assert.equal(correggiProvaTu("6/8", { valore: "3/4", unita: "" }).giusto, true);
+  assert.equal(correggiProvaTu("", p.risultato).esito, "vuota");
+  assert.equal(pulisciCompito({ ...copia(PAOLO), prova_tu: p }).prova_tu.passo, 5);
+  assert.equal(pulisciRisposta({ risposta: "x", calcoli: [], figura: null, prova_tu: { ...p, calcolo: "1 + 1 = 3" } }).prova_tu, null);
+});
+
+test("limite di 30 aiuti al giorno per profilo, si riparte il giorno dopo", () => {
+  assert.equal(MAX_AIUTI_GIORNO, 30);
+  assert.equal(giornoRoma(new Date("2026-11-15T23:30:00Z")), "2026-11-16"); // a Roma è già domani
+  assert.deepEqual(contaAiuti({ ruolo: "studente" }, "2026-11-15"), { permesso: true, aiuti: { giorno: "2026-11-15", n: 1 } });
+  assert.deepEqual(contaAiuti({ aiuti: { giorno: "2026-11-15", n: 29 } }, "2026-11-15"), { permesso: true, aiuti: { giorno: "2026-11-15", n: 30 } });
+  assert.deepEqual(contaAiuti({ aiuti: { giorno: "2026-11-15", n: 30 } }, "2026-11-15"), { permesso: false, aiuti: { giorno: "2026-11-15", n: 30 } });
+  assert.deepEqual(contaAiuti({ aiuti: { giorno: "2026-11-14", n: 30 } }, "2026-11-15"), { permesso: true, aiuti: { giorno: "2026-11-15", n: 1 } });
+});
+
+test("il prompt chiede la strategia con un nome, il perché di ogni passo, i controlli con ✓, il Prova tu", () => {
+  const p = promptCompito({ classe: "2", testo: TESTO_LINDA });
+  assert.match(p, /strategia/i);
+  assert.match(p, /andare a ritroso/i);
+  assert.match(p, /perché/i);
+  assert.match(p, /controlli/);
+  assert.match(p, /prova_tu/);
+  assert.match(p, /trucco da ricordare/i);
+});

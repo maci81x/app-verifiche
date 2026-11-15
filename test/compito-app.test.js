@@ -65,7 +65,7 @@ test("soluzione passo per passo: passi numerati da toccare, verifica, trucco; li
   assert.match(h, /<li class="passo" data-passo="1">[\s\S]*<b>Frazioni spese<\/b>/);
   assert.match(h, /data-passo="2"[\s\S]*Collego frazione ed euro/);
   assert.match(h, /Verifica[\s\S]*Rimetto 1260 nel testo/);
-  assert.match(h, /class="trucco"[\s\S]*Il trucco di questo problema[\s\S]*Gli euro non sono frazioni/);
+  assert.match(h, /class="trucco"[\s\S]*Il trucco da ricordare[\s\S]*Gli euro non sono frazioni/);
   assert.match(h, /Risultato: <b>1260 €<\/b>/);
   assert.doesNotMatch(h, /io ottengo/);
   const diverso = run(`htmlSoluzioneCompito(${JSON.stringify({ ...C, libro_diverso: true, risultato: { valore: "1250", unita: "€" } })})`);
@@ -94,4 +94,31 @@ test("i compiti di oggi: gli ultimi 5, il più recente in cima, niente doppioni"
 
 test("i compiti di oggi reggono a una voce rotta nella memoria del telefono", () => {
   assert.equal(json(`compitiDiOggi([null, { quando: "2026-11-15T10:00:00Z" }, { quando: "2026-11-15T10:00:00Z", compito: { testo: "a" } }], new Date("2026-11-15T12:00:00Z"))`).length, 1);
+});
+
+test("strategia con un nome prima dei passi, verifica con una ✓ per controllo", () => {
+  const L = { ...C, strategia: { nome: "Andare a ritroso", perche: "Si parte dalla fine." },
+    verifica: { spiegazione: "Vado avanti.", controlli: [{ testo: "Prima ora: restano 32", calcolo: "48 - (48 : 4 + 4) = 32" }, { testo: "Seconda ora: restano 20", calcolo: "32 - (32 : 4 + 4) = 20" }] } };
+  const h = run(`htmlSoluzioneCompito(${JSON.stringify(L)})`);
+  assert.ok(h.indexOf("Andare a ritroso") < h.indexOf('class="passi-compito"'), "la strategia viene prima dei passi");
+  assert.match(h, /class="strategia"[\s\S]*Strategia: <b>Andare a ritroso<\/b>[\s\S]*Si parte dalla fine/);
+  assert.equal((h.match(/class="controllo"/g) || []).length, 2);
+  assert.match(h, /<span class="spunta" aria-hidden="true">✓<\/span>[\s\S]*Prima ora: restano 32/);
+});
+
+test("Prova tu: campo per la risposta, poi Ci sei o Non ancora con il passo da guardare", () => {
+  const p = { testo: "Se 11 fette valgono 770 €, quanto vale 1 fetta?", risultato: { valore: "70", unita: "€" }, calcolo: "770 : 11 = 70", passo: 5, spiegazione: "Dividi 770 per 11." };
+  const h = run(`htmlProvaTu(${JSON.stringify(p)}, "pt-1")`);
+  assert.match(h, /Prova tu: Se 11 fette valgono 770 €, quanto vale 1 fetta\?/);
+  assert.match(h, /<input type="text" id="pt-1"[^>]*inputmode="decimal"/);
+  assert.match(h, /data-azione="controlla" data-pt="pt-1">Controlla</);
+  assert.match(run(`htmlEsitoProvaTu({ giusto: true, esito: "giusto" }, ${JSON.stringify(p)})`), /●<\/i> Ci sei/);
+  const no = run(`htmlEsitoProvaTu({ giusto: false, esito: "sbagliato" }, ${JSON.stringify(p)})`);
+  assert.match(no, /✕<\/i> Non ancora: guarda il passo 5/);
+  assert.match(no, /Dividi 770 per 11\./);
+  assert.match(run(`htmlEsitoProvaTu({ giusto: true, esito: "senza_unita" }, ${JSON.stringify(p)})`), /manca l'unità/);
+});
+
+test("limite degli aiuti: il messaggio è quello giusto", () => {
+  assert.equal(run(`messaggioModello(new Definitivo("limite_giornaliero"), "x")`), "Per oggi hai usato tutti gli aiuti: riprova domani.");
 });
