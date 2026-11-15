@@ -14,6 +14,13 @@ function passiVisibili(passi, g) {
   return { visibili: n - nascosti, nascosti };
 }
 
+// I passi della soluzione: il controllo finale («Controllo: …», «Verifica: …») non è un passo da ritirare.
+function passiDaRitirare(passi) {
+  const p = [...(passi || [])];
+  while (p.length > 1 && /^\s*(controllo|verifica)\b/i.test(p[p.length - 1].testo || "")) p.pop();
+  return p;
+}
+
 // Round robin per tipo: uno per tipo a turno, nell'ordine in cui i tipi compaiono.
 function mescolaPerTipo(lista, chiave) {
   const gruppi = new Map();
@@ -23,7 +30,13 @@ function mescolaPerTipo(lista, chiave) {
   return out;
 }
 // I ripassi del giorno, alternando le strategie: si impara anche a riconoscere quale usare.
-const ripassiMescolati = (dovuti) => mescolaPerTipo(dovuti, (v) => (v.compito && v.compito.strategia && v.compito.strategia.nome) || v.compito.testo);
+const strategiaDi = (v) => (v.compito && v.compito.strategia && v.compito.strategia.nome) || v.compito.testo;
+const ripassiMescolati = (dovuti) => mescolaPerTipo(dovuti, strategiaDi);
+// Il prossimo ripasso: il primo con una strategia diversa da quella dell'ultimo fatto (se c'è).
+function prossimoRipasso(dovuti, ultima) {
+  const m = ripassiMescolati(dovuti || []);
+  return m.find((v) => strategiaDi(v) !== ultima) || m[0] || null;
+}
 
 /* ---- vista: gli esempi dopo la soluzione di un compito ---- */
 
@@ -35,8 +48,8 @@ async function apriEsempi() {
   attesa($("stato-esempi"), ["Preparo quattro esempi come questo", "Rifaccio i conti"]);
   try {
     const r = await conRiprovaEsercizi(() => modello({ azione: "esercizi_genera", modello: { testo: compito.testo }, quanti: 5 }));
-    // i più lunghi prima: con almeno tre passi il ritiro si vede
-    const lista = (r.esercizi || []).filter((e) => (e.passaggi || []).length >= 2).slice(0, 4);
+    // servono almeno due passi della soluzione perché il ritiro si veda; i primi quattro esempi validi
+    const lista = (r.esercizi || []).map((e) => ({ ...e, passaggi: passiDaRitirare(e.passaggi) })).filter((e) => e.passaggi.length >= 2).slice(0, 4);
     if (lista.length < 2) throw new Error("nessun_verificato");
     esempi = { lista, g: 0, provati: [] };
     disegnaEsempio();
@@ -73,15 +86,16 @@ async function controllaEsempio() {
     out.innerHTML = (r.giusto ? '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span></p>'
       : '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora</span> Ecco tutti i passi.</p>' + htmlErroreTipico(r, "esempio-" + g)) +
       (r.giusto ? "" : htmlPassiEsempio(e, e.passaggi.length, 0)) +
-      (ultimo ? '<p class="aiuto">' + esc(fineEsempi(esempi.provati)) + "</p>"
+      (ultimo ? '<p class="aiuto">' + esc(fineEsempi(esempi.provati, Math.min(4, lista.length))) + "</p>"
         : '<div class="bottoni"><button type="button" class="minore" id="btn-es-dopo">' + esc(GRADINI_ESEMPI[g + 1]) + "</button></div>");
     caricaKatex().then((ok) => { if (ok) rendiFormule(out); });
     const dopo = $("btn-es-dopo"); if (dopo) dopo.onclick = () => { esempi.g = g + 1; disegnaEsempio(); };
   } catch (err) { out.innerHTML = "<p>" + esc(messaggioModello(err, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
 // Alla fine: preciso e vero, solo con quello che è successo.
-function fineEsempi(provati) {
+function fineEsempi(provati, quanti = 4) {
   const fatti = provati.filter((x) => x !== undefined), giusti = fatti.filter(Boolean).length;
+  if (quanti < 4) return "Hai fatto tutti gli esempi che avevo: " + giusti + " su " + fatti.length + " al primo colpo.";
   return provati[3] ? "L'ultimo l'hai fatto senza passi: " + giusti + " su " + fatti.length + " al primo colpo."
     : giusti + " su " + fatti.length + " al primo colpo. Riprova l'ultimo gradino con un esercizio simile.";
 }

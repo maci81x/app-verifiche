@@ -9,6 +9,7 @@
 
 const MAX_COMPITI = 5;
 const chiaveCompiti = (id) => "verifiche-compiti-" + id;
+const chiaveUltimaStrategia = (id) => "verifiche-ultima-strategia-" + id;
 const MSG_CONTI = "Su questo esercizio i conti non mi tornano del tutto. Chiedi alla prof o riprova con una foto più nitida.";
 const MSG_CONTI_DOMANDA = "Su questa domanda i conti non mi tornano. Prova a chiederla con altre parole.";
 
@@ -526,10 +527,10 @@ function disegnaRipassoOggi() {
   if (!profilo) return;
   const ora = new Date();
   // più ripassi nello stesso giorno: mescolati per strategia (esempi.js), uno alla volta
-  const tutti = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), ora), dovuto = (typeof ripassiMescolati === "function" ? ripassiMescolati(tutti) : tutti)[0];
+  const tutti = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), ora), dovuto = typeof prossimoRipasso === "function" ? prossimoRipasso(tutti, leggiLocale(chiaveUltimaStrategia(profilo.id), "")) : tutti[0];
   const allena = leggiLocale(chiaveAllena(profilo.id), null);
   if (dovuto) box.innerHTML += '<button type="button" class="scelta" id="btn-ripasso-compito"><span class="occhiello">Ripasso</span><b>Ti ricordi questo problema?</b><small>«' +
-    esc(String(dovuto.compito.testo || "").slice(0, 70)) + "…» Eccone uno simile." + (tutti.length > 1 ? " Oggi ne hai " + tutti.length + ", mescolati: un tipo diverso per volta." : "") + "</small></button>";
+    esc(String(dovuto.compito.testo || "").slice(0, 70)) + "…» Eccone uno simile." + (tutti.length > 1 ? " Oggi ne hai " + tutti.length + ": te li do alternando le strategie." : "") + "</small></button>";
   const difficili = allena && Array.isArray(allena.difficili) ? allena.difficili.filter((d) => d && typeof d.concetto === "string") : [];
   if (allena && allena.quando && allena.quando < giornoDi(ora) && allena.compito && difficili.length)
     box.innerHTML += '<button type="button" class="scelta" id="btn-allena-ieri"><span class="occhiello">Allenamento</span><b>«' + esc(difficili[0].concetto) +
@@ -537,7 +538,9 @@ function disegnaRipassoOggi() {
 }
 function apriRipasso() {
   const tutti = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), new Date());
-  const v = (typeof ripassiMescolati === "function" ? ripassiMescolati(tutti) : tutti)[0]; if (!v) return;
+  const v = typeof prossimoRipasso === "function" ? prossimoRipasso(tutti, leggiLocale(chiaveUltimaStrategia(profilo.id), "")) : tutti[0]; if (!v) return;
+  // il prossimo, oggi, avrà un'altra strategia: si impara a riconoscere quale usare
+  if (typeof strategiaDi === "function") salvaLocale(chiaveUltimaStrategia(profilo.id), strategiaDi(v));
   ripassoAperto = v; compito = v.compito; $("cp-chiedi").hidden = true;
   ["cp-foto", "cp-scegli", "cp-letto", "cp-aiuto"].forEach((id) => { $(id).hidden = true; });
   $("cp-allenati").hidden = false; $("cp-blocco-difficili").hidden = true; $("cp-blocco-gemelli").hidden = true; $("cp-gemelli").innerHTML = "";

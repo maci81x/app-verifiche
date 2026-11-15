@@ -42,9 +42,9 @@
 //      solo un calcolo (correzione.js); con il calcolo o il testo si riconosce anche l'errore tipico (issue #28).
 // POST { azione: "poesia", immagini | testo } → { titolo, autore, strofe: [[verso]] } (issue #28). Conta come un aiuto.
 // POST { azione: "invalsi", materia: matematica|italiano|inglese, quante: 3-10 } → { brano, domande, scartate }: solo 3ª media
-//      (403 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
+//      (422 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
 // POST { azione: "esame" } → { titolo, partenza, tappe, domande, consigli, scartate }: scaletta del colloquio dell'esame
-//      dagli argomenti salvati (solo 3ª, 403 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
+//      dagli argomenti salvati (solo 3ª, 422 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
 //      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
@@ -704,7 +704,7 @@ Deno.serve(async (req) => {
       const quante = Math.min(10, Math.max(3, Math.round(Number(b.quante)) || 5));
       if (!MATERIE_INVALSI.includes(b.materia)) return json({ errore: "richiesta non valida" }, 400);
       const classe = await classeDi(req, io.sub);
-      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 403);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 422); // 422: l'app lo legge (403 è «non autorizzato»)
       if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
       let riuscito = false;
       try {
@@ -718,9 +718,9 @@ Deno.serve(async (req) => {
     // «Esame di terza media» (issue #28): scaletta del colloquio dagli argomenti salvati. Solo 3ª, conta come un aiuto.
     if (b.azione === "esame") {
       const classe = await classeDi(req, io.sub);
-      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 403);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 422); // 422: l'app lo legge (403 è «non autorizzato»)
       const { data: salvati, error } = await comeUtente(req).from("argomenti").select("id, titolo, materia, concetti(titolo)")
-        .eq("studente_id", io.sub).limit(MAX_ARGOMENTI_ESAME);
+        .eq("studente_id", io.sub).order("aggiornato", { ascending: false }).limit(MAX_ARGOMENTI_ESAME);
       if (error) throw error;
       const argomenti = argomentiPerEsame(salvati);
       if (!argomenti) return json({ errore: "pochi_argomenti" }, 422);

@@ -73,3 +73,13 @@ test("solo dati verificati: ogni fatto del quiz ha la sua fonte nella tabella do
   assert.match(testo, /circa 4800 m/);
   assert.doesNotMatch(testo, /4805|220 km/);
 });
+
+test("nello stesso quiz un fiume (o un monte) compare una volta sola; la foce del Tevere chiesta senza ambiguità", () => {
+  for (let k = 1; k <= 20; k++) {
+    let s = k; const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const d = json(`domandeGeografia(GEOGRAFIA_ITALIA, 10, (${String((s0) => { let s = s0; return () => (s = (s * 16807) % 2147483647) / 2147483647; })})(${k}))`);
+    const fiumi = d.filter((q) => /\bPo\b|Tevere/.test(q.testo)).map((q) => (q.testo.match(/\bPo\b|Tevere/) || [])[0]);
+    assert.equal(new Set(fiumi).size, fiumi.length, "seme " + k + ": " + fiumi.join(", "));
+  }
+  assert.ok(json("GEOGRAFIA_ITALIA.fatti").some((f) => f.domanda === "In quale regione sfocia il Tevere?"));
+});

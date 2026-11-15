@@ -33,7 +33,7 @@ const GEOGRAFIA_ITALIA = {
     { tipo: "fiume", nome: "Po (corso)", domanda: "Quale di queste regioni attraversa il Po?", regioni: [1, 3, 8, 5], dettaglio: "Il Po attraversa Piemonte, Lombardia, Emilia-Romagna e Veneto e sfocia nell'Adriatico con un delta.", fonte: "https://it.wikipedia.org/wiki/Po" },
     { tipo: "fiume", nome: "Adige", domanda: "In quale regione nasce l'Adige?", regioni: [4], dettaglio: "L'Adige nasce al Passo di Resia e sfocia nell'Adriatico in Veneto. È lungo 410 km, il secondo fiume d'Italia.", fonte: "https://it.wikipedia.org/wiki/Adige" },
     { tipo: "fiume", nome: "Tevere (sorgente)", domanda: "In quale regione nasce il Tevere?", regioni: [8], dettaglio: "Il Tevere nasce dal Monte Fumaiolo, in Emilia-Romagna. È lungo 405 km, il terzo fiume d'Italia.", fonte: "https://it.wikipedia.org/wiki/Tevere" },
-    { tipo: "fiume", nome: "Tevere (foce)", domanda: "Il Tevere passa per Roma e sfocia nel mare: in quale regione?", regioni: [12], dettaglio: "Il Tevere attraversa Toscana, Umbria e Lazio e sfocia nel Mar Tirreno.", fonte: "https://it.wikipedia.org/wiki/Tevere" },
+    { tipo: "fiume", nome: "Tevere (foce)", domanda: "In quale regione sfocia il Tevere?", regioni: [12], dettaglio: "Il Tevere attraversa Toscana, Umbria e Lazio e sfocia nel Mar Tirreno.", fonte: "https://it.wikipedia.org/wiki/Tevere" },
     { tipo: "fiume", nome: "Arno", domanda: "In quale regione scorre l'Arno, da dove nasce a dove finisce?", regioni: [9], dettaglio: "L'Arno, 241 km, nasce dal Monte Falterona e passa per Firenze e Pisa.", fonte: "https://it.wikipedia.org/wiki/Arno" },
     { tipo: "fiume", nome: "Piave", domanda: "In quale regione nasce il Piave?", regioni: [6], dettaglio: "Il Piave nasce sul Monte Peralba, a Sappada, che dal 2017 è in Friuli-Venezia Giulia. Attraversa il Veneto e sfocia nell'Adriatico: circa 230 km.", fonte: "https://it.wikipedia.org/wiki/Piave" },
     // laghi
@@ -58,7 +58,14 @@ function domandeGeografia(dati, n, rnd = Math.random) {
     regione: mescola(dati.regioni).map((r) => ({ tipo: "regione", testo: "Tocca la regione: " + r.nome, giuste: [r.istat], spiegazione: "Il capoluogo è " + r.capoluogo + "." })),
     capoluogo: mescola(dati.regioni).map((r) => ({ tipo: "capoluogo", testo: r.capoluogo + " è il capoluogo di quale regione?", giuste: [r.istat], spiegazione: r.capoluogo + " è il capoluogo della regione " + r.nome + "." })),
   };
-  for (const f of mescola(dati.fatti)) (code[f.tipo] = code[f.tipo] || []).push({ tipo: f.tipo, testo: f.domanda, giuste: f.regioni, spiegazione: f.dettaglio });
+  // un fatto per luogo: «Po (sorgente)» e «Po (corso)» nello stesso quiz si darebbero la risposta a vicenda
+  const luoghi = new Set();
+  for (const f of mescola(dati.fatti)) {
+    const luogo = f.nome.replace(/\s*\(.*\)$/, "");
+    if (luoghi.has(luogo)) continue;
+    luoghi.add(luogo);
+    (code[f.tipo] = code[f.tipo] || []).push({ tipo: f.tipo, testo: f.domanda, giuste: f.regioni, spiegazione: f.dettaglio });
+  }
   const tipi = mescola(Object.keys(code)), out = [];
   for (let giro = 0; out.length < n && tipi.some((t) => code[t].length); giro++) for (const t of tipi) if (code[t].length && out.length < n) out.push(code[t].shift());
   // istat: le regioni giuste (per la cartina); giuste: i loro nomi (per i bottoni)

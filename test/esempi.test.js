@@ -65,3 +65,23 @@ test("scaletta dell'esame: partenza, tappe numerate con materia e collegamento, 
   assert.match(h, /collegamento proposto/i); // il collegamento è un'idea, non un fatto del quaderno
   assert.doesNotMatch(h, / · |→/);
 });
+
+test("i passi che si ritirano sono quelli della soluzione: il controllo finale non conta", () => {
+  const p = [{ testo: "Sommiamo le frazioni" }, { testo: "Frazione che resta" }, { testo: "Dalla parte all'intero" }, { testo: "Controllo: 200 + 50 = 250." }];
+  assert.deepEqual(json(`passiDaRitirare(${JSON.stringify(p)})`).map((x) => x.testo), ["Sommiamo le frazioni", "Frazione che resta", "Dalla parte all'intero"]);
+  assert.equal(json(`passiDaRitirare([{ testo: "Verifica: 3 × 4 = 12" }, { testo: "a" }])`).length, 2); // solo in fondo
+});
+
+test("ripasso del giorno: il prossimo ha una strategia diversa dall'ultimo fatto", () => {
+  const v = (s, n) => ({ compito: { testo: "c" + n, strategia: { nome: s } }, n });
+  const dovuti = [v("Ritroso", 1), v("Ritroso", 2), v("Parte-intero", 3)];
+  assert.equal(json(`prossimoRipasso(${JSON.stringify(dovuti)}, "Ritroso")`).n, 3);
+  assert.equal(json(`prossimoRipasso(${JSON.stringify(dovuti)}, "Parte-intero")`).n, 1);
+  assert.equal(json(`prossimoRipasso(${JSON.stringify([v("Ritroso", 1)])}, "Ritroso")`).n, 1); // non c'è altro
+  assert.equal(json(`prossimoRipasso([], "x")`), null);
+});
+
+test("fine degli esempi con meno di quattro esempi: niente gradino che non c'è", () => {
+  assert.equal(run("fineEsempi([undefined, true, true], 3)"), "Hai fatto tutti gli esempi che avevo: 2 su 2 al primo colpo.");
+  assert.equal(run("fineEsempi([undefined, true, true, true], 4)"), "L'ultimo l'hai fatto senza passi: 3 su 3 al primo colpo.");
+});
