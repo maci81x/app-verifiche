@@ -122,3 +122,11 @@ test("Prova tu: campo per la risposta, poi Ci sei o Non ancora con il passo da g
 test("limite degli aiuti: il messaggio è quello giusto", () => {
   assert.equal(run(`messaggioModello(new Definitivo("limite_giornaliero"), "x")`), "Per oggi hai usato tutti gli aiuti: riprova domani.");
 });
+
+test("Cosa sai: il dato in grassetto e il suo significato; l'evidenziatura usa il valore", () => {
+  const dati = [{ valore: "1/6", significato: "la parte spesa per gli anelli" }, { valore: "305 €", significato: "" }];
+  assert.equal(run(`htmlSai(${JSON.stringify(dati)})`), "<li><b>1/6</b>: la parte spesa per gli anelli</li><li><b>305 €</b></li>");
+  assert.equal(run(`htmlSai(["2/9"])`), "<li><b>2/9</b></li>"); // compiti salvati prima: stringhe
+  assert.match(run(`htmlTestoConDati("ha speso 1/6 e restano 305 €.", ${JSON.stringify(dati)})`), /<mark class="evidenzia">1\/6<\/mark>[\s\S]*<mark class="evidenzia">305 €<\/mark>/);
+  assert.equal(run(`htmlSai([{ valore: "<b>", significato: "<i>" }])`), "<li><b>&lt;b&gt;</b>: &lt;i&gt;</li>");
+});

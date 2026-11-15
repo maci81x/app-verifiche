@@ -316,3 +316,10 @@ test("in avanti va bene anche un risultato frazionario", () => {
     risultato: { valore: "1/4", unita: "" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "12 - 12 × 1/4 = 9" }] } };
   assert.deepEqual(controllaCompito(c), { ok: true });
 });
+
+test("Cosa sai: ogni dato con il suo significato (le stringhe vecchie restano valide)", () => {
+  const c = pulisciCompito({ ...copia(PAOLO), dati: [{ valore: "1/6", significato: "la parte dello stipendio spesa per gli anelli" }, { valore: "465 €", significato: "l'anticipo al ristorante" }, { valore: "", significato: "x" }] });
+  assert.deepEqual(c.dati, [{ valore: "1/6", significato: "la parte dello stipendio spesa per gli anelli" }, { valore: "465 €", significato: "l'anticipo al ristorante" }]);
+  assert.deepEqual(pulisciCompito(copia(PAOLO)).dati[0], { valore: "1/6", significato: "" });
+  assert.match(promptCompito({ classe: "2", testo: TESTO_PAOLO }), /significato/);
+});
