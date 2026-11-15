@@ -81,14 +81,22 @@ export function controllaCompito(c) {
   const consegna = String(c.testo).replace(/\[[^\]]*\]/g, " ");
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
+  const quanti = Math.min(2, dati.size);
+  const datiIn = (s) => new Set(numeriIn(s.replace(/\d+\s*\/\s*\d+/g, " ")).filter((n) => dati.has(n)));
+  const conFrazione = (s) => frazioni.some((f) => s.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
+  const haValore = (s) => numeriIn(s).some((n) => coincide(n, valore));
+  // All'indietro: un controllo arriva al risultato senza averlo a sinistra e usa lui stesso i dati.
+  const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) && (dati.size ? datiIn(s).size >= quanti : conFrazione(s)));
+  // In avanti: il risultato entra davvero nel primo conto (cambiandolo, cambia il conto), ogni controllo
+  // riparte da dove è arrivato il precedente, l'ultimo arriva a un dato del testo.
   const ultimo = finale(controlli[controlli.length - 1]);
-  const indietro = controlli.some((x) => coincide(finale(x), valore));
-  const avanti = !indietro && dati.has(ultimo) && sinistre.some((s) => numeriIn(s).some((n) => coincide(n, valore)));
-  const usati = new Set(sinistre.flatMap((s) => numeriIn(s.replace(/\d+\s*\/\s*\d+/g, " "))).filter((n) => dati.has(n)));
-  if (avanti) usati.add(ultimo);
-  const tutto = sinistre.join(" ").replace(/\s/g, "");
-  const daiDati = dati.size ? usati.size >= Math.min(2, dati.size) : frazioni.some((f) => tutto.includes(f.replace(/\s/g, "")));
-  if (!(indietro || avanti) || !daiDati) return { ok: false, motivo: "verifica" };
+  const primo = senzaUnita(conPer(controlli[0])).split("=")[0];
+  const conta = valutaSicuro;
+  const spostato = primo.replace(new RegExp("(?<![\\d.,])" + String(valore).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d.,])", "g"), String(valutaSicuro(valore) + 1));
+  const avanti = !indietro && haValore(sinistre[0]) && conta(spostato) !== null && conta(primo) !== null && Math.abs(conta(spostato) - conta(primo)) > 1e-9 &&
+    sinistre.every((s, i) => i === 0 || numeriIn(s).some((n) => coincide(n, String(finale(controlli[i - 1]))))) &&
+    dati.has(ultimo) && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ultimo]).size >= quanti : true);
+  if (!(indietro || avanti)) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
 }

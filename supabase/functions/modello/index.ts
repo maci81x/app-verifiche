@@ -325,16 +325,19 @@ const MAX_APPUNTI = 60_000;
 const amministratore = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-async function usaAiuto(sub: string): Promise<boolean> {
+// Prima si guarda se c'è ancora un aiuto; si conta solo quando la risposta è riuscita
+// (un errore del modello o dei conti non consuma aiuti).
+async function aiutoDisponibile(sub: string) {
   const db = amministratore();
   const { data, error } = await db.auth.admin.getUserById(sub);
   if (error || !data?.user) throw error ?? new Error("utente non trovato");
   const am = data.user.app_metadata ?? {};
   const { permesso, aiuti } = contaAiuti(am, giornoRoma());
-  if (!permesso) return false;
-  const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
-  if (e2) throw e2;
-  return true;
+  const conta = async () => {
+    const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+    if (e2) console.error("conteggio aiuti:", e2);
+  };
+  return { permesso, conta };
 }
 
 class Definitivo extends Error {}
@@ -514,7 +517,8 @@ Deno.serve(async (req) => {
       if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
           !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
         return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo dell'esercizio` }, 400);
-      if (!(await usaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      const aiuto = await aiutoDisponibile(io.sub);
+      if (!aiuto.permesso) return json({ errore: "limite_giornaliero" }, 429);
       const db = comeUtente(req);
       const { data: st } = await db.from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const base = { classe: st?.classe ?? null, testo: scritto || null, esercizio: testoBreve(b.esercizio, 200).trim() || null };
@@ -523,7 +527,7 @@ Deno.serve(async (req) => {
       const conTesto = (x: any) => (x && !x.esercizi && scritto ? { ...x, testo: scritto } : x);
       let c = conTesto(pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto)));
       if (!c) return json({ errore: "nessun_esercizio" }, 422);
-      if (c.esercizi) return json(c);
+      if (c.esercizi) { await aiuto.conta(); return json(c); }
       if (eMatematica(c)) {
         // Ogni conto si ricalcola; se non torna si chiede una seconda volta, poi niente soluzione.
         // Il secondo tentativo si tiene solo se è migliore: conti giusti battono conti rotti.
@@ -542,6 +546,7 @@ Deno.serve(async (req) => {
         if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano" }, 422);
         // In matematica non ci sono frasi del quaderno da evidenziare; gli indizi non dicono il risultato.
         // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
+        await aiuto.conta();
         return json({ ...c, matematica: true, indizi: indiziSenzaRisultato(c), passi: c.passi.map((p: any) => ({ ...p, ancora: "" })), libro_diverso: !esito.ok });
       }
       // Altre materie: se ci sono appunti della stessa materia, si rifà con quelli come fonte e
@@ -555,6 +560,7 @@ Deno.serve(async (req) => {
         if (conAppunti && !conAppunti.esercizi) c = conTesto(conAppunti);
       }
       const passi = c.passi.map((p: any) => ({ ...p, calcolo: "", ancora: p.ancora && appunti && ancoraRegge(p.ancora, appunti) ? p.ancora : "" }));
+      await aiuto.conta();
       return json({ ...c, passi, libro_diverso: false });
     }
 
@@ -562,7 +568,8 @@ Deno.serve(async (req) => {
       const compito = pulisciCompito(b.compito);
       const domanda = testoBreve(b.domanda, 600).trim();
       if (!compito || compito.esercizi || !domanda) return json({ errore: "richiesta non valida" }, 400);
-      if (!(await usaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      const aiuto = await aiutoDisponibile(io.sub);
+      if (!aiuto.permesso) return json({ errore: "limite_giornaliero" }, 429);
       const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda });
       let r = pulisciRisposta(await chiedi(prompt, SCHEMA_RISPOSTA_COMPITO));
@@ -573,6 +580,7 @@ Deno.serve(async (req) => {
         if (di_nuovo) r = di_nuovo;
         if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
       }
+      await aiuto.conta();
       return json(r);
     }
 

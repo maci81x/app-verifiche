@@ -229,3 +229,24 @@ test("il prompt chiede la strategia con un nome, il perché di ogni passo, i con
   assert.match(p, /prova_tu/);
   assert.match(p, /trucco da ricordare/i);
 });
+
+test("verifiche finte trovate dalla revisione: rifiutate", () => {
+  const finteLinda = [["48 × 0 + 4 + 16 = 20"], ["48 - 48 + 4 + 16 = 20"], ["48 : 4 = 12", "4 × 5 = 20"]];
+  for (const cc of finteLinda) {
+    const c = copia(LINDA); c.verifica.controlli = cc.map((calcolo) => ({ testo: "", calcolo }));
+    assert.equal(controllaCompito(c).motivo, "verifica", cc.join(" | "));
+  }
+  const fintePaolo = [["465 + 305 = 770", "1260 = 1260"], ["1260 - 465 - 305 + 465 + 305 = 1260"]];
+  for (const cc of fintePaolo) {
+    const c = copia(PAOLO); c.verifica = { spiegazione: "", controlli: cc.map((calcolo) => ({ testo: "", calcolo })) };
+    assert.equal(controllaCompito(c).motivo, "verifica", cc.join(" | "));
+  }
+  assert.deepEqual(controllaCompito(LINDA), { ok: true });
+  assert.deepEqual(controllaCompito(PAOLO), { ok: true });
+});
+
+test("in avanti va bene anche una catena con più uguali nel primo controllo", () => {
+  const c = copia(LINDA);
+  c.verifica.controlli = [{ testo: "", calcolo: "48 - (48 : 4 + 4) = 48 - 16 = 32" }, { testo: "", calcolo: "32 - (32 : 4 + 4) = 20" }];
+  assert.deepEqual(controllaCompito(c), { ok: true });
+});
