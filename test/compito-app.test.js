@@ -57,7 +57,8 @@ test("calcoli in formula: frazioni, per e diviso", () => {
   assert.equal(run(`calcoloLatex("1/6 + 2/9 = 3/18 + 4/18 = 7/18")`), "\\frac{1}{6} + \\frac{2}{9} = \\frac{3}{18} + \\frac{4}{18} = \\frac{7}{18}");
   assert.equal(run(`calcoloLatex("70 × 18 = 1260")`), "70 \\times 18 = 1260");
   assert.equal(run(`calcoloLatex("770 : 11 = 70")`), "770 \\div 11 = 70");
-  assert.equal(run(`calcoloLatex("465 € + 305 € = 770 €")`), "465\\text{ €} + 305\\text{ €} = 770\\text{ €}");
+  // KaTeX non conosce €: nella formula l'unità non c'è (resta nel testo del passo)
+  assert.equal(run(`calcoloLatex("465 € + 305 € = 770 €")`), "465 + 305 = 770");
 });
 
 test("soluzione passo per passo: passi numerati da toccare, verifica, trucco; libro diverso detto senza giudicare", () => {

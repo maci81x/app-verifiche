@@ -36,7 +36,7 @@ function calcoloLatex(s) {
   return String(s || "")
     .replace(/(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/g, "\\frac{$1}{$2}")
     .replace(/×/g, "\\times").replace(/\s:\s/g, " \\div ").replace(/·/g, "\\cdot")
-    .replace(/\s*€/g, "\\text{ €}");
+    .replace(/\s*€/g, ""); // KaTeX non conosce €: l'unità sta già nel testo del passo
 }
 const formulaCalcolo = (s) => '<span class="riga-formula">' + formulaHtml(calcoloLatex(s)) + "</span>";
 
@@ -392,13 +392,16 @@ async function eserciziMirati(concetto, passo) {
   } catch (e) { errore($("cp-mirati"), messaggioModello(e, "Non sono riuscito a preparare esercizi con i conti giusti. Riprova fra un momento.")); }
   attesa($("stato-mirati"), null);
 }
-function disegnaMirati() {
-  $("cp-mirati").innerHTML = '<h3 class="sez-titolo">' + esc(mirati.concetto) + "</h3>" + mirati.esercizi.map((e, i) =>
-    '<article class="esercizio"><p class="occhiello">Esercizio ' + (i + 1) + " di " + mirati.esercizi.length + '</p><p class="consegna">' + esc(e.testo) + "</p>" +
+function htmlMirato(e, i, occhiello) {
+  return '<article class="esercizio"><p class="occhiello">' + occhiello + '</p><p class="consegna">' + esc(e.testo) + "</p>" +
     (e.dati ? '<p class="dati-es">Dati: ' + esc(e.dati) + "</p>" : "") + htmlDomandaConRisposta("mi-" + i, "<b>La tua risposta</b>") +
     '<details class="come-si-fa" id="mi-' + i + '-sol" hidden><summary>Ecco come si fa</summary><ol class="passaggi">' +
     (e.passaggi || []).map((x) => "<li>" + esc(x.testo) + (x.formula ? '<span class="riga-formula">' + formulaHtml(x.formula) + "</span>" : "") + "</li>").join("") +
-    "</ol></details></article>").join("") + '<p class="aiuto" id="mi-esito"></p>';
+    "</ol></details></article>";
+}
+function disegnaMirati() {
+  $("cp-mirati").innerHTML = '<h3 class="sez-titolo">' + esc(mirati.concetto) + "</h3>" +
+    mirati.esercizi.map((e, i) => htmlMirato(e, i, "Esercizio " + (i + 1) + " di " + mirati.esercizi.length)).join("") + '<p class="aiuto" id="mi-esito"></p>';
   formuleIn("cp-mirati");
 }
 async function giudicaMirato(i) {
@@ -409,11 +412,17 @@ async function giudicaMirato(i) {
     mirati.esiti[i] = !!r.giusto;
     out.innerHTML = r.giusto ? '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span></p>'
       : '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora</span> Guarda come si fa qui sotto, poi prova quello in più.</p>';
-    if (!r.giusto) { $("mi-" + i + "-sol").hidden = false; $("mi-" + i + "-sol").open = true;
-      // un esercizio in più dello stesso livello, se c'è
-      if (mirati.extra.length) { mirati.esercizi.splice(i + 1, 0, mirati.extra.shift()); mirati.esiti.splice(i + 1, 0, undefined); const fatti = mirati.esiti.slice(); disegnaMirati(); mirati.esiti = fatti; } }
-    const risposti = mirati.esiti.slice(0, 3).filter((x) => x !== undefined).length;
-    if (risposti === 3 && $("mi-esito")) $("mi-esito").textContent = esitoAllenamento(mirati.concetto, mirati.esiti.slice(0, 3));
+    if (!r.giusto) {
+      $("mi-" + i + "-sol").hidden = false; $("mi-" + i + "-sol").open = true;
+      // un esercizio in più dello stesso livello, se c'è: si aggiunge sotto, senza ridisegnare gli altri
+      if (i < 3 && mirati.extra.length) {
+        const nuovo = mirati.extra.shift(), k = mirati.esercizi.push(nuovo) - 1;
+        $("mi-" + i).closest(".esercizio").insertAdjacentHTML("afterend", htmlMirato(nuovo, k, "Uno in più dello stesso livello"));
+        formuleIn("cp-mirati");
+      }
+    }
+    const primi = mirati.esiti.slice(0, 3);
+    if (primi.length === 3 && primi.every((x) => x !== undefined) && $("mi-esito")) $("mi-esito").textContent = esitoAllenamento(mirati.concetto, primi);
   } catch (err) { out.innerHTML = "<p>" + esc(messaggioModello(err, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
 
