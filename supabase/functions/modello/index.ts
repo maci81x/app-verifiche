@@ -43,6 +43,8 @@
 // POST { azione: "poesia", immagini | testo } → { titolo, autore, strofe: [[verso]] } (issue #28). Conta come un aiuto.
 // POST { azione: "invalsi", materia: matematica|italiano|inglese, quante: 3-10 } → { brano, domande, scartate }: solo 3ª media
 //      (403 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
+// POST { azione: "esame" } → { titolo, partenza, tappe, domande, consigli, scartate }: scaletta del colloquio dell'esame
+//      dagli argomenti salvati (solo 3ª, 403 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
 //      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
@@ -80,6 +82,7 @@ import { ancoraRegge } from "../_shared/ancoraggio.js";
 import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
+import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -358,6 +361,18 @@ const SCHEMA_INVALSI = {
     }, required: ["ambito", "formato", "testo", "opzioni", "corretta", "risposta", "calcolo", "spiegazione"], additionalProperties: false } },
   },
   required: ["brano", "domande"], additionalProperties: false,
+} as const;
+
+const SCHEMA_ESAME = {
+  type: "object",
+  properties: {
+    titolo: STRINGA,
+    partenza: { type: "object", properties: { argomento: STRINGA, apertura: STRINGA }, required: ["argomento", "apertura"], additionalProperties: false },
+    tappe: { type: "array", items: { type: "object", properties: { argomento: STRINGA, collegamento: STRINGA, concetti: { type: "array", items: STRINGA } }, required: ["argomento", "collegamento", "concetti"], additionalProperties: false } },
+    domande: { type: "array", items: { type: "object", properties: { argomento: STRINGA, testo: STRINGA }, required: ["argomento", "testo"], additionalProperties: false } },
+    consigli: { type: "array", items: STRINGA },
+  },
+  required: ["titolo", "partenza", "tappe", "domande", "consigli"], additionalProperties: false,
 } as const;
 
 const SCHEMA_GEMELLI = {
@@ -697,6 +712,26 @@ Deno.serve(async (req) => {
         if (!esito.domande.length) return json({ errore: "nessuna_domanda", scartate: esito.scartate }, 422);
         riuscito = true;
         return json(esito);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // «Esame di terza media» (issue #28): scaletta del colloquio dagli argomenti salvati. Solo 3ª, conta come un aiuto.
+    if (b.azione === "esame") {
+      const classe = await classeDi(req, io.sub);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 403);
+      const { data: salvati, error } = await comeUtente(req).from("argomenti").select("id, titolo, materia, concetti(titolo)")
+        .eq("studente_id", io.sub).limit(MAX_ARGOMENTI_ESAME);
+      if (error) throw error;
+      const argomenti = argomentiPerEsame(salvati);
+      if (!argomenti) return json({ errore: "pochi_argomenti" }, 422);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        let e = pulisciEsame(await chiedi(promptEsame({ classe, argomenti }), SCHEMA_ESAME), argomenti);
+        if (!e) e = pulisciEsame(await chiedi(promptEsame({ classe, argomenti }) + "\n\nAttenzione: usa solo gli id dell'elenco e almeno due materie diverse.", SCHEMA_ESAME), argomenti);
+        if (!e) return json({ errore: "nessuna_scaletta" }, 422);
+        riuscito = true;
+        return json(e);
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 

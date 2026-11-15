@@ -245,7 +245,10 @@ function mostraAiuto() {
   $("btn-cp-soluzione").setAttribute("aria-disabled", String(!soluzioneSbloccata(compito)));
   $("cp-soluzione").hidden = true; $("cp-soluzione").innerHTML = "";
   disegnaChat();
-  $("btn-cp-simile").hidden = !compito.matematica; $("btn-cp-gemelli").hidden = true; // compare dopo la soluzione $("cp-allenati").hidden = true; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
+  // gemelli ed esempi compaiono dopo la soluzione (prima questo commento si mangiava le istruzioni che seguivano)
+  $("btn-cp-simile").hidden = !compito.matematica; $("btn-cp-gemelli").hidden = true; $("btn-cp-esempi").hidden = true;
+  $("cp-allenati").hidden = true; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
+  $("cp-esempi").hidden = true; $("cp-esempi").innerHTML = "";
   salvaQuesto();
   window.scrollTo(0, 0);
 }
@@ -274,7 +277,7 @@ function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indizi
 function mostraSoluzione() {
   $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito) + htmlProvaTu(compito.prova_tu, "pt-sol");
   $("cp-soluzione").hidden = false;
-  $("btn-cp-gemelli").hidden = !compito.matematica;
+  $("btn-cp-gemelli").hidden = !compito.matematica; $("btn-cp-esempi").hidden = !compito.matematica;
   formuleIn("cp-soluzione");
   $("cp-soluzione").scrollIntoView({ block: "start" });
 }
@@ -522,17 +525,19 @@ function disegnaRipassoOggi() {
   box.innerHTML = "";
   if (!profilo) return;
   const ora = new Date();
-  const dovuto = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), ora)[0];
+  // più ripassi nello stesso giorno: mescolati per strategia (esempi.js), uno alla volta
+  const tutti = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), ora), dovuto = (typeof ripassiMescolati === "function" ? ripassiMescolati(tutti) : tutti)[0];
   const allena = leggiLocale(chiaveAllena(profilo.id), null);
   if (dovuto) box.innerHTML += '<button type="button" class="scelta" id="btn-ripasso-compito"><span class="occhiello">Ripasso</span><b>Ti ricordi questo problema?</b><small>«' +
-    esc(String(dovuto.compito.testo || "").slice(0, 70)) + "…» Eccone uno simile.</small></button>";
+    esc(String(dovuto.compito.testo || "").slice(0, 70)) + "…» Eccone uno simile." + (tutti.length > 1 ? " Oggi ne hai " + tutti.length + ", mescolati: un tipo diverso per volta." : "") + "</small></button>";
   const difficili = allena && Array.isArray(allena.difficili) ? allena.difficili.filter((d) => d && typeof d.concetto === "string") : [];
   if (allena && allena.quando && allena.quando < giornoDi(ora) && allena.compito && difficili.length)
     box.innerHTML += '<button type="button" class="scelta" id="btn-allena-ieri"><span class="occhiello">Allenamento</span><b>«' + esc(difficili[0].concetto) +
       "» ti ha messo in difficoltà</b><small>3 esercizi veloci?</small></button>";
 }
 function apriRipasso() {
-  const v = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), new Date())[0]; if (!v) return;
+  const tutti = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), new Date());
+  const v = (typeof ripassiMescolati === "function" ? ripassiMescolati(tutti) : tutti)[0]; if (!v) return;
   ripassoAperto = v; compito = v.compito; $("cp-chiedi").hidden = true;
   ["cp-foto", "cp-scegli", "cp-letto", "cp-aiuto"].forEach((id) => { $(id).hidden = true; });
   $("cp-allenati").hidden = false; $("cp-blocco-difficili").hidden = true; $("cp-blocco-gemelli").hidden = true; $("cp-gemelli").innerHTML = "";
@@ -549,6 +554,7 @@ function apriAllenaIeri() {
 }
 
 function collegaAllenamento() {
+  $("btn-cp-esempi").addEventListener("click", () => apriEsempi());
   $("btn-cp-gemelli").addEventListener("click", () => { salvaRipasso(compito); mostraAllenamento([]); $("cp-blocco-gemelli").hidden = true; problemiGemelli(compito, "allenati"); });
   $("btn-cp-gemelli-2").addEventListener("click", () => { $("cp-blocco-gemelli").hidden = true; problemiGemelli(compito, "allenati"); });
   $("btn-cp-oggi").addEventListener("click", () => { disegnaLibreria(); vai("libreria"); });

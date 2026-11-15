@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
 <div class="wrap">
@@ -111,6 +111,8 @@
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
   <div id="ripasso-oggi"></div>
   <div id="invalsi-oggi"></div>
+  <div id="esame-oggi"></div>
+  <div id="geografia-oggi"></div>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
@@ -181,11 +183,14 @@
     <div id="stato-chat"></div>
     <div class="bottoni">
       <button class="minore" id="btn-cp-gemelli">Allenati con problemi gemelli</button>
+      <button class="minore" id="btn-cp-esempi" hidden>Esempi passo dopo passo</button>
       <button class="minore" id="btn-cp-simile">Fammi un esercizio simile</button>
       <button class="minore" id="btn-cp-fine">Ho finito</button>
     </div>
     <div id="stato-simile"></div>
     <div id="cp-simile"></div>
+    <div id="stato-esempi"></div>
+    <div id="cp-esempi" hidden></div>
   </div>
   <div id="cp-allenati" hidden>
     <div id="cp-blocco-difficili">
@@ -250,6 +255,31 @@
     <p class="po-esito" id="po-esito" aria-live="polite"></p>
     <p class="link-riga"><button type="button" class="link" id="btn-po-altra">Un'altra poesia</button></p>
   </div>
+</section>
+
+<section id="v-geografia" hidden>
+  <div id="geo-gioco">
+    <p class="occhiello" id="geo-conta"></p>
+    <h2 id="geo-domanda" aria-live="polite"></h2>
+    <div id="geo-cartina"></div>
+    <div class="scelte-geo" id="geo-scelte"></div>
+    <div id="geo-esito" aria-live="polite"></div>
+    <div class="bottoni"><button class="azione" id="btn-geo-avanti" hidden>Avanti</button></div>
+    <p class="fonte-geo">Confini delle regioni: ISTAT, licenza CC BY 4.0.</p>
+  </div>
+  <div id="geo-fine" hidden>
+    <div id="geo-punteggio"></div>
+    <div class="bottoni"><button class="minore" id="btn-geo-ancora">Altre domande</button></div>
+  </div>
+</section>
+
+<section id="v-esame" hidden>
+  <h2>Il colloquio dell'esame</h2>
+  <p class="aiuto">Parti da un tuo argomento e collegalo alle altre materie. I collegamenti sono idee per legare gli argomenti: controllali con la prof.</p>
+  <div class="bottoni"><button class="azione" id="btn-esame-prepara">Prepara la scaletta</button></div>
+  <div id="stato-esame"></div>
+  <div id="err-esame"></div>
+  <div id="esame-scaletta"></div>
 </section>
 
 <section id="v-invalsi" hidden>
@@ -595,19 +625,23 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=20"></script>
-<script src="app.js?v=20"></script>
-<script src="libreria.js?v=20"></script>
-<script src="stampa.js?v=20"></script>
-<script src="aiuto.js?v=20"></script>
-<script src="mappa-card.js?v=20"></script>
-<script src="figure.js?v=20"></script>
-<script src="formule.js?v=20"></script>
-<script src="esercizi.js?v=20"></script>
-<script src="prova-esercizi.js?v=20"></script>
-<script src="compito.js?v=20"></script>
-<script src="classe-app.js?v=20"></script>
-<script src="poesia.js?v=20"></script>
-<script src="invalsi.js?v=20"></script>
+<script src="semaforo.js?v=21"></script>
+<script src="app.js?v=21"></script>
+<script src="libreria.js?v=21"></script>
+<script src="stampa.js?v=21"></script>
+<script src="aiuto.js?v=21"></script>
+<script src="mappa-card.js?v=21"></script>
+<script src="figure.js?v=21"></script>
+<script src="formule.js?v=21"></script>
+<script src="esercizi.js?v=21"></script>
+<script src="prova-esercizi.js?v=21"></script>
+<script src="compito.js?v=21"></script>
+<script src="classe-app.js?v=21"></script>
+<script src="poesia.js?v=21"></script>
+<script src="invalsi.js?v=21"></script>
+<script src="esempi.js?v=21"></script>
+<script src="esame.js?v=21"></script>
+<script src="italia-mappa.js?v=21"></script>
+<script src="geografia.js?v=21"></script>
 </body>
 </html>
