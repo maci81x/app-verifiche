@@ -359,7 +359,8 @@ function vai(v, materia) {
   const chip = $("chip-materia");
   if (materia) { chip.hidden = false; chip.textContent = materia; tinta(document.documentElement, materia); }
   else if (VISTE[v][1] === 0 && v !== "scheda" && v !== "storico") { chip.hidden = true; tinta(document.documentElement, null); }
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  $("tacche").hidden = !info[1]; // le tacche solo nel flusso della verifica (passi 1-4)
+  window.scrollTo(0, 0); // subito in cima: il contenuto parte sotto la barra
 }
 
 /* =================================================================== profili */
@@ -374,7 +375,13 @@ function vai(v, materia) {
 
 const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
 const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
-const NOTA_QUADERNO = "Da correggere sul quaderno: "; // davanti a errore_appunti («negli appunti: …»)
+// errore_appunti arriva come «negli appunti: …» o «Negli appunti c'è scritto …»: il prefisso
+// non si ripete e il resto comincia minuscolo dopo i due punti.
+const NOTA_QUADERNO = "Sul quaderno c'è un errore: ";
+function notaQuaderno(errore) {
+  const resto = String(errore || "").replace(/^\s*negli appunti\s*(?:c['’]è scritto|c['’]è|si legge)?\s*:?\s*/i, "").trim();
+  return resto ? NOTA_QUADERNO + resto.charAt(0).toLowerCase() + resto.slice(1) : "";
+}
 const MSG_SENZA_PUNTI = "Questo argomento non ha ancora punti. Torna all'argomento e tocca Ritrova i punti.";
 const MSG_NESSUN_PROFILO = "Qui non c'è ancora nessun profilo. Chiedi a un genitore di crearlo da Impostazioni, qui sotto.";
 
@@ -445,6 +452,8 @@ function apriCodice(p) {
   codiceProfilo = p; codiceDigitato = "";
   $("cod-nome").textContent = p.nome;
   $("cod-iniziale").textContent = p.nome.slice(0, 1).toUpperCase();
+  const t = tinteProfili(leggiLocale(CHIAVE_PROFILI, []))[String(p.id)];
+  if (t) { $("cod-iniziale").style.setProperty("--h-profilo", t[0]); $("cod-iniziale").style.setProperty("--s-profilo", t[1] + "%"); }
   $("cod-msg").textContent = "";
   aggiornaPallini(); mostraBlocco();
   vai("codice");
@@ -547,8 +556,17 @@ async function funzioneProfili(corpo) {
 }
 const codiceValido = (c) => /^\d{4}$/.test(String(c || ""));
 
+// «Cancella tutti gli argomenti» (issue #18): sta qui, dietro l'accesso del genitore, e vale per il
+// profilo aperto su questo telefono (la cancellazione usa la sua sessione).
+function disegnaSvuota() {
+  $("imp-svuota").hidden = !profilo || !sb;
+  if (!profilo) return;
+  $("imp-svuota-aiuto").textContent = "Cancella argomenti, foto e prove di " + profilo.nome + ". I profili restano.";
+  $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
+}
 let figlie = [];
 async function disegnaImpostazioni() {
+  disegnaSvuota();
   const box = $("imp-profili"); box.innerHTML = "";
   const { data, error } = await genitore.from("studenti").select("id, nome, classe").order("nome");
   if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Controlla la connessione e riprova."); return; }
@@ -832,7 +850,7 @@ function mostraConcetti() {
     alto.appendChild(h); alto.appendChild(pesi); alto.appendChild(via); d.appendChild(alto);
     const p = document.createElement("p"); p.textContent = x.descrizione; d.appendChild(p);
     if (x.ancora) { const q = document.createElement("span"); q.className = "citazione"; q.innerHTML = evidenzia(x.ancora); d.appendChild(q); }
-    if (x.errore_appunti) { const e = document.createElement("span"); e.className = "errore-appunti"; e.textContent = NOTA_QUADERNO + x.errore_appunti; d.appendChild(e); }
+    if (x.errore_appunti) { const e = document.createElement("span"); e.className = "errore-appunti"; e.textContent = notaQuaderno(x.errore_appunti); d.appendChild(e); }
     c.appendChild(d);
   });
   disegnaOpzioni("opz-concetti");
@@ -856,7 +874,7 @@ function apriScheda(a) {
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato || "mai";
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + (x.media == null ? "—" : votoIt(Math.round(x.media * 2) / 2) + "/10") + "</span></h3>" +
-      htmlStato(x.stato) + (x.errore_appunti ? '<span class="errore-appunti">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "");
+      htmlStato(x.stato) + (x.errore_appunti ? '<span class="errore-appunti">' + esc(notaQuaderno(x.errore_appunti)) + "</span>" : "");
     sc.appendChild(d);
   });
   disegnaStoricoArgomento(a);
@@ -961,7 +979,7 @@ async function ritrovaConcetti() {
 
 async function svuotaMemoria() {
   const b = $("btn-svuota"); b.disabled = true;
-  attesa($("stato-lib"), ["Cancello argomenti, foto e prove"]);
+  attesa($("stato-imp"), ["Cancello argomenti, foto e prove"]);
   // Prima le foto dallo storage: tutte quelle nella cartella della studentessa.
   const { data: cartelle } = await sb.storage.from(BUCKET).list(profilo.id, { limit: 1000 });
   let paths = [];
@@ -971,12 +989,14 @@ async function svuotaMemoria() {
   }
   for (const g of aGruppi(paths, 100)) {
     const { error } = await sb.storage.from(BUCKET).remove(g);
-    if (error) { attesa($("stato-lib"), null); b.disabled = false; errore($("avviso-db"), "Non sono riuscito a cancellare tutte le foto. Riprova: niente è stato perso a metà."); return; }
+    if (error) { attesa($("stato-imp"), null); b.disabled = false; errore($("err-imp"), "Non sono riuscito a cancellare tutte le foto. Riprova: niente è stato perso a metà."); return; }
   }
   const { error } = await sb.rpc("svuota_memoria");
-  attesa($("stato-lib"), null); b.disabled = false;
-  if (error) { errore($("avviso-db"), "Foto cancellate, ma non il resto. Riprova."); return; }
+  attesa($("stato-imp"), null); b.disabled = false;
+  if (error) { errore($("err-imp"), "Foto cancellate, ma non il resto. Riprova."); return; }
   await caricaLibreria();
+  disegnaSvuota();
+  avviso($("err-imp"), "Fatto: gli argomenti di " + profilo.nome + " sono cancellati.");
 }
 
 /* =================================================================== opzioni della prova */
@@ -1293,7 +1313,7 @@ async function caricaStudiare(a) {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" + htmlStato(x.stato) +
       (x.ancora ? '<p><span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span></p>" : "") +
-      (x.errore_appunti ? '<span class="errore-appunti">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "");
+      (x.errore_appunti ? '<span class="errore-appunti">' + esc(notaQuaderno(x.errore_appunti)) + "</span>" : "");
     if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);
   });
@@ -1636,7 +1656,7 @@ function disegnaSemaforo(righe) {
     // Evidenziata solo la frase vera del quaderno: la descrizione del modello resta testo normale.
     else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + (x.ancora ? '<span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span>" : esc(x.descrizione || ""));
     d.appendChild(p);
-    if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = NOTA_QUADERNO + x.errore_appunti; d.appendChild(s); }
+    if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = notaQuaderno(x.errore_appunti); d.appendChild(s); }
     if (x.concetto_id && x.stato !== "verde")
       d.appendChild(bottoneSpiega({ concetto_id: x.concetto_id, titolo: x.titolo, ancora: x.ancora, materia: x.materia }));
     e.appendChild(d);
@@ -1765,6 +1785,7 @@ function collega() {
   $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
+  $("btn-impostazioni-lib").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); if (genitore) disegnaImpostazioni(); });
   $("btn-gen-entra").addEventListener("click", genEntra);
   $("gen-password").addEventListener("keydown", (e) => { if (e.key === "Enter") genEntra(); });
   $("btn-gen-esci").addEventListener("click", genEsci);

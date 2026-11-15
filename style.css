@@ -35,6 +35,11 @@
   --quadretto:#2E2E36;
   color-scheme:dark;
 }
+*,*::before,*::after{box-sizing:border-box}
+/* Il colore della materia su ogni riga: --tinta si ricalcola dove tinta() mette --h (sulla radice resta quello della pagina). */
+[style*="--h"]{--tinta:hsl(var(--h) var(--s) var(--l))}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) [style*="--h"]{--tinta:hsl(var(--h) calc(var(--s) * .9) 66%)}}
+:root[data-theme="dark"] [style*="--h"]{--tinta:hsl(var(--h) calc(var(--s) * .9) 66%)}
 [hidden]{display:none!important} /* alcune classi impongono display: hidden deve vincere sempre */
 html,body{min-height:100%}
 body{background:var(--carta);color:var(--inchiostro);font-family:var(--testo);font-size:17px;line-height:1.5;font-optical-sizing:auto;
@@ -45,7 +50,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .wrap{max-width:640px;margin:0 auto}
 
 /* barra alta */
-.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--carta);padding-block:11px 9px;
+.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--carta);padding-block:11px 9px;border-bottom:1px solid var(--bordo);
   margin-inline:calc(max(16px,env(safe-area-inset-left,0px)) * -1) calc(max(16px,env(safe-area-inset-right,0px)) * -1);
   padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
 .rail .tacche{display:flex;gap:4px}
@@ -133,7 +138,7 @@ button.pericolo{color:var(--rosso);border-color:var(--rosso)}
 
 /* livelli */
 .livelli{display:grid;gap:0;border-top:1px solid var(--bordo)}
-.livelli label{border-bottom:1px solid var(--bordo);padding:14px 4px 14px 14px;cursor:pointer;display:flex;gap:4px 12px;align-items:baseline;flex-wrap:wrap;min-height:52px}
+.livelli label{border-bottom:1px solid var(--bordo);padding:12px 4px 12px 14px;cursor:pointer;display:flex;gap:4px 12px;align-items:center;flex-wrap:wrap;min-height:52px}
 .livelli input{position:absolute;opacity:0;width:1px;height:1px}
 .livelli label:has(input:checked){background:var(--superficie);box-shadow:inset 4px 0 0 var(--inchiostro)}
 .livelli b{font-size:1.05rem;font-weight:700;flex:0 0 auto;white-space:nowrap}
@@ -146,7 +151,7 @@ button.pericolo{color:var(--rosso);border-color:var(--rosso)}
 .q-da{font-size:.92rem;color:var(--inchiostro-2);margin:0 0 6px}
 .q-testo{font-family:var(--display);font-size:1.5rem;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 20px;text-wrap:balance}
 .opzioni{display:grid;gap:0;border-top:1px solid var(--bordo)}
-.opzioni label{border-bottom:1px solid var(--bordo);padding:16px 4px 16px 14px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;min-height:52px}
+.opzioni label{border-bottom:1px solid var(--bordo);padding:12px 4px 12px 14px;cursor:pointer;display:flex;gap:12px;align-items:center;min-height:52px}
 .opzioni label:has(input:checked){background:var(--superficie);box-shadow:inset 4px 0 0 var(--inchiostro);font-weight:700}
 .opzioni input{position:absolute;opacity:0;width:1px;height:1px}
 .opzioni .lettera{font-size:1rem;color:var(--inchiostro-2);flex:none;width:1.3em;font-weight:700}
@@ -210,13 +215,13 @@ details.risposte[open] summary::before{content:"−"}
 .sessione .v[data-s="giallo"]{background:var(--giallo-bg);color:var(--giallo)}
 .sessione .v[data-s="rosso"]{background:var(--rosso-bg);color:var(--rosso)}
 .sessione .meta{font-size:.88rem;color:var(--inchiostro-2);margin-top:3px}
-.nota{font-size:.92rem;color:var(--inchiostro-2);border-top:1px solid var(--bordo);margin-top:32px;padding-top:16px;max-width:36em}
+.nota{display:none}
 
 /* ---- aggiunte rispetto al prototipo: profili, foto conservate, voce ---- */
 .profili{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .profili button{display:flex;align-items:center;gap:8px;border:1.5px solid var(--bordo);background:var(--carta);color:var(--inchiostro);border-radius:999px;padding:6px 14px 6px 6px;font:700 .95rem var(--testo);cursor:pointer;min-height:44px}
 .profili button[aria-pressed="true"]{border-color:var(--inchiostro);box-shadow:inset 0 0 0 1px var(--inchiostro)}
-.profili .iniziale{width:30px;height:30px;border-radius:50%;background:hsl(var(--h-profilo,224) 48% 30%);color:#fff;display:grid;place-items:center;font-size:.85rem}
+.profili .iniziale{width:30px;height:30px;border-radius:50%;background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 34%);color:#fff;display:grid;place-items:center;font-size:.85rem}
 .profili button.aggiungi{padding:6px 14px;color:var(--inchiostro-2)}
 .scelta-profilo{display:grid;gap:10px;margin-top:18px}
 .scelta-profilo button{display:flex;align-items:center;gap:14px;text-align:left;border:0;border-bottom:1px solid var(--bordo);background:none;padding:16px 0;font:inherit;color:inherit;cursor:pointer;min-height:64px}
@@ -241,7 +246,7 @@ details.risposte[open] summary::before{content:"−"}
 .nomi button:active{transform:scale(.99)}
 .nomi b{display:block;font-size:1.8rem;font-weight:800;letter-spacing:-.03em;line-height:1}
 .nomi small{color:var(--inchiostro-2);font-size:1rem}
-.nomi .iniziale{width:60px;height:60px;flex:none;border-radius:50%;background:hsl(var(--h-profilo,224) 48% 30%);color:#fff;display:grid;place-items:center;font:800 1.6rem var(--display)}
+.nomi .iniziale{width:60px;height:60px;flex:none;border-radius:50%;background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 34%);color:#fff;display:grid;place-items:center;font:800 1.6rem var(--display)}
 .nomi .profilo-testo{display:flex;flex-direction:column;gap:2px;min-width:0}
 .piede{margin-top:40px;text-align:center}
 button.link{background:none;border:0;color:var(--inchiostro);font:700 .95rem var(--testo);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:10px;min-height:44px}
@@ -265,7 +270,7 @@ button.link{background:none;border:0;color:var(--inchiostro);font:700 .95rem var
 .riga-profilo b{flex:1 1 120px;font-weight:700}
 .riga-profilo button{min-height:44px;padding:8px 14px;font-size:.92rem}
 .riga-profilo .codice-nuovo{width:8.5em;min-height:44px;padding:8px 10px;margin:0;letter-spacing:.2em}
-.iniziale.grande{width:56px;height:56px;flex:none;border-radius:50%;background:var(--inchiostro);color:var(--carta);display:grid;place-items:center;font:800 1.5rem var(--display)}
+.iniziale.grande{width:56px;height:56px;flex:none;border-radius:50%;background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 34%);color:#fff;display:grid;place-items:center;font:800 1.5rem var(--display)}
 /* Mappa concettuale e Cosa studiare (issue #2). Rami del primo livello nella tinta della materia. */
 .linguette{display:flex;gap:4px;margin:14px 0 4px;border-bottom:1px solid var(--bordo)}
 .linguette button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;padding:10px 14px;font:700 1rem var(--testo);color:var(--inchiostro-2);cursor:pointer;min-height:44px}
@@ -301,9 +306,10 @@ svg.mappa{display:block;width:100%;height:auto;font-family:var(--testo)}
 .sem[data-s="verde"]{background:var(--verde-bg);color:var(--verde)} .sem[data-s="giallo"]{background:var(--giallo-bg);color:var(--giallo)}
 .sem[data-s="rosso"]{background:var(--rosso-bg);color:var(--rosso)} .sem[data-s="mai"]{background:var(--grigio-bg);color:var(--grigio)}
 /* Card del nodo: dal basso, sopra un velo; il focus resta dentro (mappa-card.js). */
-body.con-card{overflow:hidden}
-.card-velo{position:fixed;inset:0;z-index:50;background:rgba(10,10,14,.5);display:flex;align-items:flex-end;justify-content:center}
-.card-nodo{background:var(--carta);color:var(--inchiostro);width:100%;max-width:640px;max-height:86vh;overflow:auto;
+html:has(body.con-card){overflow:hidden}
+body.con-card{position:fixed;left:0;right:0;overflow:hidden}
+.card-velo{position:fixed;inset:0;height:100dvh;z-index:50;background:rgba(10,10,14,.6);display:flex;align-items:flex-end;justify-content:center}
+.card-nodo{background:var(--carta);color:var(--inchiostro);width:100%;max-width:640px;max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain;
   border-radius:24px 24px 0 0;padding:14px 18px calc(18px + env(safe-area-inset-bottom));
   animation:sale .18s ease-out}
 @keyframes sale{from{transform:translateY(24px)}to{transform:none}}
@@ -445,8 +451,8 @@ label.scatto.piccolo{padding:12px 14px;margin-top:8px}
 
 /* ================================================================ redesign (issue #12)
    Semaforo sempre colore + forma + parola. Bersagli di almeno 44px. */
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .nomi .iniziale,:root:not([data-theme="light"]) .profili .iniziale{background:hsl(var(--h-profilo,224) 55% 72%);color:#111317}}
-:root[data-theme="dark"] .nomi .iniziale,:root[data-theme="dark"] .profili .iniziale{background:hsl(var(--h-profilo,224) 55% 72%);color:#111317}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .nomi .iniziale,:root:not([data-theme="light"]) .profili .iniziale,:root:not([data-theme="light"]) .iniziale.grande{background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 72%);color:#15151A}}
+:root[data-theme="dark"] .nomi .iniziale,:root[data-theme="dark"] .profili .iniziale,:root[data-theme="dark"] .iniziale.grande{background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 72%);color:#15151A}
 .esito-c .sem{margin-top:6px;font-size:.86rem}
 .esito-c h3 .ordine{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:800 .9rem var(--testo);
   background:var(--superficie);color:var(--inchiostro)}
@@ -471,12 +477,10 @@ label.scatto.piccolo{padding:12px 14px;margin-top:8px}
 .barra-stati i[data-s="verde"]{background:var(--verde)} .barra-stati i[data-s="giallo"]{background:var(--giallo)}
 .barra-stati i[data-s="rosso"]{background:var(--rosso)} .barra-stati i[data-s="mai"]{background:var(--grigio-bg)}
 .voto-arg{font-weight:800;font-size:1.3rem;font-variant-numeric:tabular-nums;color:var(--inchiostro)}
-#v-libreria{padding-bottom:96px}
-.barra-fissa{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-  background:linear-gradient(to top,var(--carta) 70%,transparent)}
-.barra-fissa button{width:100%;max-width:560px;min-height:56px;font-size:1.1rem}
+.barra-fissa{margin-top:20px}
+.barra-fissa button{width:100%;min-height:56px;font-size:1.1rem}
 /* Esito */
-.bottoni-esito button{flex:1 1 150px}
+.bottoni-esito button{width:100%}
 /* Esercizio corretto */
 .figura-es{background-color:var(--carta);background-image:linear-gradient(var(--quadretto) 1px,transparent 1px),linear-gradient(90deg,var(--quadretto) 1px,transparent 1px);
   background-size:16px 16px;border:1px solid var(--bordo);border-radius:14px;padding:10px}
@@ -526,9 +530,16 @@ mark.evidenzia{background:var(--evidenzia);color:var(--su-evidenziatore);padding
 /* Di notte l'azione principale è gialla con il testo inchiostro: il giallo su bianco sporco non si legge. */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button.azione{background:var(--evidenziatore);color:var(--su-evidenziatore)}}
 :root[data-theme="dark"] button.azione{background:var(--evidenziatore);color:var(--su-evidenziatore)}
-/* La card gialla resta chiara anche di notte: dentro valgono i colori del semaforo del tema chiaro. */
-.primo{--verde-bg:#DDF3E4;--verde:#1A6B3E;--giallo-bg:#FFF0C2;--giallo:#8A5300;--rosso-bg:#FDE3DF;--rosso:#B0291A;--grigio-bg:#EEF0EC;--grigio:#4A4E57;--inchiostro:#1A1A1E;--inchiostro-2:#3F4148;--carta:#FFFFFF;--rialzo:#FFFFFF}
-/* Un solo pulsante pieno per schermata: in libreria è «Fotografa gli appunti», la card gialla è già l'invito. */
-.primo button.azione{background:transparent;border:2px solid var(--su-evidenziatore);color:var(--su-evidenziatore)}
-.primo button.minore{background:transparent;border-color:var(--su-evidenziatore);color:var(--su-evidenziatore)}
+/* Card gialla «Da ripassare prima»: un solo pulsante pieno, la mappa come link. Di notte è attenuata:
+   fondo scuro con bordo e titolo gialli; resta giallo solo il pulsante principale. */
+.primo .link{color:var(--su-evidenziatore);padding-inline:4px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .primo{background:var(--rialzo);color:var(--inchiostro);border:2px solid var(--evidenziatore)}
+  :root:not([data-theme="light"]) .primo .primo-tit{color:var(--evidenziatore)}
+  :root:not([data-theme="light"]) .primo .occhiello,:root:not([data-theme="light"]) .primo .primo-meta,:root:not([data-theme="light"]) .primo .link{color:var(--inchiostro)}}
+:root[data-theme="dark"] .primo{background:var(--rialzo);color:var(--inchiostro);border:2px solid var(--evidenziatore)}
+:root[data-theme="dark"] .primo .primo-tit{color:var(--evidenziatore)}
+:root[data-theme="dark"] .primo .occhiello,:root[data-theme="dark"] .primo .primo-meta,:root[data-theme="dark"] .primo .link{color:var(--inchiostro)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+.bottoni-esito{flex-direction:column;align-items:stretch}
+/* La frase su dove restano i dati: solo su Profili ed Esito. */
+body[data-vista="profili"] .nota,body[data-vista="esito"] .nota{display:block;font-size:.92rem;color:var(--inchiostro-2);border-top:1px solid var(--bordo);margin-top:32px;padding-top:16px;max-width:36em}

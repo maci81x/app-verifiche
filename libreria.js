@@ -53,11 +53,12 @@ function htmlBarra(conta) {
   return '<span class="barra-stati" aria-hidden="true">' + parti + '</span><span class="conti-stati">' + conti + "</span>";
 }
 
-// Colore del profilo: una tinta fissa ricavata dall'id (sempre la stessa su ogni telefono).
-function tintaProfilo(id) {
-  let h = 0;
-  for (const ch of String(id || "")) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return h;
+// Colore dei profili: le tinte delle materie (senza arte, che verrebbe bordeaux), assegnate in
+// ordine di id. Due profili non si somigliano e su ogni telefono escono uguali.
+function tinteProfili(lista) {
+  const tinte = MATERIE.filter((m) => m[0] !== "arte").map((m) => [m[2], m[3]]);
+  const ids = [...new Set((lista || []).map((p) => String(p.id)))].sort();
+  return Object.fromEntries(ids.map((id, i) => [id, tinte[i % tinte.length]]));
 }
 
 // «2ª media · 3 da ripassare». Il numero lo conosce solo il telefono su cui è entrata
@@ -75,18 +76,20 @@ function sottotitoloProfilo(p, daRipassare) {
 
 const chiaveRipassare = (id) => "verifiche-ripassare-" + id;
 
-function bottoneNome(p, classe) {
+function bottoneNome(p, classe, tinte) {
   const b = document.createElement("button"); b.type = "button"; if (classe) b.className = classe;
   const i = document.createElement("span"); i.className = "iniziale"; i.textContent = p.nome.slice(0, 1).toUpperCase();
-  i.style.setProperty("--h-profilo", tintaProfilo(p.id));
+  const t = (tinte || {})[String(p.id)];
+  if (t) { i.style.setProperty("--h-profilo", t[0]); i.style.setProperty("--s-profilo", t[1] + "%"); }
   b.appendChild(i);
   return b;
 }
 
 function disegnaProfili(lista) {
   const box = $("scelta-profilo"); box.innerHTML = "";
+  const tinte = tinteProfili(lista);
   lista.forEach((p) => {
-    const b = bottoneNome(p, "profilo-card");
+    const b = bottoneNome(p, "profilo-card", tinte);
     const sotto = sottotitoloProfilo(p, leggiLocale(chiaveRipassare(p.id), null));
     const t = document.createElement("span"); t.className = "profilo-testo";
     t.innerHTML = "<b>" + esc(p.nome) + "</b>" + (sotto ? "<small>" + esc(sotto) + "</small>" : "");
@@ -95,7 +98,7 @@ function disegnaProfili(lista) {
   // In libreria: gli altri profili, per passare all'altra (con il suo codice).
   const r = $("profili"); r.innerHTML = "";
   lista.forEach((p) => {
-    const b = bottoneNome(p);
+    const b = bottoneNome(p, "", tinte);
     b.setAttribute("aria-pressed", profilo && p.id === profilo.id ? "true" : "false");
     b.appendChild(document.createTextNode(p.nome));
     b.onclick = () => { if (!profilo || p.id !== profilo.id) apriCodice(p); };
@@ -117,24 +120,29 @@ function votoArgomento(a) {
   return a.ultima && a.ultima.voto != null ? votoIt(Number(a.ultima.voto)) : "—";
 }
 
+// Card gialla: un solo pulsante pieno. «Ripassa questo» fa la prova lampo sul punto più debole;
+// la mappa resta un link. I conteggi stanno una volta sola, sotto la barra.
+function htmlPrimo(a, debole) {
+  const azione = a.percorso === "esercizi"
+    ? '<button type="button" class="azione" data-azione="apri">Apri gli esercizi</button>'
+    : debole
+      ? '<button type="button" class="azione" data-azione="lampo">Ripassa questo</button>' +
+        '<button type="button" class="link" data-azione="mappa">Apri la mappa</button>'
+      : '<button type="button" class="azione" data-azione="mappa">Apri la mappa</button>';
+  return '<p class="occhiello">Da ripassare prima</p>' +
+    '<h2 class="primo-tit">' + esc(a.titolo) + "</h2>" +
+    '<p class="primo-meta">' + esc(a.materia) + "</p>" +
+    htmlBarra(contaStati(a)) +
+    '<div class="bottoni">' + azione + "</div>";
+}
+
 function disegnaPrimo(a) {
   const box = $("da-ripassare");
   box.innerHTML = "";
   box.hidden = !a;
   if (!a) return;
-  const c = contaStati(a);
   const debole = a.percorso === "esercizi" ? null : concettoPiuDebole(a);
-  box.innerHTML = '<p class="occhiello">Da ripassare prima</p>' +
-    '<h2 class="primo-tit">' + esc(a.titolo) + "</h2>" +
-    '<p class="primo-meta">' + esc(a.materia) + ", " + (c.rosso ? htmlStato("rosso") + " " + c.rosso : "") +
-    (c.rosso && c.giallo ? ", " : "") + (c.giallo ? htmlStato("giallo") + " " + c.giallo : "") + "</p>" +
-    htmlBarra(c) +
-    '<div class="bottoni">' +
-    (a.percorso === "esercizi"
-      ? '<button type="button" class="azione" data-azione="apri">Apri gli esercizi</button>'
-      : '<button type="button" class="azione" data-azione="mappa">Apri la mappa</button>' +
-        (debole ? '<button type="button" class="minore" data-azione="lampo">Prova lampo</button>' : "")) +
-    "</div>";
+  box.innerHTML = htmlPrimo(a, debole);
   tinta(box, a.materia);
   box.onclick = (e) => {
     const b = e.target.closest("[data-azione]");
@@ -158,7 +166,6 @@ function disegnaLibreria() {
   disegnaPrimo(daRipassarePrima(argomenti));
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
-  $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
   if (!argomenti.length) {
     lista.innerHTML = '<div class="vuoto"><b>Comincia dal primo argomento</b>Fotografa i tuoi appunti: restano qui, con le foto, e li ritrovi ogni volta che ripassi.</div>';
     return;

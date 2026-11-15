@@ -269,7 +269,7 @@ test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e a
   assert.match(html, /voto stimato 6/i);
   assert.match(html, /prontezza 60%/);
   // dal più debole: rosso, giallo, verde
-  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*<mark class="evidenzia">le pulci dei ratti<\/mark>[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
+  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*<mark class="evidenzia">le pulci dei ratti<\/mark>[\s\S]*Sul quaderno c'è un errore: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
 });
 
 // ---------------------------------------------------------------- web come aiuto (issue #4)
@@ -491,7 +491,7 @@ test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione
   assert.match(html, /<h3 id="card-nodo-titolo">Le vittime<\/h3>/);
   assert.match(html, /✕<\/i> Da ripassare/);
   assert.match(html, /Dai tuoi appunti<\/p><blockquote class="quaderno"><mark class="evidenzia">Uccise circa un terzo della popolazione\.<\/mark><\/blockquote>/);
-  assert.match(html, /class="avviso-appunti" role="note">.*negli appunti: un quarto/);
+  assert.match(html, /class="avviso-appunti" role="note">Sul quaderno c'è un errore: un quarto</);
   assert.match(html, /In breve<\/p><p class="in-breve" data-tipo="ok" aria-live="polite">La peste uccise una persona su tre\.<\/p>/);
   assert.match(html, /data-azione="prova">Mettiti alla prova<\/button>/);
   assert.match(html, /data-azione="spiega">Spiegamelo meglio<\/button>/);

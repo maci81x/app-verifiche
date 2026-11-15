@@ -42,7 +42,7 @@ function corpoStudiare(lista) {
   return '<ol class="st-lista">' + lista.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
     "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + testoVolte(x) + "</span>" +
     (x.ancora ? '<span class="st-ancora">Rileggi: ' + evidenzia(x.ancora) + "</span>" : "") +
-    (x.errore_appunti ? '<span class="st-nota">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
+    (x.errore_appunti ? '<span class="st-nota">' + esc(notaQuaderno(x.errore_appunti)) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
 // Le chiuse escono nell'ordine di _ord (mescolato una volta sola), lo stesso del foglio soluzioni.
@@ -76,7 +76,7 @@ function corpoEsito({ indice, voto, verdetto, righe }) {
       (x.da ? '<span class="st-nota">da ' + esc(x.da) + "</span>" : "") +
       (x.ancora ? '<span class="st-ancora">' + (x.stato === "verde" ? "" : "Rileggi: ") + evidenzia(x.ancora) + "</span>"
         : (x.descrizione ? '<span class="st-nota">' + esc(x.descrizione) + "</span>" : "")) +
-      (x.errore_appunti ? '<span class="st-nota">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
+      (x.errore_appunti ? '<span class="st-nota">' + esc(notaQuaderno(x.errore_appunti)) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
 /* ---- esercizi di matematica (issue #5, fetta #9) ---- */

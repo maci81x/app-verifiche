@@ -30,7 +30,7 @@ function htmlCardNodo(n, ctx) {
   const s = sintesiDelConcetto(c, !!ctx.sintesiInArrivo);
   return testa(htmlStato(ctx.stato)) +
     '<p class="occhiello">Dai tuoi appunti</p><blockquote class="quaderno">' + evidenzia(n.ancora) + "</blockquote>" +
-    (ctx.errore ? '<p class="avviso-appunti" role="note">' + NOTA_QUADERNO + esc(ctx.errore) + "</p>" : "") +
+    (ctx.errore ? '<p class="avviso-appunti" role="note">' + esc(notaQuaderno(ctx.errore)) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? ", su «" + esc(c.titolo) + "»" : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +
     (ctx.senzaConcetto ? '<p class="legenda">Questo punto non c\'è più nell\'argomento: tocca Rifai la mappa.</p>'
@@ -60,16 +60,21 @@ function apriCardNodo(g) {
   g.setAttribute("aria-pressed", "true");
   nodoAperto = { g, n, concetto, dalDb };
   box.hidden = false;
+  // La pagina sotto si ferma dov'era (anche su iPhone): body fisso, alla chiusura si torna lì.
+  if (!document.body.classList.contains("con-card")) { scrollCard = window.scrollY || 0; document.body.style.top = -scrollCard + "px"; }
   document.body.classList.add("con-card");
   const chiudi = dentro.querySelector("[data-azione=chiudi]");
   if (chiudi) chiudi.focus();
 }
 
+let scrollCard = 0;
 function chiudiCardNodo(rimettiFocus = true) {
   const box = $("card-nodo");
   if (!box || box.hidden) return;
   box.hidden = true;
   document.body.classList.remove("con-card");
+  document.body.style.top = "";
+  window.scrollTo(0, scrollCard);
   const prima = nodoAperto && nodoAperto.g;
   if (prima) prima.setAttribute("aria-pressed", "false");
   nodoAperto = null;

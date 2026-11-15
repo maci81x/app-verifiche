@@ -22,7 +22,7 @@
 <div class="wrap">
 
 <div class="rail">
-  <div class="tacche"><i data-t="1" data-on="1"></i><i data-t="2"></i><i data-t="3"></i><i data-t="4"></i></div>
+  <div class="tacche" id="tacche" hidden><i data-t="1" data-on="1"></i><i data-t="2"></i><i data-t="3"></i><i data-t="4"></i></div>
   <div class="nome">
     <button class="indietro" id="btn-rail-indietro" hidden>Libreria</button>
     <b id="nome-passo">Libreria</b>
@@ -83,8 +83,13 @@
     </div>
     <div class="bottoni">
       <button class="azione" id="btn-np-crea">Crea il profilo</button>
-      <button class="minore" id="btn-gen-esci">Ho finito</button>
     </div>
+    <div id="imp-svuota" hidden>
+      <p class="occhiello">Argomenti su questo telefono</p>
+      <p class="aiuto" id="imp-svuota-aiuto"></p>
+      <div class="bottoni"><button class="minore pericolo" id="btn-svuota" hidden>Cancella tutti gli argomenti</button></div>
+    </div>
+    <div class="bottoni"><button class="minore" id="btn-gen-esci">Ho finito</button></div>
   </div>
   <div id="err-imp"></div>
   <div id="stato-imp"></div>
@@ -98,6 +103,7 @@
     <p class="sotto">Ti faccio domande solo su quello che c'è nei tuoi appunti. Tengo tutto da parte per quando ripassi.</p>
     <div class="profili" id="profili" role="group" aria-label="Profilo"></div>
   </header>
+  <div class="barra-fissa"><button class="azione" id="btn-nuovo">Fotografa gli appunti</button></div>
   <div class="sommario" id="sommario"></div>
   <section class="primo" id="da-ripassare" aria-label="Da ripassare prima" hidden></section>
   <div class="bottoni">
@@ -108,10 +114,7 @@
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
   <div id="stato-lib"></div>
-  <div class="bottoni">
-    <button class="minore pericolo" id="btn-svuota" hidden>Cancella tutti gli argomenti</button>
-  </div>
-  <div class="barra-fissa"><button class="azione" id="btn-nuovo">Fotografa gli appunti</button></div>
+  <p class="piede"><button type="button" class="link" id="btn-impostazioni-lib">Impostazioni</button></p>
 </section>
 
 <!-- ============ NUOVO MATERIALE ============ -->
