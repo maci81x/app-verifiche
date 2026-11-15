@@ -95,7 +95,7 @@ test("prompt di generazione: tipi con id breve, numero, regole della verifica e 
   assert.match(p, /verifica/);
   assert.match(p, /niente eval|solo numeri/i);
   assert.match(p, /triangolo_rettangolo: cateto1, cateto2, ipotenusa/);
-  assert.match(p, /13 anni \(terza media\)/);
+  assert.match(p, /3ª media/); // classe del profilo, forme neutre (issue #27)
 });
 
 test("revisione: il risultato non può essere un'espressione, la verifica non può fingere un ricalcolo", () => {

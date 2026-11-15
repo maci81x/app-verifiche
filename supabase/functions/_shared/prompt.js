@@ -1,6 +1,10 @@
 import { concettiInOrdine, idBreve } from "./mappa.js";
 import { FORME } from "./generati.js";
 import { etaDaClasse } from "./web.js";
+import { perClasse } from "./compito.js";
+
+// Chi studia, detto con la classe del profilo e senza genere (issue #27): «chi fa la 2ª media».
+const chiStudia = (classe) => { const c = perClasse(classe); return (c.startsWith("scuola") ? "chi va alla " : "chi fa la ") + c; };
 
 // Prompt al modello. La base è copiata parola per parola da prototipo/prova-verifiche.html,
 // dove è stata tarata sul campo; le modifiche successive sono segnate con la loro data.
@@ -268,12 +272,12 @@ export const PROMPT_TRASCRIZIONE_ESERCIZI = [
 ].join("\n\n");
 
 // Tipi di esercizio presenti nelle foto. esistenti: titoli già salvati sull'argomento.
-export function promptEserciziTipi(materia, titolo, testo, esistenti = []) {
+export function promptEserciziTipi(materia, titolo, testo, esistenti = [], classe = null) {
   return [
-    "Sei un insegnante di matematica di scuola media italiana. Queste sono pagine di esercizi del libro o del quaderno di un'alunna.",
+    "Sei un insegnante di matematica di scuola media italiana. Queste sono pagine di esercizi del libro o del quaderno di " + chiStudia(classe) + ".",
     "Riconosci i tipi di esercizio presenti, per esempio: espressioni con le frazioni, potenze, proporzioni, percentuali, equazioni di primo grado, perimetro e area di poligoni, teorema di Pitagora, circonferenza e cerchio, volumi. Un tipo è una famiglia di esercizi che si risolvono nello stesso modo.",
-    "Per ogni tipo: titolo breve; ancora = il testo di UN esercizio vero di queste pagine, copiato carattere per carattere (numeri e simboli compresi, senza il numero dell'esercizio); difficolta da 1 a 3 per una ragazza di seconda media; figura = true se per risolverlo serve una figura geometrica.",
-    "Solo tipi che nelle pagine ci sono davvero, con un esercizio da copiare. Niente problemi con testo lungo da interpretare, niente geometria analitica.",
+    "Per ogni tipo: titolo breve; ancora = il testo di UN esercizio vero di queste pagine, copiato carattere per carattere (numeri e simboli compresi, senza il numero dell'esercizio); difficolta da 1 a 3 per " + chiStudia(classe) + "; figura = true se per risolverlo serve una figura geometrica.",
+    "Solo tipi che nelle pagine ci sono davvero, con un esercizio da copiare. Anche i problemi a parole (per esempio con le frazioni di una somma di denaro) sono un tipo: l'ancora è il testo del problema. Niente geometria analitica.",
     esistenti.length ? "Tipi già salvati (non ripeterli):\n" + JSON.stringify(esistenti) : "",
     materia.trim() ? "Materia dichiarata: " + materia.trim() : "",
     titolo.trim() ? "Argomento dichiarato: " + titolo.trim() : "",
@@ -288,11 +292,11 @@ export function promptEserciziTipi(materia, titolo, testo, esistenti = []) {
 export function promptEserciziGenera(dati) {
   const forme = Object.entries(FORME).map(([f, misure]) => "- " + f + ": " + misure.join(", ")).join("\n");
   return [
-    "Sei un insegnante di matematica di scuola media italiana. Prepara " + dati.quanti + " esercizi per un'alunna di " + perEta(dati.classe) + ", simili a quelli del suo libro.",
-    "Tipi di esercizio confermati dall'alunna, ognuno con un esercizio vero del libro come modello:\n" +
+    "Sei un insegnante di matematica di scuola media italiana. Prepara " + dati.quanti + " esercizi per " + chiStudia(dati.classe) + ", simili a quelli del libro.",
+    "Tipi di esercizio confermati, ognuno con un esercizio vero del libro come modello:\n" +
       JSON.stringify(dati.tipi.map((t) => ({ id: t.breve, titolo: t.titolo, esempio: t.ancora, difficolta: t.difficolta, figura: t.figura }))),
     "Distribuisci gli esercizi fra i tipi in modo più uniforme possibile. Ogni esercizio deve somigliare al suo modello (stessa struttura, stessa difficoltà) ma con numeri diversi. Numeri adatti all'età: risultati interi, frazioni semplici o decimali con al massimo due cifre.",
-    "Una sola domanda per esercizio, con un solo risultato finale. Niente problemi con testo lungo da interpretare, niente geometria analitica: dati espliciti.",
+    "Una sola domanda per esercizio, con un solo risultato finale. Niente geometria analitica. I problemi a parole sono ammessi se il modello lo è: tutti i numeri che servono stanno scritti nel testo.",
     "Per ogni esercizio:\n" +
       "- tipo: l'id del tipo (t1, t2...);\n" +
       "- testo: la consegna, come sul libro;\n" +
@@ -314,11 +318,62 @@ export function promptEserciziGenera(dati) {
 // { classe, pacchetto: [{ id, testo, soluzione: [passi], risultato, risposta, esito, passaggi }] }
 export function promptCorrezioneEsercizi(dati) {
   return [
-    "Sei un insegnante di matematica di scuola media italiana e correggi gli esercizi di un'alunna di " + perEta(dati.classe) + ".",
-    "Per ogni esercizio hai la consegna, lo svolgimento corretto, il risultato corretto, la risposta dell'alunna, i suoi passaggi e l'esito del suo risultato. L'esito l'ha stabilito un calcolo: non lo decidi tu e non cambiarlo.",
-    "Leggi i passaggi dell'alunna e trova il primo passaggio sbagliato: in primo_errore copialo carattere per carattere da quello che ha scritto lei (copiato, non riscritto). In tipo_errore scrivi che cosa è successo: calcolo, formula, segno, unita (unità di misura), procedimento (ha sbagliato strada), altro; nessuno se i passaggi sono giusti, e allora primo_errore resta vuoto.",
-    "In spiegazione spiega l'errore in 2-4 frasi semplici, con parole da " + perEta(dati.classe) + ", parlando direttamente a lei e senza giudicarla. In esempio mostra un esempio svolto simile, con numeri diversi, passo per passo. Se i passaggi sono giusti e l'esito è giusto, una frase di conferma e niente esempio.",
+    "Sei un insegnante di matematica di scuola media italiana e correggi gli esercizi di " + chiStudia(dati.classe) + ".",
+    "Per ogni esercizio hai la consegna, lo svolgimento corretto, il risultato corretto, la risposta data, i passaggi scritti e l'esito del risultato. L'esito l'ha stabilito un calcolo: non lo decidi tu e non cambiarlo.",
+    "Leggi i passaggi scritti e trova il primo passaggio sbagliato: in primo_errore copialo carattere per carattere da quello che è stato scritto (copiato, non riscritto). In tipo_errore scrivi che cosa è successo: calcolo, formula, segno, unita (unità di misura), procedimento (ha sbagliato strada), altro; nessuno se i passaggi sono giusti, e allora primo_errore resta vuoto.",
+    "In spiegazione spiega l'errore in 2-4 frasi semplici, con parole adatte a " + chiStudia(dati.classe) + ", parlando in seconda persona (tu) con forme neutre di genere e senza giudicare. In esempio mostra un esempio svolto simile, con numeri diversi, passo per passo. Se i passaggi sono giusti e l'esito è giusto, una frase di conferma e niente esempio.",
     "Esercizi:\n" + JSON.stringify(dati.pacchetto),
     'Rispondi solo con JSON: {"analisi":[{"id":"","primo_errore":"","tipo_errore":"calcolo","spiegazione":"","esempio":""}]}',
   ].join("\n\n");
+}
+
+// ---------------------------------------------------------------- aiutami con un compito (issue #27)
+// Nuovi: da tarare sulla prova vera (esercizio di Paolo, uno di geometria, uno di storia).
+const VOCE_TUTOR = "Parli a chi ha fra i 10 e i 14 anni: frasi corte, verbi semplici, seconda persona (tu), forme neutre di genere (mai «sei sicura», «sei pronta», «bravo/brava»: gira la frase). Mai «sbagliato»: si dice «non ancora» o si spiega cosa cambiare. Esempi concreti (la torta in fette, i soldi, la pizza) che riusano i numeri dell'esercizio.";
+const REGOLE_CALCOLO = "Ogni campo calcolo è una catena di uguali con soli numeri, per esempio «1/6 + 2/9 = 3/18 + 4/18 = 7/18» oppure «770 : 11 = 70»: numeri (decimali con la virgola, niente punti delle migliaia), + − × : / ^ √, parentesi, «=», al massimo il simbolo € o un'unità di misura dopo un numero, sempre la stessa in tutta la catena. Niente lettere (per moltiplicare usa ×, non x), niente incognite, niente «≈», niente % (scrivi 20/100 × 300), niente π (usa 3,14). Le equivalenze di misura si scrivono come conti: «1,5 × 100 = 150», non «1,5 m = 150 cm». Ogni uguale deve essere vero: il server ricalcola tutto e scarta la soluzione se un conto non torna.";
+
+// { classe, immagini?: (allegate a parte), testo?, esercizio?, appunti? }
+export function promptCompito(dati) {
+  return [
+    "Sei un tutor di scuola media italiana e aiuti " + chiStudia(dati.classe) + " a capire come si fa un esercizio dei compiti, senza farlo al posto suo all'inizio. " + VOCE_TUTOR,
+    dati.testo ? "Il testo dell'esercizio, già letto e controllato:\n" + dati.testo
+      : "L'esercizio è nella foto (pagina di libro o quaderno, anche storta o sfocata: raddrizzala mentalmente).",
+    dati.esercizio ? "Nella pagina ci sono più esercizi: aiuta solo con quello che comincia così: «" + dati.esercizio + "». Lascia vuoto l'elenco esercizi."
+      : "Se nella pagina ci sono più esercizi distinti, compila SOLO esercizi (id = il numero dell'esercizio o la lettera, inizio = le prime parole) e lascia vuoti gli altri campi: la scelta la fa chi studia. Se c'è un esercizio solo, esercizi resta vuoto.",
+    "Campi:\n" +
+      "- materia (per esempio matematica, geometria, italiano, storia, scienze) e matematica = true se servono conti (aritmetica, frazioni, geometria con misure, problemi);\n" +
+      "- testo: il testo dell'esercizio trascritto fedelmente, numeri e simboli compresi (frazioni come 1/6), senza la soluzione del libro;\n" +
+      "- dati: i dati importanti copiati esattamente come sono nel testo (per esempio «1/6», «2/9», «465 €», «305 €»), così si possono evidenziare;\n" +
+      "- cerca: cosa chiede l'esercizio, in poche parole (per esempio «lo stipendio di Paolo»);\n" +
+      "- soluzione_libro: se nel testo c'è la soluzione del libro (di solito fra parentesi quadre, per esempio [1260 €]), copiala; altrimenti vuoto;\n" +
+      "- indizi: da 3 a 5 indizi a gradini, dal più leggero al più forte; nessuno dice il risultato finale; ognuno è una domanda o un suggerimento che fa fare il passo successivo (per esempio «Somma le frazioni spese: che frazione dello stipendio è andata in anelli e vestito?»);\n" +
+      "- strategia: PRIMA dei passi, la strategia con un nome che si ricorda (per esempio «andare a ritroso», «dalla parte all'intero», «stesso denominatore con il mcm», «trova cosa resta») e in perche una frase che dice perché funziona per questo problema (per esempio «Conosciamo la fine, i 20 panini: si parte da lì e si torna indietro»);\n" +
+      "- passi: la soluzione passo per passo; ogni passo ha un titolo breve in parole semplici (per esempio «Frazioni spese», «Frazione che resta», «Cosa sono i due importi in euro», «Collego frazione ed euro», «Trovo 1/18», «Trovo l'intero», oppure «Punto di partenza», «Torno indietro nella seconda ora»), una spiegazione di 1-3 frasi che dice il PERCHÉ di quel passo e non solo il conto (per esempio «Questi 24 sono ciò che restava dopo aver tolto 1/4, quindi sono i 3/4») con un'immagine concreta quando aiuta (la torta in fette, il mucchio di panini, i soldi) e, se c'è un conto, il calcolo; ancora resta vuota (si usa solo con gli appunti);\n" +
+      "- risultato: valore (solo il numero o la frazione, con la virgola per i decimali) e unità (per esempio €, cm², vuota se non c'è); per le materie senza conti valore è la risposta in breve e unità vuota;\n" +
+      "- verifica: sempre. In spiegazione una frase; in controlli uno o più controlli, ognuno con un testo breve (verrà mostrato con una ✓) e il suo calcolo. Si può verificare in due modi: rimettendo insieme le parti fino al risultato (per esempio «Anelli, vestito, ristorante e avanzo fanno lo stipendio» con «210 + 280 + 465 + 305 = 1260») oppure andando avanti dal risultato con i dati del testo, un controllo per ogni fase, fino a un dato del testo (per esempio «Prima ora: vende 12 + 4 = 16, restano 32» con «48 - (48 : 4 + 4) = 32», poi «Seconda ora: restano 20» con «32 - (32 : 4 + 4) = 20»). I controlli usano i numeri del testo;\n" +
+      "- trucco: il trucco da ricordare, una frase sola (per esempio: quando torni indietro fai le operazioni al contrario e in ordine inverso);\n" +
+      "- prova_tu: una mini-domanda di controllo con gli stessi numeri o quasi (per esempio «Se 11 fette valgono 770 €, quanto vale 1 fetta?»), con il suo risultato (valore e unità) che risponde esattamente alla domanda (se chiede quante fette, il risultato è il numero di fette, non una frazione), il calcolo che ci arriva, passo = il numero del passo della soluzione a cui si collega, spiegazione = come si fa, in 1-2 frasi (si mostra se la risposta non è ancora giusta). Per le materie senza conti lascia tutto vuoto;\n" +
+      "- domande_pronte: 3 domande che chi studia potrebbe farti su questo esercizio, brevi, in prima persona (per esempio «Come trovo lo stesso denominatore?», «Perché sommo 465 e 305?», «Me lo spieghi con un disegno?»).",
+    "Matematica: " + REGOLE_CALCOLO + " L'ultimo passo con un calcolo finisce con il risultato. Controlla tu stesso ogni conto prima di rispondere.",
+    "Materie senza conti (storia, scienze, italiano...): stessa struttura, calcolo sempre vuoto, la risposta spiegata nei passi.",
+    dati.appunti ? "Appunti di chi studia su questa materia: usali come fonte principale. In ogni passo che si appoggia agli appunti, metti in ancora una frase copiata parola per parola dagli appunti (non riscritta): verrà evidenziata come frase del quaderno.\n" + dati.appunti : "",
+    'Rispondi solo con JSON: {"esercizi":[],"materia":"","matematica":true,"testo":"","dati":[""],"cerca":"","soluzione_libro":"","strategia":{"nome":"","perche":""},"indizi":[""],"passi":[{"titolo":"","spiegazione":"","calcolo":"","ancora":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]},"trucco":"","domande_pronte":["","",""],"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
+  ].filter(Boolean).join("\n\n");
+}
+
+// { classe, compito (il JSON della scheda), cronologia: [{ chi, testo }], domanda }
+export function promptCompitoDomanda(dati) {
+  const c = dati.compito || {};
+  return [
+    "Sei un tutor di scuola media italiana. Hai appena spiegato un esercizio a " + chiStudia(dati.classe) + " e ora rispondi a una sua domanda. " + VOCE_TUTOR,
+    "Rispondi in breve (al massimo 5 frasi), resta su questo esercizio e riusa i suoi numeri. Se la domanda è su un passo («il punto 5»), parti da quel passo. Se la domanda non c'entra con l'esercizio, dillo con gentilezza e riporta il discorso sul compito.",
+    "L'esercizio e la spiegazione già data:\n" + JSON.stringify({
+      testo: c.testo, cerca: c.cerca, passi: (c.passi || []).map((p, i) => ({ numero: i + 1, titolo: p.titolo, spiegazione: p.spiegazione, calcolo: p.calcolo })),
+      strategia: c.strategia, risultato: c.risultato, verifica: c.verifica, trucco: c.trucco,
+    }),
+    (dati.cronologia || []).length ? "Messaggi di prima (io = chi studia, app = tu):\n" + dati.cronologia.map((m) => m.chi + ": " + m.testo).join("\n") : "",
+    "Domanda: " + dati.domanda,
+    "Campi: risposta (il testo, con un esempio concreto); calcoli: i conti che mostri, ognuno come catena di uguali (" + REGOLE_CALCOLO + "), vuoto se non servono; figura: se aiuta un disegno delle frazioni, tipo «barra_frazioni» con parti (quante fette in tutto, al massimo 24), colorate (quante evidenziare) ed etichetta (per esempio «11/18»), altrimenti tipo «nessuna» con parti e colorate a 0; prova_tu: una mini-domanda di controllo con gli stessi numeri (per esempio «Se 11 fette valgono 770 €, quanto vale 1 fetta?»), con risultato (valore e unità) che risponde esattamente alla domanda (se chiede quante fette, il risultato è il numero di fette, non una frazione), il calcolo che ci arriva, passo = il numero del passo della soluzione a cui si collega, spiegazione = come si fa in 1-2 frasi; tutto vuoto se non serve.",
+    'Rispondi solo con JSON: {"risposta":"","calcoli":[""],"figura":{"tipo":"nessuna","parti":0,"colorate":0,"etichetta":""},"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
+  ].filter(Boolean).join("\n\n");
 }

@@ -98,7 +98,7 @@ test("prompt di correzione: il giudizio sul risultato è dato, il modello cerca 
     id: "e1", testo: "Calcola l'ipotenusa con i cateti di 9 cm e 12 cm.", soluzione: ["9^2 + 12^2 = 225", "√225 = 15"],
     risultato: "15 cm", risposta: "12,7 cm", esito: "sbagliato", passaggi: PASSAGGI,
   }] });
-  assert.match(p, /12 anni \(seconda media\)/);
+  assert.match(p, /2ª media/); // la classe del profilo, forme neutre (issue #27)
   assert.match(p, /non cambiarlo|non lo decidi tu/i);
   assert.match(p, /primo passaggio sbagliato/);
   assert.match(p, /copiato/);
