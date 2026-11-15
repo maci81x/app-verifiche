@@ -6,7 +6,7 @@ const SEMAFORO = {
   verde: { segno: "●", parola: "Lo sai" },
   giallo: { segno: "▲", parola: "Quasi" },
   rosso: { segno: "✕", parola: "Da ripassare" },
-  mai: { segno: "○", parola: "Mai provato" },
+  mai: { segno: "○", parola: "Ancora da provare" },
 };
 const statoValido = (s) => (Object.hasOwn(SEMAFORO, s) ? s : "mai");
 const segnoStato = (s) => SEMAFORO[statoValido(s)].segno;
@@ -16,6 +16,14 @@ const parolaStato = (s) => SEMAFORO[statoValido(s)].parola;
 function htmlStato(s, classe = "sem") {
   const k = statoValido(s);
   return '<span class="' + classe + '" data-s="' + k + '"><i aria-hidden="true">' + SEMAFORO[k].segno + "</i> " + SEMAFORO[k].parola + "</span>";
+}
+
+// Evidenziatore (issue #18): la frase vera del quaderno, e solo quella, esce evidenziata in giallo.
+// Escapa da sé perché semaforo.js si carica prima di app.js (dove sta esc).
+function evidenzia(frase) {
+  if (frase == null || frase === "") return "";
+  const t = String(frase).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return '<mark class="evidenzia">' + t + "</mark>";
 }
 
 // Stato di ogni nodo della mappa: i concetti dal loro stato, i sotto-punti da quello del loro

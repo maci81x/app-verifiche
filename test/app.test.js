@@ -97,10 +97,10 @@ test("accesso: la risposta del server decide se entrare, aspettare o riprovare",
 });
 
 test("elenco profili: solo righe valide, ognuna con la sua chiave di sessione; l'ultimo usato in cima", () => {
-  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Mia",classe:"2"},{id:"s",nome:"Samira",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
+  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Ada",classe:"2"},{id:"s",nome:"Leo",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
   assert.deepEqual(JSON.parse(l), [
-    { id: "b", nome: "Mia", classe: "2", chiave: "sb-verifiche-b" },
-    { id: "s", nome: "Samira", classe: "", chiave: "sb-verifiche-s" },
+    { id: "b", nome: "Ada", classe: "2", chiave: "sb-verifiche-b" },
+    { id: "s", nome: "Leo", classe: "", chiave: "sb-verifiche-s" },
   ]);
   assert.equal(run("profiliDaElenco({errore:'x'})"), null);
   assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], "s").map((p) => p.id).join()`), "s,b");
@@ -212,10 +212,10 @@ test("mappa: in verticale i figli stanno sotto e più a destra del padre; in ori
 });
 
 // ---------------------------------------------------------------- stampa (issue #3)
-const INFO = { nome: "Samira", materia: "storia", titolo: "La peste <del> Trecento", data: "2026-10-30T10:00:00Z" };
+const INFO = { nome: "Leo", materia: "storia", titolo: "La peste <del> Trecento", data: "2026-10-30T10:00:00Z" };
 const stampa = (tipo, dati) => run(`componiStampa(${JSON.stringify({ tipo, info: INFO, dati })})`);
 const intestazioneOk = (html) => {
-  assert.match(html, /Samira/);
+  assert.match(html, /Leo/);
   assert.match(html, /storia/);
   assert.match(html, /La peste &lt;del&gt; Trecento/); // titolo escapato
   assert.doesNotMatch(html, /<del>/);
@@ -226,8 +226,8 @@ test("stampa della mappa: l'SVG e sotto l'elenco dei nodi con le loro ancore", (
   const html = stampa("mappa", { albero: { ...ALBERO, nodi: [{ ...ALBERO.nodi[1], ancora: "si frustavano in pubblico" }, ALBERO.nodi[0]] }, stati: { k2: "rosso" } });
   intestazioneOk(html);
   assert.match(html, /<svg class="mappa"/);
-  assert.match(html, /Mappa concettuale/);
-  assert.match(html, /I flagellanti[\s\S]*si frustavano in pubblico/);
+  assert.match(html, /Mappa dell'argomento/);
+  assert.match(html, /I flagellanti[\s\S]*<mark class="evidenzia">si frustavano in pubblico<\/mark>/);
   assert.match(html, /Caffa, in Crimea, assediata dai mongoli/); // anche il terzo livello nell'elenco
 });
 
@@ -237,8 +237,8 @@ test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e anc
     { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
   ]);
   intestazioneOk(html);
-  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*Rileggi: «[^»]*si frustavano/);
-  assert.match(html, /○ Mai provato[\s\S]*Mai chiesto/);
+  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*2 volte da rivedere[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
+  assert.match(html, /○ Ancora da provare[\s\S]*Mai chiesto/);
 });
 
 test("verifica da stampare: prima solo le domande, poi su un'altra pagina il foglio soluzioni con le lettere giuste", () => {
@@ -269,7 +269,7 @@ test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e a
   assert.match(html, /voto stimato 6/i);
   assert.match(html, /prontezza 60%/);
   // dal più debole: rosso, giallo, verde
-  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
+  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*<mark class="evidenzia">le pulci dei ratti<\/mark>[\s\S]*Sul quaderno c'è un errore: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
 });
 
 // ---------------------------------------------------------------- web come aiuto (issue #4)
@@ -314,8 +314,8 @@ test("Teoria/Esercizi solo per le materie di matematica, con le varianti", () =>
 });
 
 test("libreria: un argomento di esercizi conta i tipi, gli altri i concetti", () => {
-  assert.equal(run(`contaVoci({ percorso: "teoria", concetti: [1, 2, 3] })`), "3 concetti");
-  assert.equal(run(`contaVoci({ concetti: [1] })`), "1 concetti");
+  assert.equal(run(`contaVoci({ percorso: "teoria", concetti: [1, 2, 3] })`), "3 punti da studiare");
+  assert.equal(run(`contaVoci({ concetti: [1] })`), "1 punto da studiare");
   assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}, {}] })`), "2 tipi di esercizio");
   assert.equal(run(`contaVoci({ percorso: "esercizi", concetti: [], tipi: [{}] })`), "1 tipo di esercizio");
 });
@@ -348,7 +348,7 @@ const ESERCIZIO = {
 
 test("esercizio: consegna, dati e figura in vista; passaggi e risultato solo dentro la soluzione", () => {
   const html = run(`htmlEsercizio(${JSON.stringify(ESERCIZIO)}, 2)`);
-  assert.match(html, /Esercizio 3 · Teorema di &lt;Pitagora&gt;/);
+  assert.match(html, /Esercizio 3: Teorema di &lt;Pitagora&gt;/);
   assert.match(html, /<svg [^>]*class="figura"/);
   const [fuori, dentro] = html.split("<details>");
   assert.doesNotMatch(fuori, /15 cm|Applico/, "la soluzione non si vede prima di chiederla");
@@ -362,8 +362,8 @@ test("esercizio: consegna, dati e figura in vista; passaggi e risultato solo den
 
 test("nota sugli esercizi scartati dal ricalcolo", () => {
   assert.equal(run("notaScartatiEsercizi(0)"), "");
-  assert.match(run("notaScartatiEsercizi(1)"), /^1 esercizio l'ho tolto/);
-  assert.match(run("notaScartatiEsercizi(3)"), /^3 esercizi li ho tolti/);
+  assert.match(run("notaScartatiEsercizi(1)"), /^Ho tolto 1 esercizio:/);
+  assert.match(run("notaScartatiEsercizi(3)"), /^Ho tolto 3 esercizi:/);
 });
 
 // ---------------------------------------------------------------- prova di esercizi (issue #5, fetta #8)
@@ -391,7 +391,7 @@ test("aprire la soluzione prima di correggere vale al massimo 5 punti", () => {
 test("correzione: risposta e risultato affiancati, passaggi con il primo errore cerchiato, tipo, spiegazione ed esempio", () => {
   const giusta = run(`htmlCorrezione({ esito: "giusto", punti: 10, risposta: "5/4" }, ${JSON.stringify(PROVA[0])})`);
   assert.match(giusta, /data-s="verde"[\s\S]*✓<\/span> Giusto[\s\S]*10\/10/);
-  assert.match(giusta, /La tua risposta<\/span><b>5\/4<\/b>[\s\S]*Risultato<\/span><b>5\/4<\/b>/);
+  assert.match(giusta, /La tua risposta<\/span><b>5\/4<\/b>[\s\S]*Risultato giusto<\/span><b>5\/4<\/b>/);
   assert.doesNotMatch(giusta, /Ecco come si fa/);
   const sbagliata = run(`htmlCorrezione({ esito: "sbagliato", punti: 0, risposta: "4/6", svolgimento: "3/4 + 1/2 = 4/6 <b>\\n4/6 = 2/3",
     primo_errore: "3/4 + 1/2 = 4/6 <b>", tipo_errore: "calcolo", spiegazione: "Hai sommato i denominatori.", esempio: "1/3 + 1/3 = 2/3" }, ${JSON.stringify(PROVA[0])})`);
@@ -458,10 +458,10 @@ test("quadretti: dentro il loro viewBox, più alti per gli esercizi con più pas
 test("esito degli esercizi da stampare: semaforo per tipo con simbolo e parola, poi ogni esercizio", () => {
   const dati = run(`datiEsitoEsercizi(${JSON.stringify(DA_STAMPARE)}, [{ esito: "giusto", punti: 10, risposta: "15 cm" }, { esito: "sbagliato", punti: 0, risposta: "4/6" }])`);
   const html = run(`componiStampa({ tipo: "esito_esercizi", info: { titolo: "Pitagora", materia: "matematica" }, dati: ${JSON.stringify(dati)} })`);
-  assert.match(html, /Esito degli esercizi/);
+  assert.match(html, /Com'è andata con gli esercizi/);
   assert.match(html, /✕ Da ripassare<\/span><b>Frazioni<\/b>[\s\S]*● Lo sai<\/span><b>Pitagora<\/b>/, "dal tipo peggiore, con simbolo e parola");
-  assert.match(html, /0,0\/10 · 1 esercizio/);
-  assert.match(html, /Hai scritto: 4\/6 · giusto: 5\/4[\s\S]*Non torna<\/b> · 0\/10/);
+  assert.match(html, /0,0\/10, 1 esercizio/);
+  assert.match(html, /Hai scritto: 4\/6\. Risultato giusto: 5\/4[\s\S]*Non ancora<\/b>, 0\/10/);
   assert.match(html, /Voto della prova /);
 });
 
@@ -470,7 +470,7 @@ test("semaforo: sempre forma e parola insieme al colore; stato sconosciuto = mai
   assert.equal(run(`htmlStato("rosso")`), '<span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span>');
   assert.equal(run(`htmlStato("verde")`), '<span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span>');
   assert.match(run(`htmlStato("giallo")`), /▲<\/i> Quasi/);
-  assert.match(run(`htmlStato("boh")`), /data-s="mai"><i aria-hidden="true">○<\/i> Mai provato/);
+  assert.match(run(`htmlStato("boh")`), /data-s="mai"><i aria-hidden="true">○<\/i> Ancora da provare/);
   assert.equal(run(`htmlStato("__proto__")`).includes('data-s="mai"'), true);
 });
 
@@ -490,8 +490,8 @@ test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione
   const html = run(`htmlCardNodo(${JSON.stringify(concetto)}, { concetto: ${JSON.stringify(concetto)}, errore: "negli appunti: un quarto", stato: "rosso" })`);
   assert.match(html, /<h3 id="card-nodo-titolo">Le vittime<\/h3>/);
   assert.match(html, /✕<\/i> Da ripassare/);
-  assert.match(html, /Dagli appunti<\/p><blockquote class="quaderno">Uccise circa un terzo della popolazione\.<\/blockquote>/);
-  assert.match(html, /class="avviso-appunti" role="note">.*negli appunti: un quarto/);
+  assert.match(html, /Dai tuoi appunti<\/p><blockquote class="quaderno"><mark class="evidenzia">Uccise circa un terzo della popolazione\.<\/mark><\/blockquote>/);
+  assert.match(html, /class="avviso-appunti" role="note">Sul quaderno c'è un errore: un quarto</);
   assert.match(html, /In breve<\/p><p class="in-breve" data-tipo="ok" aria-live="polite">La peste uccise una persona su tre\.<\/p>/);
   assert.match(html, /data-azione="prova">Mettiti alla prova<\/button>/);
   assert.match(html, /data-azione="spiega">Spiegamelo meglio<\/button>/);
@@ -506,7 +506,7 @@ test("card: riassunto in preparazione, non ancora pronto, o non sicuro (issue #1
     /data-tipo="attesa" aria-live="polite">Sto preparando il riassunto…/);
   assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai" })`), /data-tipo="vecchia" aria-live="polite">Il riassunto non c'è ancora/);
   const vuoto = { ...senza, sintesi: "" };
-  assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota" aria-live="polite">Per questo concetto non ho un riassunto sicuro/);
+  assert.match(run(`htmlCardNodo(${JSON.stringify(vuoto)}, { concetto: ${JSON.stringify(vuoto)}, stato: "mai" })`), /data-tipo="vuota" aria-live="polite">Su questo punto non ho un riassunto affidabile/);
   // Anche con la sintesi in arrivo, i pulsanti restano: niente si blocca.
   assert.match(run(`htmlCardNodo(${JSON.stringify(senza)}, { concetto: ${JSON.stringify(senza)}, stato: "mai", sintesiInArrivo: true })`), /data-azione="prova"/);
 });
@@ -529,8 +529,8 @@ test("card di un sotto-punto: la sua ancora, il riassunto e la prova del suo con
   const c = { id: "c1", titolo: "Le conseguenze", ancora: "Conseguenze", fonte: "appunti", sintesi: "Mancano contadini.", figli: [] };
   const sp = { id: "c1-2", titolo: "Aumentano i salari", ancora: "i salari aumentano", fonte: "appunti", figli: [] };
   const html = run(`htmlCardNodo(${JSON.stringify(sp)}, { concetto: ${JSON.stringify(c)}, stato: "giallo" })`);
-  assert.match(html, /<blockquote class="quaderno">i salari aumentano<\/blockquote>/);
-  assert.match(html, /In breve · Le conseguenze/);
+  assert.match(html, /<blockquote class="quaderno"><mark class="evidenzia">i salari aumentano<\/mark><\/blockquote>/);
+  assert.match(html, /In breve, su «Le conseguenze»/);
   assert.match(html, /Mettiti alla prova su «Le conseguenze»/);
 });
 
@@ -572,13 +572,18 @@ test("libreria: barra verde/giallo/rosso con le parole per chi non vede i colori
 });
 
 test("profili: tinta fissa per id, sottotitolo con classe e da ripassare solo se noto", () => {
-  assert.equal(run(`tintaProfilo("abc")`), run(`tintaProfilo("abc")`));
-  assert.ok(run(`tintaProfilo("abc")`) >= 0 && run(`tintaProfilo("abc")`) < 360);
-  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media · 3 da ripassare");
-  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media · niente da ripassare");
+  // Tinte delle materie (niente bordeaux), una diversa per profilo, uguali su ogni telefono.
+  const t1 = JSON.parse(run(`JSON.stringify(tinteProfili([{ id: "b" }, { id: "a" }]))`));
+  const t2 = JSON.parse(run(`JSON.stringify(tinteProfili([{ id: "a" }, { id: "b" }]))`));
+  assert.deepEqual(t1, t2);
+  assert.notEqual(t1.a.join(), t1.b.join());
+  const ammesse = JSON.parse(run(`JSON.stringify(MATERIE.filter((m) => m[0] !== "arte").map((m) => m[2]))`));
+  assert.ok([t1.a[0], t1.b[0]].every((h) => ammesse.includes(h)));
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media, 3 da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media, niente da ripassare");
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, null)`), "2ª media");
   assert.equal(run(`sottotitoloProfilo({}, null)`), "");
-  assert.equal(run(`sottotitoloProfilo({ classe: "3" }, 2)`), "3ª media · 2 da ripassare");
+  assert.equal(run(`sottotitoloProfilo({ classe: "3" }, 2)`), "3ª media, 2 da ripassare");
 });
 
 test("un lavoro del modello per argomento: due argomenti non si liberano a vicenda (revisione #13)", () => {
@@ -608,4 +613,46 @@ test("a voce: per ogni guasto del microfono dice cosa fare, mai un errore muto",
     assert.ok(!m.includes("(" + c + ")"), "codice noto senza spiegazione: " + c);
   }
   assert.match(run('messaggioVoce("bad-grammar")'), /\(bad-grammar\)/); // un codice nuovo si vede, per capire il guasto
+});
+
+// ------------------------------------------------------------------ revisione #18
+test("evidenziatore solo sulla frase del quaderno: il testo di un esercizio generato non passa per ancora", () => {
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Calcola l'area", ancora: "Calcola l'area" })`), "");
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Chi erano?", ancora: "si frustavano", concetti: null })`), "si frustavano");
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Chi erano?", ancora: "x", concetti: { ancora: "dal concetto" } })`), "dal concetto");
+});
+
+test("volte da rivedere: il conteggio dello storico non sembra lo stato di oggi", () => {
+  assert.equal(run(`testoVolte({ sbagliato: 1, stato: "verde" })`), "1 volta da rivedere");
+  assert.equal(run(`testoVolte({ sbagliato: 3, stato: "rosso" })`), "3 volte da rivedere");
+});
+
+test("Rileggi solo se c'è la frase; nota sul quaderno con i due punti", () => {
+  const html = stampa("studiare", [{ id: "a", titolo: "Senza frase", ancora: "", stato: "rosso", sbagliato: 1 }]);
+  assert.doesNotMatch(html, /Rileggi/);
+  assert.equal(run(`notaQuaderno("x")`), "Sul quaderno c'è un errore: x");
+});
+
+// ------------------------------------------------------------------ correzioni prima del merge #18
+test("nota sul quaderno: niente «negli appunti» ripetuto, poi minuscolo", () => {
+  assert.equal(run(`notaQuaderno("Negli appunti c'è scritto 1384: la data giusta è 1348.")`), "Sul quaderno c'è un errore: 1384: la data giusta è 1348.");
+  assert.equal(run(`notaQuaderno("negli appunti: versi decasillabi invece di endecasillabi")`), "Sul quaderno c'è un errore: versi decasillabi invece di endecasillabi");
+  assert.equal(run(`notaQuaderno("La data giusta è 1348")`), "Sul quaderno c'è un errore: la data giusta è 1348");
+  assert.equal(run(`notaQuaderno("")`), "");
+});
+
+test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la mappa come link, conteggi una volta", () => {
+  const a = { titolo: "La peste", materia: "storia", concetti: [{ id: "c1", stato: "rosso" }, { id: "c2", stato: "giallo" }] };
+  const html = run(`htmlPrimo(${JSON.stringify(a)}, { id: "c1" })`);
+  assert.equal((html.match(/class="azione"/g) || []).length, 1);
+  assert.match(html, /class="azione" data-azione="lampo">Ripassa questo</);
+  assert.match(html, /class="link" data-azione="mappa">Apri la mappa</);
+  assert.equal((html.match(/data-s="rosso"/g) || []).length, 2); // barra e conteggio sotto, non anche nella riga della materia
+  const senza = run(`htmlPrimo(${JSON.stringify(a)}, null)`);
+  assert.match(senza, /class="azione" data-azione="mappa">Apri la mappa</);
+});
+
+test("libreria: «Fotografa gli appunti» pieno solo se non c'è la card gialla", () => {
+  assert.equal(run(`classeFotografa(true)`), "minore");
+  assert.equal(run(`classeFotografa(false)`), "azione");
 });

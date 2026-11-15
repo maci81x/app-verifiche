@@ -15,13 +15,13 @@ const ESITI_ES = {
   giusto: ["✓", "Giusto"],
   senza_unita: ["≈", "Il numero è giusto, ma manca l'unità di misura"],
   unita_sbagliata: ["≈", "Il numero è giusto, l'unità di misura no"],
-  sbagliato: ["✗", "Non torna"],
+  sbagliato: ["✗", "Non ancora"],
   non_numerica: ["✗", "Non riesco a leggere un numero"],
   vuota: ["—", "Non hai risposto"],
 };
 const TIPI_ERRORE_IT = {
-  calcolo: "errore di calcolo", formula: "formula sbagliata", segno: "errore di segno", unita: "unità di misura",
-  procedimento: "strada sbagliata", altro: "", nessuno: "",
+  calcolo: "errore di calcolo", formula: "formula da rivedere", segno: "errore di segno", unita: "unità di misura",
+  procedimento: "strada da cambiare", altro: "", nessuno: "",
 };
 
 // Aprire la soluzione prima di correggere vale come un aiuto: al massimo 5 punti.
@@ -81,7 +81,7 @@ function htmlCorrezione(c, e) {
     ' <span class="punti">' + c.punti + "/10</span></p>" +
     '<div class="confronto">' +
     '<div class="box-risp" data-s="' + stato + '"><span class="etich">La tua risposta</span><b>' + esc(c.risposta || "—") + "</b></div>" +
-    '<div class="box-risp" data-s="verde"><span class="etich">Risultato</span><b>' + esc(giusto) + "</b></div></div>";
+    '<div class="box-risp" data-s="verde"><span class="etich">Risultato giusto</span><b>' + esc(giusto) + "</b></div></div>";
   if (c.vista) h += '<p class="legenda">Avevi aperto la soluzione prima di correggere: questo esercizio vale al massimo ' + PUNTI_CON_SOLUZIONE + " punti.</p>";
   const passi = righePassaggi(c.svolgimento, c.primo_errore);
   if (passi.length) h += '<p class="occhiello">I tuoi passaggi</p><ol class="passi-alunna">' + passi.map((p) =>
@@ -221,7 +221,7 @@ function mostraCorrezione(es, cor, analisiMancante) {
   box.innerHTML = '<p class="occhiello">Com\'è andata, per tipo di esercizio</p>' +
     esito.righe.map((r) => '<div class="esito-c" data-s="' + r.stato + '"><h3>' + esc(r.titolo) +
       '<span class="voto">' + votoIt(Math.round(r.media * 2) / 2) + "/10</span></h3>" + htmlStato(r.stato) + " <small>" + r.n + (r.n === 1 ? " esercizio" : " esercizi") + "</small></div>").join("") +
-    '<p class="legenda">Voto della prova: ' + votoIt(esito.voto) + "." + (analisiMancante ? " I passaggi non sono riuscito a leggerli adesso: i risultati però sono corretti." : "") + "</p>";
+    '<p class="legenda">Voto della prova: ' + votoIt(esito.voto) + "." + (analisiMancante ? " I passaggi adesso non riesco a leggerli, ma i risultati sono corretti." : "") + "</p>";
   $("btn-correggi-es").hidden = true; $("btn-stampa-esito-es").hidden = false;
   box.scrollIntoView({ behavior: "smooth", block: "start" });
   caricaKatex().then((ok) => { if (ok) rendiFormule($("lista-es")); });
