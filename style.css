@@ -560,7 +560,7 @@ button:active:not(:disabled){transform:scale(.97)}
 .testata .menu{width:44px;height:44px;margin-right:-10px;border:0;background:none;color:var(--inchiostro);border-radius:50%;display:grid;place-items:center;cursor:pointer}
 
 /* barra in basso con la fotocamera al centro */
-.barra-basso{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:1fr 1fr 84px 2fr;align-items:end;
+.barra-basso{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:1fr 1fr 84px 1fr 1fr;align-items:end;
   background:var(--carta);border-top:1px solid var(--bordo);padding:4px max(8px,env(safe-area-inset-left,0px)) calc(4px + env(safe-area-inset-bottom,0px))}
 .voce-barra{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;border:0;background:none;
   color:var(--inchiostro-2);font:700 .8rem var(--testo);cursor:pointer}

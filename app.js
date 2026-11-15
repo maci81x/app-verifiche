@@ -363,7 +363,7 @@ function doppioTocco(btn, testoConferma, fn) {
 
 const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
-const CON_BARRA = ["libreria", "argomenti", "storico", "scheda", "mappa", "esito"];
+const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
 const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
 function vai(v, materia, titolo) {
@@ -1995,6 +1995,7 @@ function collega() {
   document.querySelectorAll(".voce-barra").forEach((b) => b.addEventListener("click", () => {
     if (b.dataset.vai === "libreria") { disegnaLibreria(); vai("libreria"); }
     else if (b.dataset.vai === "argomenti") { disegnaArgomenti(); vai("argomenti"); }
+    else if (b.dataset.vai === "profili") { disegnaProfiliSalvati(); vai("profili"); } // cambio profilo, e da lì le Impostazioni
     else { filtroMat = ""; disegnaStorico(); vai("storico"); }
   }));
   $("btn-profilo").addEventListener("click", () => { disegnaProfiliSalvati(); vai("profili"); });
