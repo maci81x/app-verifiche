@@ -29,6 +29,14 @@
 //      con il risultato dichiarato; gli altri si scartano e si contano.
 // POST { azione: "esercizi_correggi", pacchetto: [{ id, testo, passaggi, risultato, verifica, risposta, svolgimento }] }
 //      → { correzioni: [{ id, esito, punti, letto, primo_errore, tipo_errore, spiegazione, esempio }], analisi_mancante }
+// POST { azione: "compito", immagini?: [base64], testo?, esercizio? } → { esercizi: [{ id, inizio }] } oppure la scheda
+//      { testo, dati, cerca, soluzione_libro, indizi, passi, risultato, verifica, trucco, domande_pronte, libro_diverso? }
+//      «Aiutami con un compito» (issue #27). In matematica ogni calcolo si ricalcola qui (_shared/compito.js):
+//      se non torna si chiede una seconda volta, poi { errore: "conti_non_tornano" }. Se il risultato non è
+//      quello del libro, dopo il secondo tentativo la scheda arriva con libro_diverso: true.
+//      Nelle altre materie, se ci sono appunti della stessa materia, si usano come fonte e le ancore si controllano.
+// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda } → { risposta, calcoli, figura, prova_tu }
+// POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
 //      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
 //
@@ -43,6 +51,7 @@ import {
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
+  promptCompito, promptCompitoDomanda,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -51,6 +60,8 @@ import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRis
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
+import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita } from "../_shared/compito.js";
+import { ancoraRegge } from "../_shared/ancoraggio.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -266,6 +277,31 @@ const SCHEMA_ANALISI = {
   required: ["analisi"], additionalProperties: false,
 } as const;
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
+// «Aiutami con un compito» (issue #27): un solo schema, con più esercizi si compila solo l'elenco.
+const SCHEMA_COMPITO = {
+  type: "object",
+  properties: {
+    esercizi: { type: "array", items: { type: "object", properties: { id: STRINGA, inizio: STRINGA }, required: ["id", "inizio"], additionalProperties: false } },
+    materia: STRINGA, matematica: { type: "boolean" }, testo: STRINGA, dati: { type: "array", items: STRINGA }, cerca: STRINGA,
+    soluzione_libro: STRINGA, indizi: { type: "array", items: STRINGA },
+    passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora"], additionalProperties: false } },
+    risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+    verifica: { type: "object", properties: { spiegazione: STRINGA, calcolo: STRINGA }, required: ["spiegazione", "calcolo"], additionalProperties: false },
+    trucco: STRINGA, domande_pronte: { type: "array", items: STRINGA },
+  },
+  required: ["esercizi", "materia", "matematica", "testo", "dati", "cerca", "soluzione_libro", "indizi", "passi", "risultato", "verifica", "trucco", "domande_pronte"],
+  additionalProperties: false,
+} as const;
+const SCHEMA_RISPOSTA_COMPITO = {
+  type: "object",
+  properties: {
+    risposta: STRINGA, calcoli: { type: "array", items: STRINGA },
+    figura: { type: "object", properties: { tipo: { type: "string", enum: ["barra_frazioni", "nessuna"] }, parti: { type: "integer" }, colorate: { type: "integer" }, etichetta: STRINGA }, required: ["tipo", "parti", "colorate", "etichetta"], additionalProperties: false },
+    prova_tu: STRINGA,
+  },
+  required: ["risposta", "calcoli", "figura", "prova_tu"], additionalProperties: false,
+} as const;
+const MAX_APPUNTI = 60_000;
 
 class Definitivo extends Error {}
 const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_disponibile: 503, not_granted: 403 };
@@ -371,8 +407,24 @@ Deno.serve(async (req) => {
       const materiale = testo(b.testo).slice(0, 200_000);
       if (!materiale.trim()) return json({ errore: "nessun testo da leggere" }, 422);
       const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean).slice(0, 50) : [];
-      const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti), SCHEMA_TIPI);
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti, st?.classe ?? null), SCHEMA_TIPI);
       return json(tipiAncorati(r.tipi as unknown[], materiale, esistenti));
+    }
+
+    // «Fammi un esercizio simile» (issue #27): il modello è l'esercizio del compito, non un argomento salvato.
+    if (b.azione === "esercizi_genera" && b.modello && typeof b.modello === "object") {
+      const modello = testoBreve(b.modello.testo, 4000).trim();
+      if (!modello || !QUANTI.includes(b.quanti)) return json({ errore: "richiesta non valida" }, 400);
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const perBreve = { t1: { id: "compito", titolo: "Esercizio simile" } };
+      const elenco = [{ breve: "t1", titolo: "Esercizio simile al compito", ancora: modello, difficolta: 2, figura: false }];
+      const gruppi = Array.from({ length: b.quanti / PER_CHIAMATA }, () =>
+        chiedi(promptEserciziGenera({ materia: "matematica", titolo: "", classe: st?.classe ?? null, quanti: quantiDaChiedere(PER_CHIAMATA), tipi: elenco }), schemaEsercizi(["t1"])));
+      const risposte = await Promise.all(gruppi);
+      const esito = eserciziVerificati(risposte.flatMap((r) => r.esercizi as unknown[]), perBreve, b.quanti);
+      if (!esito.esercizi.length) return json({ errore: "nessun_verificato", scartati: esito.scartati }, 422);
+      return json(esito);
     }
 
     if (b.azione === "esercizi_genera") {
@@ -420,6 +472,64 @@ Deno.serve(async (req) => {
         console.error("analisi dei passaggi:", e);
         return json({ correzioni, analisi_mancante: true });
       }
+    }
+
+    if (b.azione === "compito") {
+      const imm = Array.isArray(b.immagini) ? b.immagini : [];
+      const scritto = testoBreve(b.testo, 6000).trim();
+      if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
+          !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
+        return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo dell'esercizio` }, 400);
+      const db = comeUtente(req);
+      const { data: st } = await db.from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const base = { classe: st?.classe ?? null, testo: scritto || null, esercizio: testoBreve(b.esercizio, 200).trim() || null };
+      const foto = scritto ? [] : imm;
+      let c = pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto));
+      if (!c) return json({ errore: "nessun_esercizio" }, 422);
+      if (c.esercizi) return json(c);
+      if (c.matematica) {
+        // Ogni conto si ricalcola; se non torna si chiede una seconda volta, poi niente soluzione.
+        let esito = controllaCompito(c);
+        if (!esito.ok) {
+          const nota = esito.motivo === "libro"
+            ? "Attenzione: il tuo risultato non coincide con la soluzione del libro. Rileggi il testo e rifai i conti."
+            : "Attenzione: nel tentativo precedente un conto non tornava (" + (esito.motivo === "passo" ? "passo " + esito.passo : esito.motivo) + "). Rifai i conti uno per uno.";
+          const di_nuovo = pulisciCompito(await chiedi(promptCompito(base) + "\n\n" + nota, SCHEMA_COMPITO, foto));
+          if (di_nuovo && !di_nuovo.esercizi) { c = di_nuovo; esito = controllaCompito(c); }
+        }
+        if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano" }, 422);
+        // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
+        return json({ ...c, libro_diverso: !esito.ok });
+      }
+      // Altre materie: se ci sono appunti della stessa materia, si rifà con quelli come fonte e
+      // si tengono solo le ancore che si ritrovano davvero negli appunti.
+      const { data: arg } = c.materia
+        ? await db.from("argomenti").select("trascrizione").eq("studente_id", io.sub).ilike("materia", c.materia).order("aggiornato", { ascending: false }).limit(5)
+        : { data: null };
+      const appunti = (arg || []).map((a: any) => a.trascrizione || "").join("\n\n").slice(0, MAX_APPUNTI);
+      if (appunti.trim()) {
+        const conAppunti = pulisciCompito(await chiedi(promptCompito({ ...base, testo: base.testo || c.testo, appunti }), SCHEMA_COMPITO));
+        if (conAppunti && !conAppunti.esercizi) c = conAppunti;
+      }
+      const passi = c.passi.map((p: any) => ({ ...p, calcolo: "", ancora: p.ancora && appunti && ancoraRegge(p.ancora, appunti) ? p.ancora : "" }));
+      return json({ ...c, passi, libro_diverso: false });
+    }
+
+    if (b.azione === "compito_domanda") {
+      const compito = pulisciCompito(b.compito);
+      const domanda = testoBreve(b.domanda, 600).trim();
+      if (!compito || compito.esercizi || !domanda) return json({ errore: "richiesta non valida" }, 400);
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda });
+      let r = pulisciRisposta(await chiedi(prompt, SCHEMA_RISPOSTA_COMPITO));
+      if (!r) return json({ errore: "lettura non riuscita" }, 502);
+      // I conti della risposta si ricalcolano come quelli della soluzione: una seconda volta, poi niente.
+      if (calcoliCheNonTornano(r).length) {
+        const di_nuovo = pulisciRisposta(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno.", SCHEMA_RISPOSTA_COMPITO));
+        if (di_nuovo) r = di_nuovo;
+        if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
+      }
+      return json(r);
     }
 
     if (b.azione === "domande") {

@@ -361,14 +361,14 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
 const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
 function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
-  if ($("menu-scheda")) chiudiFoglio("menu-scheda");
+  ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
@@ -1194,6 +1194,7 @@ function rigaSessione(x, titolo) {
   return b;
 }
 function disegnaStorico() {
+  disegnaCompitiOggi();
   const box = $("andamento"); box.innerHTML = "";
   // Ancora nessuna prova: un invito, non uno schermo vuoto (issue #26).
   $("storico-vuoto").innerHTML = sessioni.length ? "" : htmlVuoto("Qui vedrai come vanno le prove", "Apri un argomento e fai la prima verifica: dopo, qui trovi il voto e cosa ripassare.");
@@ -2004,9 +2005,9 @@ function collega() {
   trascinaPerChiudere(document.querySelector("#menu-scheda .foglio-menu"), () => chiudiFoglio("menu-scheda"));
   // Menu aperto: Esc chiude, Tab gira solo fra le sue voci.
   document.addEventListener("keydown", (e) => {
-    const menu = $("menu-scheda");
-    if (menu.hidden) return;
-    if (e.key === "Escape") { e.preventDefault(); chiudiFoglio("menu-scheda"); return; }
+    const menu = ["menu-scheda", "menu-foto"].map($).find((m) => !m.hidden);
+    if (!menu) return;
+    if (e.key === "Escape") { e.preventDefault(); chiudiFoglio(menu.id); return; }
     if (e.key !== "Tab") return;
     const f = elementiFocus(menu), primo = f[0], ultimo = f[f.length - 1];
     if (!f.length) return;
@@ -2029,13 +2030,23 @@ function collega() {
   $("btn-ripassa-rossi").addEventListener("click", ripassaIRossi);
   $("btn-torna-storico").addEventListener("click", () => { disegnaStorico(); vai("storico"); });
 
-  $("btn-nuovo").addEventListener("click", () => {
-    foto = []; corrente = null; disegnaMiniature();
-    const dl = $("elenco-materie"); dl.innerHTML = "";
-    [...new Set(argomenti.map((a) => a.materia))].forEach((m) => { const o = document.createElement("option"); o.value = m; dl.appendChild(o); });
-    $("testo-manuale").value = ""; $("materia").value = ""; $("argomento").value = ""; aggiornaSceltaPercorso();
-    errore($("err-mat"), ""); vai("materiale");
-  });
+  // La fotocamera apre due scelte: appunti o compito (issue #27).
+  $("btn-nuovo").addEventListener("click", () => apriFoglio("menu-foto"));
+  collegaCompito();
+  collegaFoto();
+}
+
+// Nuovo materiale da fotografare (gli appunti): il flusso di sempre.
+function nuovoMateriale() {
+  foto = []; corrente = null; disegnaMiniature();
+  const dl = $("elenco-materie"); dl.innerHTML = "";
+  [...new Set(argomenti.map((a) => a.materia))].forEach((m) => { const o = document.createElement("option"); o.value = m; dl.appendChild(o); });
+  $("testo-manuale").value = ""; $("materia").value = ""; $("argomento").value = ""; aggiornaSceltaPercorso();
+  errore($("err-mat"), ""); vai("materiale");
+}
+
+// Il resto dei collegamenti dei pulsanti (foto, scheda, mappa, verifica, esito).
+function collegaFoto() {
   $("foto").addEventListener("change", (e) => {
     Array.prototype.slice.call(e.target.files).forEach((f) => { if (f.type.indexOf("image/") === 0) foto.push(f); }); // nessun limite
     e.target.value = ""; disegnaMiniature();

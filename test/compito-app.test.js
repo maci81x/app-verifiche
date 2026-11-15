@@ -55,14 +55,14 @@ test("calcoli in formula: frazioni, per e diviso", () => {
 });
 
 test("soluzione passo per passo: passi numerati da toccare, verifica, trucco; libro diverso detto senza giudicare", () => {
-  const h = run(`htmlSoluzione(${JSON.stringify(C)})`);
+  const h = run(`htmlSoluzioneCompito(${JSON.stringify(C)})`);
   assert.match(h, /<li class="passo" data-passo="1">[\s\S]*<b>Frazioni spese<\/b>/);
   assert.match(h, /data-passo="2"[\s\S]*Collego frazione ed euro/);
   assert.match(h, /Verifica[\s\S]*Rimetto 1260 nel testo/);
   assert.match(h, /class="trucco"[\s\S]*Il trucco di questo problema[\s\S]*Gli euro non sono frazioni/);
   assert.match(h, /Risultato: <b>1260 €<\/b>/);
   assert.doesNotMatch(h, /io ottengo/);
-  const diverso = run(`htmlSoluzione(${JSON.stringify({ ...C, libro_diverso: true, risultato: { valore: "1250", unita: "€" } })})`);
+  const diverso = run(`htmlSoluzioneCompito(${JSON.stringify({ ...C, libro_diverso: true, risultato: { valore: "1250", unita: "€" } })})`);
   assert.match(diverso, /Il libro dice 1260 €, io ottengo 1250 €: controlliamo insieme il testo\./);
 });
 

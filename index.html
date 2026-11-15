@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <div class="wrap">
@@ -108,6 +108,7 @@
   <h1 id="ciao">Ciao.</h1>
   <p class="sotto" id="frase-oggi"></p>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
+  <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
@@ -118,6 +119,69 @@
 <section id="v-argomenti" hidden>
   <div id="lista-tutti"></div>
   <div class="bottoni"><button class="minore" id="btn-ripasso">Ripasso del quadrimestre</button></div>
+</section>
+
+<!-- ============ AIUTAMI CON UN COMPITO (issue #27) ============ -->
+<section id="v-compito" hidden>
+  <div id="cp-foto">
+    <h2>Fotografa l'esercizio</h2>
+    <p class="aiuto">Ti aiuto a capire come si fa, un passo alla volta. Anche un problema a parole.</p>
+    <label class="scatto" for="foto-compito">
+      <span class="ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg></span>
+      <span><b>Scatta o scegli la foto</b><small id="cp-conta-foto">Una foto dell'esercizio basta.</small></span>
+      <input type="file" id="foto-compito" accept="image/*" multiple>
+    </label>
+    <details class="extra">
+      <summary>Scrivi il testo invece di fotografarlo</summary>
+      <label class="etichetta" for="cp-testo">Il testo dell'esercizio</label>
+      <textarea id="cp-testo" placeholder="Copia qui il testo dell'esercizio"></textarea>
+    </details>
+    <div class="bottoni"><button class="azione" id="btn-cp-leggi">Leggi l'esercizio</button></div>
+  </div>
+  <div id="cp-scegli" hidden>
+    <h2>Quale vuoi fare?</h2>
+    <p class="aiuto">Nella foto ci sono più esercizi. Tocca quello su cui ti serve aiuto.</p>
+    <div class="scelte" id="cp-elenco"></div>
+  </div>
+  <div id="cp-letto" hidden>
+    <h2>Ho letto così</h2>
+    <p class="aiuto">In giallo i dati che servono. Se ho letto male qualcosa, correggilo.</p>
+    <p class="testo-letto" id="cp-testo-letto"></p>
+    <p class="libro" id="cp-libro" hidden></p>
+    <div class="bottoni"><button class="azione" id="btn-cp-si">Sì, è questo</button></div>
+    <p class="link-riga"><button type="button" class="link" id="btn-cp-correggi">Correggi il testo</button></p>
+    <div id="cp-correggi" hidden>
+      <label class="etichetta" for="cp-testo-nuovo">Il testo giusto</label>
+      <textarea id="cp-testo-nuovo"></textarea>
+      <div class="bottoni"><button class="minore" id="btn-cp-rileggi">Rileggi con questo testo</button></div>
+    </div>
+  </div>
+  <div id="err-cp"></div>
+  <div id="stato-cp"></div>
+  <div id="cp-aiuto" hidden>
+    <div class="sai-cerchi" id="cp-blocco-sai">
+      <p class="occhiello">Prima di tutto: cosa sai e cosa cerchi</p>
+      <p><b>Sai:</b></p><ul id="cp-sai"></ul>
+      <p><b>Cerchi:</b> <span id="cp-cerchi"></span></p>
+    </div>
+    <div id="cp-indizi"></div>
+    <div id="cp-soluzione" hidden></div>
+    <h3 class="sez-titolo">Fai una domanda</h3>
+    <div class="pronte" id="cp-pronte"></div>
+    <div class="chat" id="cp-chat" aria-live="polite"></div>
+    <div id="stato-chat"></div>
+    <div class="bottoni">
+      <button class="minore" id="btn-cp-simile">Fammi un esercizio simile</button>
+      <button class="minore" id="btn-cp-fine">Ho finito</button>
+    </div>
+    <div id="stato-simile"></div>
+    <div id="cp-simile"></div>
+  </div>
+  <div class="fondo-fisso chiedi" id="cp-chiedi" hidden>
+    <label class="solo-lettore" for="cp-domanda">La tua domanda</label>
+    <input type="text" id="cp-domanda" placeholder="Chiedimi qualcosa su questo esercizio" autocomplete="off">
+    <button type="button" class="azione" id="btn-cp-chiedi">Chiedi</button>
+  </div>
 </section>
 
 <!-- ============ PREPARAZIONE DELLA VERIFICA ============ -->
@@ -249,6 +313,15 @@
   <div id="stato-scheda"></div>
 </section>
 
+<!-- La fotocamera: due scelte grandi (issue #27) -->
+<div id="menu-foto" class="card-velo" hidden>
+  <div class="card-nodo foglio-menu" role="dialog" aria-modal="true" aria-label="Cosa vuoi fotografare">
+    <div class="maniglia" aria-hidden="true"></div>
+    <button type="button" class="scelta voce-foto" id="btn-foto-appunti"><b>Fotografa gli appunti</b><small>Quaderno, libro, lavagna: ti preparo le domande per ripassare.</small></button>
+    <button type="button" class="scelta voce-foto" id="btn-foto-compito"><b>Aiutami con un compito</b><small>Fotografa un esercizio: ti aiuto a capire come si fa.</small></button>
+  </div>
+</div>
+
 <!-- Menu «⋯» dell'argomento: foglio dal basso -->
 <div id="menu-scheda" class="card-velo" hidden>
   <div class="card-nodo foglio-menu" role="dialog" aria-modal="true" aria-label="Altre azioni">
@@ -312,6 +385,7 @@
 
 <!-- ============ STORICO ============ -->
 <section id="v-storico" hidden>
+  <div id="compiti-oggi"></div>
   <div id="storico-vuoto"></div>
   <p class="aiuto" id="storico-aiuto">Tutte le prove fatte, dalla più recente. Tocca una riga per rivedere le domande e gli errori di quel giorno.</p>
   <div id="andamento"></div>
@@ -427,15 +501,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=16"></script>
-<script src="app.js?v=16"></script>
-<script src="libreria.js?v=16"></script>
-<script src="stampa.js?v=16"></script>
-<script src="aiuto.js?v=16"></script>
-<script src="mappa-card.js?v=16"></script>
-<script src="figure.js?v=16"></script>
-<script src="formule.js?v=16"></script>
-<script src="esercizi.js?v=16"></script>
-<script src="prova-esercizi.js?v=16"></script>
+<script src="semaforo.js?v=17"></script>
+<script src="app.js?v=17"></script>
+<script src="libreria.js?v=17"></script>
+<script src="stampa.js?v=17"></script>
+<script src="aiuto.js?v=17"></script>
+<script src="mappa-card.js?v=17"></script>
+<script src="figure.js?v=17"></script>
+<script src="formule.js?v=17"></script>
+<script src="esercizi.js?v=17"></script>
+<script src="prova-esercizi.js?v=17"></script>
+<script src="compito.js?v=17"></script>
 </body>
 </html>
