@@ -394,6 +394,7 @@ export function promptGemelli(dati) {
     "Scrivi un gemello per ognuno di questi tipi, in quest'ordine:\n" + dati.tipi.map((t) => "- " + t + ": " + cosa[t]).join("\n"),
     "Regole: gli stessi titoli dei passi del compito (con i numeri nuovi) e lo stesso numero di passi con un conto (il gemello con la variante ne può avere uno in più o in meno); tutti i risultati intermedi interi (o frazioni semplici dove il compito usa le frazioni, o euro con i centesimi): mai numeri come 7,333; scegli i numeri partendo dal risultato e tornando indietro, così ogni divisione torna esatta. Contesti adatti a 10-14 anni e vari (non sempre soldi), con nomi propri di fantasia diversi fra loro e non tutti dello stesso genere. Il testo del problema non contiene la soluzione.",
     REGOLE_CALCOLO + " L'ultimo conto arriva al risultato. Controlla tu stesso ogni conto.",
-    'Rispondi solo con JSON: {"gemelli":[{"tipo":"vicino","testo":"","passi":[{"titolo":"","spiegazione":"","calcolo":""}],"risultato":{"valore":"","unita":""}}]}',
+    "Per ogni gemello anche la verifica, come nel compito: controlli con un testo breve e un calcolo, rimettendo insieme le parti fino al risultato oppure andando avanti dal risultato fino a un dato del testo; i controlli usano i numeri del testo del gemello.",
+    'Rispondi solo con JSON: {"gemelli":[{"tipo":"vicino","testo":"","passi":[{"titolo":"","spiegazione":"","calcolo":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]}}]}',
   ].join("\n\n");
 }

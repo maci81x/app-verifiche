@@ -137,11 +137,12 @@ function concettiDifficili(segnali, passi) {
 function esitoAllenamento(concetto, esiti) {
   const giusti = (esiti || []).filter(Boolean).length;
   return giusti === 3 && esiti.length === 3 ? "«" + concetto + "» adesso lo sai fare: 3 su 3."
-    : giusti + " su 3: rifai quello segnato Non ancora, poi provane uno in più.";
+    : giusti + " su 3: " + (3 - giusti === 1 ? "rifai quello segnato" : "rifai quelli segnati") + " Non ancora, poi provane uno in più.";
 }
 // Ripasso: un gemello nuovo dopo 1, 3 e 7 giorni; un errore fa ripartire da 1. Giorni di Roma.
 const giornoDi = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(d);
-const fraGiorni = (ora, g) => giornoDi(new Date(ora.getTime() + g * 86400000));
+// I giorni si contano sul calendario di Roma, non a blocchi di 24 ore (il cambio d'ora non salta un giorno).
+const fraGiorni = (ora, g) => { const [a, m, d] = giornoDi(ora).split("-").map(Number); return new Date(Date.UTC(a, m - 1, d + g)).toISOString().slice(0, 10); };
 function nuovoRipasso(c, ora) {
   return { id: String(ora.getTime()), compito: c, giorni: 1, prossimo: fraGiorni(ora, 1), finito: false };
 }
@@ -163,6 +164,7 @@ let compitoOccupato = false; // una richiesta al modello alla volta
 
 function apriCompito() {
   compito = null; fotoCompito = []; immaginiCompito = []; indiziMostrati = 0; chatCompito = []; simili = [];
+  segnali = []; proveFatte = new Set(); ripassoAperto = null; mirati = null; gemelliOra = [];
   ["cp-scegli", "cp-letto", "cp-aiuto", "cp-allenati"].forEach((id) => { $(id).hidden = true; });
   $("cp-foto").hidden = false; $("cp-testo").value = ""; disegnaFotoCompito();
   errore($("err-cp"), ""); attesa($("stato-cp"), null); $("cp-chiedi").hidden = true;
@@ -229,7 +231,7 @@ function mostraAiuto() {
   disegnaIndizi();
   $("cp-soluzione").hidden = true; $("cp-soluzione").innerHTML = "";
   disegnaChat();
-  $("btn-cp-simile").hidden = !compito.matematica; $("btn-cp-gemelli").hidden = !compito.matematica; $("cp-allenati").hidden = true; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
+  $("btn-cp-simile").hidden = !compito.matematica; $("btn-cp-gemelli").hidden = true; // compare dopo la soluzione $("cp-allenati").hidden = true; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
   if (profilo) salvaLocale(chiaveCompiti(profilo.id), salvaCompito(leggiLocale(chiaveCompiti(profilo.id), []), compito, new Date().toISOString()));
   window.scrollTo(0, 0);
 }
@@ -237,6 +239,7 @@ function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indizi
 function mostraSoluzione() {
   $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito) + htmlProvaTu(compito.prova_tu, "pt-sol");
   $("cp-soluzione").hidden = false;
+  $("btn-cp-gemelli").hidden = !compito.matematica;
   formuleIn("cp-soluzione");
   $("cp-soluzione").scrollIntoView({ block: "start" });
 }
@@ -291,7 +294,7 @@ function disegnaCompitiOggi() {
     const b = document.createElement("button"); b.type = "button"; b.className = "sessione";
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(String(x.compito.testo).slice(0, 80)) + "…</span></div>" +
       '<div class="meta">' + esc(x.compito.materia || "compito") + (x.compito.risultato && x.compito.risultato.valore ? ", risultato " + esc(risultatoIt(x.compito.risultato)) : "") + "</div>";
-    b.onclick = () => { compito = x.compito; indiziMostrati = 0; provoIo = false; chatCompito = []; simili = []; ["cp-foto", "cp-scegli", "cp-letto"].forEach((id) => { $(id).hidden = true; }); vai("compito"); mostraAiuto(); };
+    b.onclick = () => { compito = x.compito; indiziMostrati = 0; provoIo = false; chatCompito = []; segnali = []; proveFatte = new Set(); ripassoAperto = null; simili = []; ["cp-foto", "cp-scegli", "cp-letto"].forEach((id) => { $(id).hidden = true; }); vai("compito"); mostraAiuto(); };
     box.appendChild(b);
   });
 }
@@ -363,14 +366,17 @@ function htmlDomandaConRisposta(id, testoDomanda) {
     '<button type="button" class="minore" data-giudica="' + id + '">Controlla</button></div><div class="prova-esito" id="' + id + '-esito" aria-live="polite"></div>';
 }
 
+// Ogni compito di matematica risolto entra nel ripasso (1, 3, 7 giorni), comunque si esca.
+function salvaRipasso(c) {
+  if (!profilo || !c || !c.matematica) return;
+  salvaLocale(chiaveRipasso(profilo.id), [nuovoRipasso(c, new Date()), ...leggiLocale(chiaveRipasso(profilo.id), []).filter((v) => v && v.compito && v.compito.testo !== c.testo)].slice(0, 20));
+}
 function finisciCompito() {
   if (!compito) return;
   if (compito.prova_tu && !$("cp-soluzione").hidden && !proveFatte.has("pt-sol")) segnali.push({ tipo: "prova", passo: compito.prova_tu.passo, esito: "saltato" });
   const difficili = compito.matematica ? concettiDifficili(segnali, compito.passi) : [];
-  if (profilo && compito.matematica) {
-    salvaLocale(chiaveRipasso(profilo.id), [nuovoRipasso(compito, new Date()), ...leggiLocale(chiaveRipasso(profilo.id), []).filter((v) => v && v.compito && v.compito.testo !== compito.testo)].slice(0, 20));
-    if (difficili.length) salvaLocale(chiaveAllena(profilo.id), { quando: giornoDi(new Date()), compito, difficili });
-  }
+  salvaRipasso(compito);
+  if (profilo && compito.matematica && difficili.length) salvaLocale(chiaveAllena(profilo.id), { quando: giornoDi(new Date()), compito, difficili });
   if (!compito.matematica) { disegnaLibreria(); vai("libreria"); return; }
   mostraAllenamento(difficili);
 }
@@ -382,7 +388,9 @@ function mostraAllenamento(difficili) {
   window.scrollTo(0, 0);
 }
 
+let allenaOccupato = false; // una richiesta alla volta: i gemelli consumano un aiuto
 async function eserciziMirati(concetto, passo) {
+  if (allenaOccupato) return; allenaOccupato = true;
   const p = (compito.passi || [])[passo - 1] || {};
   attesa($("stato-mirati"), ["Preparo tre esercizi su «" + concetto + "»", "Rifaccio i conti"]);
   try {
@@ -390,7 +398,7 @@ async function eserciziMirati(concetto, passo) {
     mirati = { concetto, esercizi: r.esercizi || [], extra: r.extra || [], esiti: [] };
     disegnaMirati();
   } catch (e) { errore($("cp-mirati"), messaggioModello(e, "Non sono riuscito a preparare esercizi con i conti giusti. Riprova fra un momento.")); }
-  attesa($("stato-mirati"), null);
+  attesa($("stato-mirati"), null); allenaOccupato = false;
 }
 function htmlMirato(e, i, occhiello) {
   return '<article class="esercizio"><p class="occhiello">' + occhiello + '</p><p class="consegna">' + esc(e.testo) + "</p>" +
@@ -409,13 +417,14 @@ async function giudicaMirato(i) {
   if (!campo.value.trim()) { out.innerHTML = "<p>Scrivi la tua risposta, poi tocca Controlla.</p>"; return; }
   try {
     const r = await giudica(e.risultato, campo.value.trim());
-    mirati.esiti[i] = !!r.giusto;
+    const prima = mirati.esiti[i] === undefined; // conta il primo tentativo
+    if (prima) mirati.esiti[i] = !!r.giusto;
     out.innerHTML = r.giusto ? '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span></p>'
       : '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora</span> Guarda come si fa qui sotto, poi prova quello in più.</p>';
     if (!r.giusto) {
       $("mi-" + i + "-sol").hidden = false; $("mi-" + i + "-sol").open = true;
       // un esercizio in più dello stesso livello, se c'è: si aggiunge sotto, senza ridisegnare gli altri
-      if (i < 3 && mirati.extra.length) {
+      if (i < 3 && prima && mirati.extra.length) {
         const nuovo = mirati.extra.shift(), k = mirati.esercizi.push(nuovo) - 1;
         $("mi-" + i).closest(".esercizio").insertAdjacentHTML("afterend", htmlMirato(nuovo, k, "Uno in più dello stesso livello"));
         formuleIn("cp-mirati");
@@ -427,14 +436,16 @@ async function giudicaMirato(i) {
 }
 
 async function problemiGemelli(c, dove, soloUno = false) {
+  if (allenaOccupato) return; allenaOccupato = true;
+  if (dove !== "ripasso") ripassoAperto = null;
   const stato = dove === "ripasso" ? $("stato-cp") : $("stato-gemelli");
   attesa(stato, ["Preparo problemi con gli stessi passi", "Rifaccio i conti di ogni passo"]);
   try {
     const r = await conRiprovaEsercizi(() => modello({ azione: "gemelli", compito: c }));
     gemelliOra = soloUno ? [r.gemelli.find((g) => g.tipo === "lontano") || r.gemelli[0]] : r.gemelli;
-    disegnaGemelli(dove === "ripasso" ? $("cp-gemelli") : $("cp-gemelli"));
-  } catch (e) { errore($("cp-gemelli"), e.message === "nessun_gemello" ? "Non sono riuscito a preparare problemi gemelli con tutti i conti interi. Riprova fra un momento." : messaggioModello(e, "Non sono riuscito a preparare i problemi gemelli. Riprova fra un momento.")); }
-  attesa(stato, null);
+    disegnaGemelli($("cp-gemelli"));
+  } catch (e) { errore($("cp-gemelli"), e.message === "nessun_gemello" ? "Non sono riuscito a preparare problemi gemelli con i conti giusti. Riprova fra un momento." : messaggioModello(e, "Non sono riuscito a preparare i problemi gemelli. Riprova fra un momento.")); }
+  attesa(stato, null); allenaOccupato = false;
 }
 function disegnaGemelli(box) {
   box.innerHTML = gemelliOra.map((g, i) => '<article class="esercizio gemello" data-g="' + i + '"><p class="occhiello">' + esc(NOMI_GEMELLI[g.tipo] || "Problema gemello") + '</p><p class="consegna">' + esc(g.testo) + "</p>" +
@@ -476,29 +487,32 @@ function disegnaRipassoOggi() {
   const ora = new Date();
   const dovuto = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), ora)[0];
   const allena = leggiLocale(chiaveAllena(profilo.id), null);
-  if (dovuto) box.innerHTML += '<button type="button" class="scelta" id="btn-ripasso-compito"><span class="occhiello">Ripasso</span><b>Ti ricordi il problema di ' +
-    esc(dovuto.compito.cerca || "questo compito") + "?</b><small>Eccone uno simile: 2 minuti.</small></button>";
-  if (allena && allena.quando && allena.quando < giornoDi(ora) && (allena.difficili || []).length)
-    box.innerHTML += '<button type="button" class="scelta" id="btn-allena-ieri"><span class="occhiello">Allenamento</span><b>«' + esc(allena.difficili[0].concetto) +
+  if (dovuto) box.innerHTML += '<button type="button" class="scelta" id="btn-ripasso-compito"><span class="occhiello">Ripasso</span><b>Ti ricordi questo problema?</b><small>«' +
+    esc(String(dovuto.compito.testo || "").slice(0, 70)) + "…» Eccone uno simile.</small></button>";
+  const difficili = allena && Array.isArray(allena.difficili) ? allena.difficili.filter((d) => d && typeof d.concetto === "string") : [];
+  if (allena && allena.quando && allena.quando < giornoDi(ora) && allena.compito && difficili.length)
+    box.innerHTML += '<button type="button" class="scelta" id="btn-allena-ieri"><span class="occhiello">Allenamento</span><b>«' + esc(difficili[0].concetto) +
       "» ti ha messo in difficoltà</b><small>3 esercizi veloci?</small></button>";
 }
 function apriRipasso() {
   const v = ripassiDovuti(leggiLocale(chiaveRipasso(profilo.id), []), new Date())[0]; if (!v) return;
-  ripassoAperto = v; compito = v.compito;
+  ripassoAperto = v; compito = v.compito; $("cp-chiedi").hidden = true;
   ["cp-foto", "cp-scegli", "cp-letto", "cp-aiuto"].forEach((id) => { $(id).hidden = true; });
   $("cp-allenati").hidden = false; $("cp-blocco-difficili").hidden = true; $("cp-blocco-gemelli").hidden = true; $("cp-gemelli").innerHTML = "";
   vai("compito"); problemiGemelli(v.compito, "ripasso", true);
 }
 function apriAllenaIeri() {
-  const a = leggiLocale(chiaveAllena(profilo.id), null); if (!a) return;
-  compito = a.compito; segnali = [];
+  const a = leggiLocale(chiaveAllena(profilo.id), null);
+  const difficili = a && Array.isArray(a.difficili) ? a.difficili.filter((d) => d && typeof d.concetto === "string") : [];
+  if (!a || !a.compito || !difficili.length) return;
+  compito = a.compito; segnali = []; ripassoAperto = null;
   ["cp-foto", "cp-scegli", "cp-letto"].forEach((id) => { $(id).hidden = true; });
-  vai("compito"); mostraAllenamento(a.difficili); $("cp-blocco-gemelli").hidden = true;
+  vai("compito"); mostraAllenamento(difficili); $("cp-blocco-gemelli").hidden = true;
   salvaLocale(chiaveAllena(profilo.id), null);
 }
 
 function collegaAllenamento() {
-  $("btn-cp-gemelli").addEventListener("click", () => { mostraAllenamento([]); problemiGemelli(compito, "allenati"); });
+  $("btn-cp-gemelli").addEventListener("click", () => { salvaRipasso(compito); mostraAllenamento([]); $("cp-blocco-gemelli").hidden = true; problemiGemelli(compito, "allenati"); });
   $("btn-cp-gemelli-2").addEventListener("click", () => { $("cp-blocco-gemelli").hidden = true; problemiGemelli(compito, "allenati"); });
   $("btn-cp-oggi").addEventListener("click", () => { disegnaLibreria(); vai("libreria"); });
   $("cp-difficili").addEventListener("click", (e) => { const b = e.target.closest("[data-concetto]"); if (b) eserciziMirati(b.dataset.concetto, Number(b.dataset.passo)); });

@@ -166,3 +166,10 @@ test("ripasso a 1, 3 e 7 giorni; dopo un errore si riparte da 1", () => {
   assert.equal(daCapo.giorni, 1); assert.equal(daCapo.prossimo, "2026-11-27");
   assert.deepEqual(json(`ripassiDovuti([{ ...${JSON.stringify(sette)}, finito: true }, null], new Date("2026-12-30T08:00:00Z"))`), []);
 });
+
+test("revisione: esito dell'allenamento al plurale, date del ripasso giuste anche col cambio d'ora", () => {
+  assert.equal(run(`esitoAllenamento("X", [false, false, true])`), "1 su 3: rifai quelli segnati Non ancora, poi provane uno in più.");
+  // 28 marzo 2027: in Italia si passa all'ora legale; il ripasso dopo 1 giorno è il 29
+  assert.equal(json(`nuovoRipasso({ testo: "a" }, new Date("2027-03-27T23:30:00Z"))`).prossimo, "2027-03-29");
+  assert.equal(json(`nuovoRipasso({ testo: "a" }, new Date("2027-03-28T10:00:00Z"))`).prossimo, "2027-03-29");
+});

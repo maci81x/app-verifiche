@@ -336,15 +336,20 @@ const GIULIA = { tipo: "vicino", testo: "Giulia spende 1/5 della paghetta per un
     { titolo: "Collego frazione ed euro", calcolo: "" },
     { titolo: "Trovo 1/10", calcolo: "15 : 5 = 3" },
     { titolo: "Trovo l'intero", calcolo: "3 × 10 = 30" }],
-  risultato: { valore: "30", unita: "€" } };
+  risultato: { valore: "30", unita: "€" },
+  verifica: { spiegazione: "", controlli: [{ testo: "Libro, cinema, merenda e avanzo fanno la paghetta", calcolo: "6 + 9 + 6 + 9 = 30" }] } };
 
 test("gemelli: numeri intermedi interi o frazioni semplici, niente 7,333", () => {
   assert.equal(numeriAdatti("1/5 + 3/10 = 2/10 + 3/10 = 5/10"), true);
   assert.equal(numeriAdatti("36 : 3 × 4 = 48"), true);
-  assert.equal(numeriAdatti("12,50 + 7,50 = 20"), true); // euro con i centesimi
+  assert.equal(numeriAdatti("12,50 € + 7,50 € = 20 €"), true); // euro con i centesimi
+  assert.equal(numeriAdatti("(10 + 5) / 2 × 3 = 22,5"), false);
+  assert.equal(numeriAdatti("22/3 = 7,33"), false);
+  assert.equal(numeriAdatti("100 / 7 = 100/7"), false);
+  assert.equal(numeriAdatti("1 - 5/12 = 12/12 - 5/12 = 7/12"), true);
   assert.equal(numeriAdatti("22 : 3 = 7,33"), false);
   assert.equal(numeriAdatti("16 : 2 × 3 = 24"), true);
-  assert.equal(numeriAdatti("29 : 2 = 14,5"), true);
+  assert.equal(numeriAdatti("29 : 2 = 14,5"), false);
   assert.equal(numeriAdatti("29 : 3 = 9,67"), false);
 });
 
@@ -354,13 +359,13 @@ test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri
   assert.equal(motivoGemello(rotto, PAOLO), "conto");
   const corto = copia(GIULIA); corto.passi = corto.passi.slice(0, 4);
   assert.equal(motivoGemello(corto, PAOLO), "passi");
-  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "30 - 9 = 21" }], risultato: { valore: "21", unita: "€" } }, PAOLO), null); // la variante può avere un passo in più
+  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "30 - 9 = 21" }], risultato: { valore: "21", unita: "€" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "6 + 9 + 6 = 21" }] } }, PAOLO), null); // la variante può avere un passo in più
   const strano = copia(GIULIA); strano.passi[4].calcolo = "16 : 3 = 5,33"; strano.passi[5].calcolo = "5,33 × 10 = 53,3"; strano.risultato.valore = "53,3";
   assert.equal(motivoGemello(strano, PAOLO), "numeri");
   assert.equal(motivoGemello({ ...copia(GIULIA), testo: PAOLO.testo }, PAOLO), "contesto");
   const fine = copia(GIULIA); fine.risultato.valore = "31";
   assert.equal(motivoGemello(fine, PAOLO), "risultato");
-  const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: "Una pizza è divisa…" }] }, PAOLO);
+  const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: GIULIA.testo.replace("Giulia spende", "Marco usa").replace("paghetta", "mancia") }] }, PAOLO);
   assert.deepEqual(r.gemelli.map((g) => g.tipo), ["vicino", "lontano"]);
   assert.equal(r.scartati, 1);
   assert.deepEqual(r.mancano, ["variante"]);
@@ -376,4 +381,13 @@ test("prompt dei gemelli e degli esercizi mirati", () => {
   assert.match(m, /dal più facile al più difficile/i);
   assert.match(m, /Lo stesso denominatore/);
   assert.match(m, /problemi a parole/i);
+});
+
+test("revisione: il risultato del gemello si verifica sul suo testo", () => {
+  const scollegato = { ...copia(GIULIA), testo: "Sara spende 1/4 dei soldi e le restano 10 €. Quanti soldi aveva?",
+    passi: [{ titolo: "a", calcolo: "2 + 2 = 4" }, { titolo: "b", calcolo: "4 + 1 = 5" }, { titolo: "c", calcolo: "5 + 1 = 6" }, { titolo: "d", calcolo: "6 + 1 = 7" }, { titolo: "e", calcolo: "10 × 7 = 70" }],
+    risultato: { valore: "70", unita: "€" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "10 × 7 = 70" }] } };
+  assert.equal(motivoGemello(scollegato, PAOLO), "verifica");
+  assert.equal(motivoGemello({ ...copia(GIULIA), verifica: { spiegazione: "", controlli: [] } }, PAOLO), "verifica");
+  assert.equal(motivoGemello(GIULIA, PAOLO), null);
 });

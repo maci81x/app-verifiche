@@ -334,7 +334,8 @@ const SCHEMA_GEMELLI = {
       tipo: { type: "string", enum: TIPI_GEMELLI }, testo: STRINGA,
       passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA }, required: ["titolo", "spiegazione", "calcolo"], additionalProperties: false } },
       risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
-    }, required: ["tipo", "testo", "passi", "risultato"], additionalProperties: false } },
+      verifica: { type: "object", properties: { spiegazione: STRINGA, controlli: { type: "array", items: { type: "object", properties: { testo: STRINGA, calcolo: STRINGA }, required: ["testo", "calcolo"], additionalProperties: false } } }, required: ["spiegazione", "controlli"], additionalProperties: false },
+    }, required: ["tipo", "testo", "passi", "risultato", "verifica"], additionalProperties: false } },
   },
   required: ["gemelli"], additionalProperties: false,
 } as const;
