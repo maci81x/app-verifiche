@@ -10,7 +10,7 @@ const tempoInvalsi = (n) => n * SECONDI_PER_DOMANDA;
 const orologioInvalsi = (s) => { const t = Math.max(0, Math.round(s)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
 
 const pianoInv = (s) => String(s == null ? "" : s).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[.!;:]+$/, "").replace(/\s+/g, " ");
-const primoNumero = (s) => { const m = String(s == null ? "" : s).replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2").match(/-?\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?/); if (!m) return null;
+const primoNumero = (s) => { const m = String(s == null ? "" : s).replace(/[−–]/g, "-").replace(/(\d)\.(\d{3})(?!\d)/g, "$1$2").match(/-?\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?/); if (!m) return null;
   const [a, b] = m[0].replace(",", ".").split("/"); return b ? Number(a) / Number(b) : Number(a); };
 
 // Scelta multipla e vero/falso: la posizione scelta. Completamento e risposta breve: se la risposta attesa
@@ -18,7 +18,7 @@ const primoNumero = (s) => { const m = String(s == null ? "" : s).replace(/(\d)\
 function rispostaInvalsiGiusta(d, r) {
   if (d.formato === "scelta_multipla" || d.formato === "vero_falso") return r !== "" && r != null && Number(r) === d.corretta;
   const atteso = primoNumero(d.risposta);
-  if (atteso !== null && /^\s*-?\d/.test(d.risposta)) { const n = primoNumero(r); return n !== null && Math.abs(n - atteso) < 1e-9; }
+  if (atteso !== null && /^\s*[-−–]?\d/.test(d.risposta)) { const n = primoNumero(r); return n !== null && Math.abs(n - atteso) < 1e-9; }
   return pianoInv(r) !== "" && pianoInv(r) === pianoInv(d.risposta);
 }
 

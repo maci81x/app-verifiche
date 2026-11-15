@@ -566,7 +566,7 @@ Deno.serve(async (req) => {
       if (!correzioni.length) return json({ errore: "richiesta non valida" }, 400);
       const classe = await classeDi(req, io.sub);
       // Errori tipici per nome (issue #28): senza modello quando si può (1/2 + 1/3 = 2/5), poi la scelta del modello.
-      const grezzi = new Map((Array.isArray(b.pacchetto) ? b.pacchetto : []).map((x: any) => [testo(x?.id), x]));
+      const grezzi = new Map((Array.isArray(b.pacchetto) ? b.pacchetto : []).map((x: any) => [testo(x?.id).trim().slice(0, 40), x]));
       const conTipici = (lista: any[], analisi: unknown[] = []) => lista.map((c) => {
         const x: any = grezzi.get(c.id) || {}, a: any = (analisi as any[]).find((y) => y?.id === c.id) || {};
         return { ...c, ...(erroreTipicoDi({ classe, testo: testo(x.testo), risposta: testo(x.risposta), passaggi: testo(x.svolgimento), scelta: testo(a.errore_tipico), giusto: c.giusto }) || {}) };

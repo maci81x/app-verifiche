@@ -97,3 +97,9 @@ test("INVALSI a tempo: due minuti a domanda, mm:ss", () => {
   assert.equal(run(`orologioInvalsi(65)`), "1:05");
   assert.equal(run(`orologioInvalsi(-3)`), "0:00");
 });
+
+test("INVALSI: numeri negativi scritti con il segno meno tipografico", () => {
+  assert.equal(run(`rispostaInvalsiGiusta({ formato: "risposta_breve", risposta: "−3" }, "-3")`), true);
+  assert.equal(run(`rispostaInvalsiGiusta({ formato: "risposta_breve", risposta: "-3" }, "−3")`), true);
+  assert.equal(run(`rispostaInvalsiGiusta({ formato: "risposta_breve", risposta: "−3" }, "3")`), false);
+});

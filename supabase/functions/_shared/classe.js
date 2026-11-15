@@ -35,15 +35,16 @@ export function trovaArgomenti({ classe, materia, testo }, quanti = 2) {
   const parole = t.trim().split(/\s+/);
   // i numeri dicono l'argomento anche senza parole: 1/2 + 1/3 è una frazione, 2x + 3 = 11 un'equazione
   if (/\d\s*\/\s*\d/.test(t)) parole.push("frazione", "frazioni");
-  if (/\d\s*x\b|\bx\s*[=+\-/]/.test(t) && t.includes("=")) parole.push("equazione", "incognita");
+  if (/\d\s*x\b(?!\s*\d)|\bx\s*[=+\-/]/.test(t) && t.includes("=")) parole.push("equazione", "incognita"); // 3 x 4 = 12 no
   if (t.includes("%")) parole.push("percentuale");
   if (t.includes("?") && parole.length > 10) parole.push("problema");
   // una parola chiave vale se c'è la frase intera o, per una parola sola, la stessa radice (frazione/frazioni)
   const presente = (k) => { const kk = piano(k).trim(); if (kk.includes(" ")) return t.includes(" " + kk + " ");
     const radice = kk.length > 4 ? kk.slice(0, kk.length - 1) : kk; return parole.some((w) => (kk.length > 4 ? w.startsWith(radice) : w === kk)); };
   return tutti.filter((a) => a.classe <= n && (!m || a.materia === m))
-    .map((a) => ({ a, punti: a.parole_chiave.filter(presente).length }))
-    .filter((x) => x.punti > 0)
+    // una parola sola basta solo se è specifica (6 lettere o più, o una frase): «verso», «parte», «tempo» da sole no
+    .map((a) => { const prese = a.parole_chiave.filter(presente); return { a, punti: prese.length, forte: prese.some((k) => k.includes(" ") || k.length >= 6) }; })
+    .filter((x) => x.punti >= 2 || (x.punti === 1 && x.forte))
     .sort((x, y) => y.punti - x.punti || (y.a.classe === n) - (x.a.classe === n) || y.a.classe - x.a.classe)
     .slice(0, quanti).map((x) => x.a);
 }

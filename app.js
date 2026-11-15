@@ -371,6 +371,7 @@ function vai(v, materia, titolo) {
   ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
   if (v !== "verifica") fermaVoce();
   if (v !== "invalsi" && typeof fermaInvalsi === "function") fermaInvalsi(); // uscendo, la prova a tempo si ferma
+  if (v !== "poesia" && typeof fermaPoesia === "function") fermaPoesia();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];

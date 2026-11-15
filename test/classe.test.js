@@ -96,3 +96,9 @@ test("errore tipico di una risposta: prima il riconoscimento senza modello, poi 
   // risposta giusta: niente errore
   assert.equal(erroreTipicoDi({ classe: 2, testo: "Calcola 1/2 + 1/3", risposta: "5/6", scelta: "frazioni-somma-denominatori", giusto: true }), null);
 });
+
+test("argomento: una parola generica da sola non basta; 3 x 4 = 12 non è un'equazione", () => {
+  assert.deepEqual(trovaArgomenti({ classe: 2, materia: null, testo: "Vado verso casa un po' più tardi, poi parto." }), []);
+  assert.ok(!trovaArgomenti({ classe: 3, materia: "matematica", testo: "Calcola 3 x 4 = 12" }).some((a) => a.id === "ma3-equazioni"));
+  assert.equal(trovaArgomenti({ classe: 3, materia: "matematica", testo: "Risolvi 3x = 12" })[0].id, "ma3-equazioni");
+});

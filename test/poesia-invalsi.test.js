@@ -60,3 +60,18 @@ test("prompt INVALSI: formati, ambiti, terza media, numero di domande", () => {
   assert.match(t, /\b7\b/); // ne chiede qualcuna in più, per gli scarti
   assert.match(promptInvalsi({ materia: "inglese", quante: 5, classe: "3" }), /Listening/);
 });
+
+test("INVALSI di matematica: vero/falso controllato sul numero dell'affermazione, opzioni con lo stesso valore scartate, risposte numeriche", () => {
+  const vf = (testo, corretta) => ({ ambito: "Spazio e figure", formato: "vero_falso", testo, opzioni: [], corretta, risposta: "", calcolo: "3,14 × 3^2 × 10 = 282,6", spiegazione: "" });
+  const r = pulisciInvalsi({ domande: [
+    vf("Il volume del cilindro è circa 282,6 cm³.", 0),   // vera e detta vera
+    vf("Il volume del cilindro è circa 282,6 cm³.", 1),   // vera ma detta falsa
+    vf("Il volume del cilindro è circa 300 cm³.", 1),     // falsa e detta falsa
+    vf("Il volume del cilindro è circa 300 cm³.", 0),     // falsa ma detta vera
+    MC({ opzioni: ["90", "90,0", "100", "30"] }),          // due opzioni giuste
+    MC({ opzioni: ["novanta", "ottanta", "cento", "trenta"], corretta: 0 }), // risposta non numerica
+    { ...MC(), corretta: null },
+  ] }, "matematica", 10);
+  assert.deepEqual(r.domande.map((d) => d.testo), ["Il volume del cilindro è circa 282,6 cm³.", "Il volume del cilindro è circa 300 cm³."]);
+  assert.deepEqual(r.domande.map((d) => d.corretta), [0, 1]);
+});

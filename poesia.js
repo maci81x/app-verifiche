@@ -59,6 +59,10 @@ function fraseBlocco(r) {
 /* ---- vista ---- */
 
 const chiavePoesie = (id) => "verifiche-poesie-" + id;
+// le poesie salvate, anche se il dato sul telefono è rotto
+const poesieSalvate = () => { const l = profilo ? leggiLocale(chiavePoesie(profilo.id), []) : []; return Array.isArray(l) ? l.filter((p) => p && Array.isArray(p.strofe)) : []; };
+// uscendo dalla vista: niente più ascolto né lettura a voce
+function fermaPoesia() { if (ascoltoPoesia) ascoltoPoesia.stop(); if (typeof window !== "undefined" && window.speechSynthesis) speechSynthesis.cancel(); }
 let poesia = null, livelloPoesia = 0, fotoPoesia = [], poesiaOccupata = false, ascoltoPoesia = null;
 
 function apriPoesia() {
@@ -69,9 +73,8 @@ function apriPoesia() {
   vai("poesia");
 }
 function disegnaPoesieSalvate() {
-  const lista = profilo ? leggiLocale(chiavePoesie(profilo.id), []) : [];
   const box = $("po-salvate"); box.innerHTML = "";
-  (Array.isArray(lista) ? lista : []).filter((p) => p && Array.isArray(p.strofe)).forEach((p) => {
+  poesieSalvate().forEach((p) => {
     const b = document.createElement("button"); b.type = "button"; b.className = "sessione";
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(p.titolo || p.strofe[0][0]) + "</span></div>" + (p.autore ? '<div class="meta">' + esc(p.autore) + "</div>" : "");
     b.onclick = () => studiaPoesia(p);
@@ -85,7 +88,7 @@ async function leggiPoesia(corpo) {
   attesa($("stato-po"), ["Leggo la poesia", "Verso per verso"]);
   try {
     const p = await modello(corpo);
-    if (profilo) salvaLocale(chiavePoesie(profilo.id), [{ ...p, livello: 0 }, ...leggiLocale(chiavePoesie(profilo.id), []).filter((x) => x && JSON.stringify(x.strofe) !== JSON.stringify(p.strofe))].slice(0, 5));
+    if (profilo) salvaLocale(chiavePoesie(profilo.id), [{ ...p, livello: 0 }, ...poesieSalvate().filter((x) => x && JSON.stringify(x.strofe) !== JSON.stringify(p.strofe))].slice(0, 5));
     studiaPoesia({ ...p, livello: 0 });
   } catch (e) {
     errore($("err-po"), e.message === "nessuna_poesia" ? "Nella foto non trovo una poesia. Riprova con una foto più vicina, oppure scrivila qui sotto."
@@ -108,7 +111,7 @@ function disegnaPoesia() {
 }
 function salvaLivelloPoesia() {
   if (!profilo || !poesia) return;
-  salvaLocale(chiavePoesie(profilo.id), leggiLocale(chiavePoesie(profilo.id), []).map((x) => (x && JSON.stringify(x.strofe) === JSON.stringify(poesia.strofe) ? { ...x, livello: livelloPoesia } : x)));
+  salvaLocale(chiavePoesie(profilo.id), poesieSalvate().map((x) => (x && JSON.stringify(x.strofe) === JSON.stringify(poesia.strofe) ? { ...x, livello: livelloPoesia } : x)));
 }
 function leggimiPoesia() {
   if (!window.speechSynthesis || !poesia) return;
