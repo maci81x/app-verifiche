@@ -64,13 +64,13 @@ test("verifica in linea: una chiusa si corregge subito, senza modello", () => {
 });
 
 test("verifica in linea: il riquadro della correzione dice l'esito e mostra la frase del quaderno", () => {
-  const html = run(`htmlCorrezione({ tipo: "chiusa", ancora: "nel 1347 <arrivò>" }, { punti: 0, commento: "La risposta giusta era: 1347" })`);
+  const html = run(`htmlCorrezioneInLinea({ tipo: "chiusa", ancora: "nel 1347 <arrivò>" }, { punti: 0, commento: "La risposta giusta era: 1347" })`);
   assert.match(html, /data-s="rosso"/);
   assert.match(html, /✕<\/i> Non ancora/);
   assert.match(html, /Sul tuo quaderno[\s\S]*<mark class="evidenzia">nel 1347 &lt;arrivò&gt;<\/mark>/);
-  assert.match(run(`htmlCorrezione({ tipo: "chiusa", ancora: "x" }, { punti: 10, commento: "Giusta." })`), /●<\/i> Giusta/);
-  assert.match(run(`htmlCorrezione({ tipo: "aperta", ancora: "" }, { punti: 6, commento: "Manca la data." })`), /▲<\/i> Quasi[\s\S]*Manca la data\./);
-  assert.doesNotMatch(run(`htmlCorrezione({ tipo: "aperta", ancora: "" }, { punti: 6, commento: "c" })`), /Sul tuo quaderno/);
+  assert.match(run(`htmlCorrezioneInLinea({ tipo: "chiusa", ancora: "x" }, { punti: 10, commento: "Giusta." })`), /●<\/i> Giusta/);
+  assert.match(run(`htmlCorrezioneInLinea({ tipo: "aperta", ancora: "" }, { punti: 6, commento: "Manca la data." })`), /▲<\/i> Quasi[\s\S]*Manca la data\./);
+  assert.doesNotMatch(run(`htmlCorrezioneInLinea({ tipo: "aperta", ancora: "" }, { punti: 6, commento: "c" })`), /Sul tuo quaderno/);
 });
 
 test("esito: la frase si evidenzia con la passata solo per i punti passati da ✕ a ●", () => {

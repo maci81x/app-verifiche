@@ -111,3 +111,14 @@ test("correzioni prima del merge: niente sovrapposizioni, tinta per riga, nota s
   assert.doesNotMatch(html.match(/<section id="v-libreria"[\s\S]*?<\/section>\n/)[0], /btn-svuota/);
   assert.match(html.match(/<section id="v-impostazioni"[\s\S]*?<\/section>\n/)[0], /id="btn-svuota"/);
 });
+
+test("nessun nome globale doppio fra gli script: uno caricato dopo sovrascriverebbe l'altro", () => {
+  const visti = {};
+  for (const f of JS) {
+    for (const m of leggi(f).matchAll(/^(?:async\s+)?function\s+(\w+)|^(?:const|let|var)\s+(\w+)/gm)) {
+      const nome = m[1] || m[2];
+      assert.ok(!visti[nome], nome + " è sia in " + visti[nome] + " sia in " + f);
+      visti[nome] = f;
+    }
+  }
+});

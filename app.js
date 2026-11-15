@@ -1533,7 +1533,7 @@ function esitoChiusa(d, scelta) {
   return { punti: ok ? 10 : 0, commento: ok ? "Giusta." : "La risposta giusta era: " + (d.opzioni[d.corretta] || "—") };
 }
 // Chip dell'esito, il commento e, se c'è, la frase del quaderno evidenziata.
-function htmlCorrezione(d, p) {
+function htmlCorrezioneInLinea(d, p) {
   const s = p.punti >= 8 ? "verde" : (p.punti >= 5 ? "giallo" : "rosso");
   const parola = { verde: "Giusta", giallo: "Quasi", rosso: "Non ancora" }[s];
   return '<p class="corr-esito"><span class="sem" data-s="' + s + '"><i aria-hidden="true">' + segnoStato(s) + "</i> " + parola + "</span></p>" +
@@ -1592,7 +1592,7 @@ async function correggiInLinea(d) {
     const j = +l.querySelector("input").value;
     if (j === d.corretta) l.dataset.esito = "giusta"; else if (j === r.scelta) l.dataset.esito = "sbagliata";
   });
-  const box = $("q-correzione"); box.innerHTML = htmlCorrezione(d, p); box.hidden = false;
+  const box = $("q-correzione"); box.innerHTML = htmlCorrezioneInLinea(d, p); box.hidden = false;
   $("btn-nonso").hidden = true;
   $("btn-avanti").textContent = idx === domande.length - 1 ? "Vedi com'è andata" : "Prossima";
   box.scrollIntoView({ block: "nearest" });
