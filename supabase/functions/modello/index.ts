@@ -38,7 +38,11 @@
 // POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda, sbloccata } → { risposta, calcoli, figura, prova_tu }
 //      Senza sbloccata: true la risposta non deve contenere il risultato finale; se lo contiene si rigenera.
 // POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
-// POST { azione: "prova_tu", atteso: { valore, unita }, risposta } → { esito, giusto, punti, letto }: solo un calcolo (correzione.js).
+// POST { azione: "prova_tu", atteso: { valore, unita }, risposta, calcolo?, testo? } → { esito, giusto, punti, letto, errore_tipico?, prerequisito? }:
+//      solo un calcolo (correzione.js); con il calcolo o il testo si riconosce anche l'errore tipico (issue #28).
+// POST { azione: "poesia", immagini | testo } → { titolo, autore, strofe: [[verso]] } (issue #28). Conta come un aiuto.
+// POST { azione: "invalsi", materia: matematica|italiano|inglese, quante: 3-10 } → { brano, domande, scartate }: solo 3ª media
+//      (403 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
 //      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
@@ -73,6 +77,9 @@ import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano
   correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
   rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
+import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
+import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
+import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -106,6 +113,12 @@ const comeUtente = (req: Request) =>
     global: { headers: { Authorization: req.headers.get("Authorization")! } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+// La classe del profilo (issue #28): con i permessi di chi chiama; null se non c'è.
+async function classeDi(req: Request, id: string | undefined): Promise<string | null> {
+  const { data } = await comeUtente(req).from("studenti").select("classe").eq("id", id).maybeSingle();
+  return data?.classe ?? null;
+}
 
 const MAX_CONCETTI_SCELTI = 12;
 const LIVELLI = ["semplice", "medio", "difficile"], TIPI = ["miste", "chiuse", "aperte"], MODALITA = ["scritta", "orale"];
@@ -278,10 +291,10 @@ const SCHEMA_ANALISI = {
       items: {
         type: "object",
         properties: {
-          id: STRINGA, primo_errore: STRINGA, tipo_errore: { type: "string", enum: TIPI_ERRORE },
+          id: STRINGA, primo_errore: STRINGA, tipo_errore: { type: "string", enum: TIPI_ERRORE }, errore_tipico: STRINGA,
           spiegazione: STRINGA, esempio: STRINGA,
         },
-        required: ["id", "primo_errore", "tipo_errore", "spiegazione", "esempio"], additionalProperties: false,
+        required: ["id", "primo_errore", "tipo_errore", "errore_tipico", "spiegazione", "esempio"], additionalProperties: false,
       },
     },
   },
@@ -329,6 +342,24 @@ const SCHEMA_RISPOSTA_COMPITO = {
   required: ["risposta", "calcoli", "figura", "prova_tu", "passo"], additionalProperties: false,
 } as const;
 const MAX_APPUNTI = 60_000;
+// Poesia a memoria e INVALSI (issue #28).
+const SCHEMA_POESIA = {
+  type: "object",
+  properties: { titolo: STRINGA, autore: STRINGA, strofe: { type: "array", items: { type: "array", items: STRINGA } } },
+  required: ["titolo", "autore", "strofe"], additionalProperties: false,
+} as const;
+const SCHEMA_INVALSI = {
+  type: "object",
+  properties: {
+    brano: { type: "object", properties: { titolo: STRINGA, testo: STRINGA, ascolto: { type: "boolean" } }, required: ["titolo", "testo", "ascolto"], additionalProperties: false },
+    domande: { type: "array", items: { type: "object", properties: {
+      ambito: STRINGA, formato: { type: "string", enum: FORMATI_INVALSI }, testo: STRINGA, opzioni: { type: "array", items: STRINGA },
+      corretta: { type: "integer" }, risposta: STRINGA, calcolo: STRINGA, spiegazione: STRINGA,
+    }, required: ["ambito", "formato", "testo", "opzioni", "corretta", "risposta", "calcolo", "spiegazione"], additionalProperties: false } },
+  },
+  required: ["brano", "domande"], additionalProperties: false,
+} as const;
+
 const SCHEMA_GEMELLI = {
   type: "object",
   properties: {
@@ -464,9 +495,10 @@ Deno.serve(async (req) => {
       if (!materiale.trim()) return json({ errore: "nessun testo da leggere" }, 422);
       const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean) : null;
       const pagine = Math.max(1, Math.round(Number(b.pagine)) || 1);
+      const classe = await classeDi(req, io.sub);
       const prompt = esistenti
-        ? promptConcettiNuovi(esistenti, materiale, pagine)
-        : promptConcetti(testo(b.materia), testo(b.titolo), materiale, pagine);
+        ? promptConcettiNuovi(esistenti, materiale, pagine, { classe, materia: testo(b.materia) })
+        : promptConcetti(testo(b.materia), testo(b.titolo), materiale, pagine, classe);
       const r = await chiedi(prompt, SCHEMA_CONCETTI);
       return json(concettiAncorati(r.concetti as unknown[], materiale));
     }
@@ -532,16 +564,22 @@ Deno.serve(async (req) => {
     if (b.azione === "esercizi_correggi") {
       const { correzioni, daAnalizzare } = correggiPacchetto(b.pacchetto);
       if (!correzioni.length) return json({ errore: "richiesta non valida" }, 400);
-      if (!daAnalizzare.length) return json({ correzioni, analisi_mancante: false });
+      const classe = await classeDi(req, io.sub);
+      // Errori tipici per nome (issue #28): senza modello quando si può (1/2 + 1/3 = 2/5), poi la scelta del modello.
+      const grezzi = new Map((Array.isArray(b.pacchetto) ? b.pacchetto : []).map((x: any) => [testo(x?.id), x]));
+      const conTipici = (lista: any[], analisi: unknown[] = []) => lista.map((c) => {
+        const x: any = grezzi.get(c.id) || {}, a: any = (analisi as any[]).find((y) => y?.id === c.id) || {};
+        return { ...c, ...(erroreTipicoDi({ classe, testo: testo(x.testo), risposta: testo(x.risposta), passaggi: testo(x.svolgimento), scelta: testo(a.errore_tipico), giusto: c.giusto }) || {}) };
+      });
+      if (!daAnalizzare.length) return json({ correzioni: conTipici(correzioni), analisi_mancante: false });
       // Senza la spiegazione dei passaggi la correzione del risultato vale lo stesso.
       try {
-        const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
-        const r = await chiedi(promptCorrezioneEsercizi({ classe: st?.classe ?? null, pacchetto: daAnalizzare }), SCHEMA_ANALISI);
-        return json({ correzioni: conAnalisi(correzioni, r.analisi as unknown[], daAnalizzare), analisi_mancante: false });
+        const r = await chiedi(promptCorrezioneEsercizi({ classe, pacchetto: daAnalizzare }), SCHEMA_ANALISI);
+        return json({ correzioni: conTipici(conAnalisi(correzioni, r.analisi as unknown[], daAnalizzare), r.analisi as unknown[]), analisi_mancante: false });
       } catch (e) {
         if (e instanceof Definitivo && e.message !== "rate_limited") throw e;
         console.error("analisi dei passaggi:", e);
-        return json({ correzioni, analisi_mancante: true });
+        return json({ correzioni: conTipici(correzioni), analisi_mancante: true });
       }
     }
 
@@ -628,6 +666,40 @@ Deno.serve(async (req) => {
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
+    // Poesia a memoria (issue #28): la foto (o il testo) della poesia, trascritta verso per verso. Conta come un aiuto.
+    if (b.azione === "poesia") {
+      const imm = Array.isArray(b.immagini) ? b.immagini : [];
+      const scritto = testoBreve(b.testo, 6000).trim();
+      if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
+          !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
+        return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo della poesia` }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const prompt = promptPoesia() + (scritto ? "\n\nLa poesia, scritta a mano da chi studia (la foto non c'è):\n" + scritto : "");
+        const p = pulisciPoesia(await chiedi(prompt, SCHEMA_POESIA, imm));
+        if (!p) return json({ errore: "nessuna_poesia" }, 422);
+        riuscito = true;
+        return json(p);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // «Allenati per l'INVALSI» (issue #28): solo per la terza media. Conta come un aiuto.
+    if (b.azione === "invalsi") {
+      const quante = Math.min(10, Math.max(3, Math.round(Number(b.quante)) || 5));
+      if (!MATERIE_INVALSI.includes(b.materia)) return json({ errore: "richiesta non valida" }, 400);
+      const classe = await classeDi(req, io.sub);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 403);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const esito = pulisciInvalsi(await chiedi(promptInvalsi({ materia: b.materia, quante, classe }), SCHEMA_INVALSI), b.materia, quante);
+        if (!esito.domande.length) return json({ errore: "nessuna_domanda", scartate: esito.scartate }, 422);
+        riuscito = true;
+        return json(esito);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
     if (b.azione === "gemelli") {
       const compito = pulisciCompito(b.compito);
       if (!compito || compito.esercizi || !compito.passi.some((p: any) => p.calcolo)) return json({ errore: "richiesta non valida" }, 400);
@@ -654,7 +726,13 @@ Deno.serve(async (req) => {
     if (b.azione === "prova_tu") {
       const atteso = b.atteso && typeof b.atteso === "object" ? { valore: testoBreve(b.atteso.valore, 40), unita: testoBreve(b.atteso.unita, 20) } : null;
       if (!atteso?.valore) return json({ errore: "richiesta non valida" }, 400);
-      return json(correggiProvaTu(testoBreve(b.risposta, 60), atteso));
+      const esito = correggiProvaTu(testoBreve(b.risposta, 60), atteso);
+      // Con il testo o il calcolo della domanda si riconosce l'errore tipico (1/2 + 1/3 = 2/5) senza modello;
+      // la classe si legge solo se c'è (serve per il prerequisito).
+      const domanda = testoBreve(b.calcolo, 400) || testoBreve(b.testo, 400);
+      const tipico = domanda && !esito.giusto ? erroreTipicoDi({ classe: null, testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) : null;
+      if (!tipico) return json(esito);
+      return json({ ...esito, ...erroreTipicoDi({ classe: await classeDi(req, io.sub), testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) });
     }
 
     if (b.azione === "domande") {
@@ -694,7 +772,7 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
-        quante: b.quante, soloConcetto,
+        quante: b.quante, soloConcetto, classe: await classeDi(req, io.sub),
       }), SCHEMA_DOMANDE);
       const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
       // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.
@@ -712,7 +790,7 @@ Deno.serve(async (req) => {
         elementi: Array.isArray(x?.elementi) ? x.elementi.map(testo) : [], risposta_alunna: testo(x?.risposta_alunna).slice(0, 8000),
       })) : [];
       if (!pacchetto.length) return json({ valutazioni: [] });
-      const r = await chiedi(promptCorrezione(b.modalita === "orale" ? "orale" : "scritta", pacchetto), SCHEMA_VALUTAZIONI);
+      const r = await chiedi(promptCorrezione(b.modalita === "orale" ? "orale" : "scritta", pacchetto, await classeDi(req, io.sub), testo(b.materia)), SCHEMA_VALUTAZIONI);
       return json({ valutazioni: r.valutazioni });
     }
 
@@ -728,7 +806,7 @@ Deno.serve(async (req) => {
       // Solo l'albero, il più in fretta possibile: le sintesi arrivano dopo con l'azione `sintesi`
       // (issue #13). Con 25 concetti o più la mappa è già piena: niente modello.
       const posti = MAX_NODI - a.concetti.length;
-      const r = posti > 0 ? await chiedi(promptMappa(a, posti), SCHEMA_MAPPA, [], "low") : { nodi: [] };
+      const r = posti > 0 ? await chiedi(promptMappa(a, posti, await classeDi(req, io.sub)), SCHEMA_MAPPA, [], "low") : { nodi: [] };
       return json(costruisciMappa(a, r));
     }
 
@@ -740,7 +818,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
-      const r = await chiedi(promptSintesi(a), SCHEMA_SINTESI, [], "low");
+      const r = await chiedi(promptSintesi(a, await classeDi(req, io.sub)), SCHEMA_SINTESI, [], "low");
       return json(sintesiDaRisposta(a, r));
     }
 

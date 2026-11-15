@@ -68,12 +68,12 @@ const BASE = { materia: "storia", argomento: "La peste del Trecento", classe: "2
 
 test("prompt della spiegazione: parte dagli appunti, età giusta, errore se c'è, fonti numerate", () => {
   const ricerca = promptRicercaSpiegazione({ ...BASE, errore: { domanda: "Quando arrivò?", risposta_alunna: "Nel 1492", risposta_attesa: "Nel 1347" } });
-  assert.match(ricerca, /12 anni/);
+  assert.match(ricerca, /12-13 anni/); // issue #28: età e modo di scrivere dalla classe
   assert.match(ricerca, /Nel 1347 la peste arrivò a Messina/);
   assert.match(ricerca, /Nel 1492/);
   assert.doesNotMatch(promptRicercaSpiegazione(BASE), /ha risposto/); // senza errore, niente errore
   const finale = promptSpiegazione({ ...BASE, classe: "3", ricerca: "Appunti di ricerca.", fonti: FONTI_PROVA });
-  assert.match(finale, /13 anni/);
+  assert.match(finale, /13-14 anni/);
   assert.match(finale, /Parti da quello che c'è negli appunti/);
   assert.match(finale, /1\. Peste - Treccani — https:\/\/www\.treccani\.it\/enciclopedia\/peste/);
   assert.match(finale, /da 6 a 10 righe/);
@@ -84,7 +84,7 @@ test("prompt dell'arricchimento: agganci con id brevi, al massimo 6 nodi, niente
   const agganci = [{ breve: "n1", titolo: "Arrivo della peste" }, { breve: "n2", titolo: "I flagellanti" }];
   const ricerca = promptRicercaArricchisci({ materia: "storia", argomento: "La peste", classe: "3", agganci });
   assert.match(ricerca, /n1: Arrivo della peste/);
-  assert.match(ricerca, /13 anni/);
+  assert.match(ricerca, /13-14 anni/);
   const finale = promptArricchisci({ materia: "storia", argomento: "La peste", classe: "3", agganci, ricerca: "Trovato.", fonti: FONTI_PROVA });
   assert.match(finale, /fino a 6/);
   assert.match(finale, /aggancio/);

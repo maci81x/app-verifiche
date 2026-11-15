@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
 <div class="wrap">
@@ -110,6 +110,7 @@
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
   <div id="ripasso-oggi"></div>
+  <div id="invalsi-oggi"></div>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
@@ -211,6 +212,71 @@
 </section>
 
 <!-- ============ PREPARAZIONE DELLA VERIFICA ============ -->
+<section id="v-poesia" hidden>
+  <div id="po-foto">
+    <h2>Una poesia a memoria</h2>
+    <p class="aiuto">Fotografa la poesia. Te la leggo, poi nascondo le parole un po' alla volta e tu la ripeti a voce.</p>
+    <label class="scatto" for="foto-poesia">
+      <span class="ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg></span>
+      <span><b>Scatta o scegli la foto</b><small>Anche due foto, se la poesia è lunga.</small></span>
+      <input type="file" id="foto-poesia" accept="image/*" multiple>
+    </label>
+    <details class="extra">
+      <summary>Scrivi la poesia invece di fotografarla</summary>
+      <label class="etichetta" for="po-testo">La poesia, un verso per riga</label>
+      <textarea id="po-testo" placeholder="Una riga vuota fra una strofa e l'altra"></textarea>
+      <div class="bottoni"><button class="minore" id="btn-po-scritta">Usa questo testo</button></div>
+    </details>
+    <div id="stato-po"></div>
+    <div id="err-po"></div>
+    <p class="occhiello" id="po-occhiello-salvate" hidden>Le tue poesie</p>
+    <div id="po-salvate"></div>
+  </div>
+  <div id="po-studio" hidden>
+    <h2 id="po-titolo"></h2>
+    <p class="aiuto" id="po-autore"></p>
+    <div class="po-livelli" role="group" aria-label="Quante parole nascondere">
+      <button type="button" class="chip-domanda" data-livello-po="0" aria-pressed="true">Tutta in vista</button>
+      <button type="button" class="chip-domanda" data-livello-po="1" aria-pressed="false">Una parola ogni cinque</button>
+      <button type="button" class="chip-domanda" data-livello-po="2" aria-pressed="false">Metà delle parole</button>
+      <button type="button" class="chip-domanda" data-livello-po="3" aria-pressed="false">Strofe intere</button>
+    </div>
+    <div class="poesia" id="po-versi"></div>
+    <div class="bottoni">
+      <button class="azione" id="btn-po-ripeti">Ripetila a voce</button>
+      <button class="minore" id="btn-po-leggi">Leggimela</button>
+    </div>
+    <p class="aiuto" id="po-ascolto" aria-live="polite"></p>
+    <p class="po-esito" id="po-esito" aria-live="polite"></p>
+    <p class="link-riga"><button type="button" class="link" id="btn-po-altra">Un'altra poesia</button></p>
+  </div>
+</section>
+
+<section id="v-invalsi" hidden>
+  <div id="inv-scegli">
+    <h2>Allenati per l'INVALSI</h2>
+    <p class="aiuto">Cinque domande come alla prova al computer: scelta multipla, vero o falso, completamento, risposta breve. Hai due minuti per domanda.</p>
+    <div class="scelte">
+      <button type="button" class="scelta" data-materia-inv="matematica"><b>Matematica</b><small>Numeri, spazio e figure, relazioni e funzioni, dati e previsioni.</small></button>
+      <button type="button" class="scelta" data-materia-inv="italiano"><b>Italiano</b><small>Un brano da leggere e domande sulla lingua.</small></button>
+      <button type="button" class="scelta" data-materia-inv="inglese"><b>Inglese</b><small>Reading e listening.</small></button>
+    </div>
+    <div id="stato-inv"></div>
+    <div id="err-inv"></div>
+  </div>
+  <div id="inv-prova" hidden>
+    <p class="tempo-inv" id="inv-tempo" aria-live="off"></p>
+    <div id="inv-brano"></div>
+    <div id="inv-domande"></div>
+    <div class="bottoni"><button class="azione" id="btn-inv-consegna">Consegna</button></div>
+  </div>
+  <div id="inv-esito" hidden>
+    <div id="inv-punteggio"></div>
+    <div id="inv-correzione"></div>
+    <div class="bottoni"><button class="minore" id="btn-inv-ancora">Altre domande</button></div>
+  </div>
+</section>
+
 <section id="v-prepara" hidden>
   <p class="aiuto">Le scelte restano quelle dell'ultima volta. Se ti vanno bene, tocca Parti.</p>
   <div id="opz-prepara"></div>
@@ -345,6 +411,7 @@
     <div class="maniglia" aria-hidden="true"></div>
     <button type="button" class="scelta voce-foto" id="btn-foto-appunti"><b>Fotografa gli appunti</b><small>Quaderno, libro, lavagna: ti preparo le domande per ripassare.</small></button>
     <button type="button" class="scelta voce-foto" id="btn-foto-compito"><b>Aiutami con un compito</b><small>Fotografa un esercizio: ti aiuto a capire come si fa.</small></button>
+    <button type="button" class="scelta voce-foto" id="btn-foto-poesia"><b>Una poesia a memoria</b><small>Fotografa la poesia: te la leggo, poi nascondo le parole un po' alla volta.</small></button>
     <button type="button" class="voce-menu" id="btn-foto-chiudi">Chiudi</button>
   </div>
 </div>
@@ -528,16 +595,19 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=19"></script>
-<script src="app.js?v=19"></script>
-<script src="libreria.js?v=19"></script>
-<script src="stampa.js?v=19"></script>
-<script src="aiuto.js?v=19"></script>
-<script src="mappa-card.js?v=19"></script>
-<script src="figure.js?v=19"></script>
-<script src="formule.js?v=19"></script>
-<script src="esercizi.js?v=19"></script>
-<script src="prova-esercizi.js?v=19"></script>
-<script src="compito.js?v=19"></script>
+<script src="semaforo.js?v=20"></script>
+<script src="app.js?v=20"></script>
+<script src="libreria.js?v=20"></script>
+<script src="stampa.js?v=20"></script>
+<script src="aiuto.js?v=20"></script>
+<script src="mappa-card.js?v=20"></script>
+<script src="figure.js?v=20"></script>
+<script src="formule.js?v=20"></script>
+<script src="esercizi.js?v=20"></script>
+<script src="prova-esercizi.js?v=20"></script>
+<script src="compito.js?v=20"></script>
+<script src="classe-app.js?v=20"></script>
+<script src="poesia.js?v=20"></script>
+<script src="invalsi.js?v=20"></script>
 </body>
 </html>
