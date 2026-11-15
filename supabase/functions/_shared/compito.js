@@ -81,17 +81,28 @@ export function controllaCompito(c) {
   const consegna = String(c.testo).replace(/\[[^\]]*\]/g, " ");
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
+  // Anche le parole-numero sono dati: «il triplo dell'altezza» è un 3 da rispettare.
+  for (const [re, n] of [[/\b(doppi[oa]|metà)\b/i, 2], [/\b(tripl[oa]|terz[oa])\b/i, 3], [/\b(quadrupl[oa]|quart[oa])\b/i, 4]]) if (re.test(consegna)) dati.add(n);
   const quanti = Math.min(2, dati.size);
   const datiIn = (s) => new Set(numeriIn(s.replace(/\d+\s*\/\s*\d+/g, " ")).filter((n) => dati.has(n)));
   const conFrazione = (s) => frazioni.some((f) => s.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
-  const haValore = (s) => numeriIn(s).some((n) => coincide(n, valore));
+  const haValore = (s) => numeriIn(s).some((n) => coincide(n, valore)) || (/\//.test(valore) && s.replace(/\s/g, "").includes(valore.replace(/\s/g, "")));
   // All'indietro: un controllo arriva al risultato senza averlo a sinistra e usa lui stesso i dati.
-  // Oppure (geometria) il conto del risultato usa misure trovate che un altro controllo riporta a un dato
-  // del testo: «2 × (21 + 7) = 56» e poi «21 × 7 = 147».
+  // Solo in geometria: il conto del risultato usa misure trovate, e OGNI misura trovata compare in un
+  // controllo che arriva a un dato del testo («(21 + 7) × 2 = 56», «21 : 7 = 3», poi «21 × 7 = 147»).
+  // I dati si contano solo dal conto del risultato e da quei controlli.
   const operandi = (s) => new Set(numeriIn(s).filter((n) => n !== 0 && n !== 1));
   const finali = controlli.map(finale);
-  const conMisure = (s, i) => controlli.some((_, k) => k !== i && dati.has(finali[k]) && [...operandi(s)].some((n) => operandi(sinistre[k]).has(n))) &&
-    new Set([...sinistre.flatMap((x) => [...datiIn(x)]), ...finali.filter((f) => dati.has(f))]).size >= quanti;
+  const conMisure = (s, i) => {
+    if (!/geom/i.test(c.materia || "")) return false;
+    const misure = [...operandi(s)].filter((n) => !dati.has(n));
+    const legati = controlli.map((_, k) => k).filter((k) => k !== i && dati.has(finali[k]) && misure.some((n) => operandi(sinistre[k]).has(n)));
+    if (!misure.length || !misure.every((n) => legati.some((k) => operandi(sinistre[k]).has(n)))) return false;
+    // Contano anche i controlli che legano un dato a una misura trovata («7 × 3 = 21»: il triplo).
+    const relazioni = controlli.map((_, k) => k).filter((k) => k !== i && misure.some((n) => coincide(finali[k], String(n)) || operandi(sinistre[k]).has(n)));
+    return new Set([...datiIn(s), ...legati.map((k) => finali[k]), ...[...legati, ...relazioni].flatMap((k) => [...datiIn(sinistre[k])])]
+      .filter((n) => dati.has(n))).size >= quanti;
+  };
   const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) &&
     (dati.size ? datiIn(s).size >= quanti || conMisure(s, i) : conFrazione(s)));
   // In avanti: il risultato entra davvero nel primo conto (cambiandolo, cambia il conto), ogni controllo

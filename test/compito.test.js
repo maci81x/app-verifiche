@@ -277,3 +277,42 @@ test("geometria: si verifica che le misure trovate diano i dati, poi il risultat
   const scollegata = copia(G); scollegata.verifica.controlli = [{ testo: "", calcolo: "2 × (20 + 8) = 56" }, { testo: "", calcolo: "21 × 7 = 147" }];
   assert.equal(controllaCompito(scollegata).motivo, "verifica"); // le misure del controllo non sono quelle dell'area
 });
+
+test("revisione finale: la forma della geometria non fa passare risultati sbagliati", () => {
+  const ctl = (xs) => ({ spiegazione: "", controlli: xs.map((calcolo) => ({ testo: "", calcolo })) });
+  // Linda con un risultato sbagliato (52) e senza libro: rifiutata.
+  const linda52 = { ...copia(LINDA), soluzione_libro: "", testo: TESTO_LINDA.replace(" [48]", ""),
+    passi: [{ titolo: "", spiegazione: "", calcolo: "20 + 4 + 4 = 28", ancora: "" }, { titolo: "", spiegazione: "", calcolo: "28 + 24 = 52", ancora: "" }],
+    risultato: { valore: "52", unita: "panini" }, verifica: ctl(["28 - 4 - 4 = 20", "28 + 24 = 52"]) };
+  assert.equal(controllaCompito(linda52).motivo, "verifica");
+  // Rettangolo con un'area sbagliata (196): «il triplo» è un dato e va rispettato.
+  const R = "Un rettangolo ha il perimetro di 56 cm e la base è il triplo dell'altezza. Calcola l'area del rettangolo.";
+  const ret196 = { ...copia(PAOLO), materia: "geometria", soluzione_libro: "", testo: R,
+    passi: [{ titolo: "", spiegazione: "", calcolo: "56 : 4 = 14", ancora: "" }, { titolo: "", spiegazione: "", calcolo: "14 × 14 = 196", ancora: "" }],
+    risultato: { valore: "196", unita: "cm²" }, verifica: ctl(["2 × (14 + 14) = 56", "14 × 14 = 196"]) };
+  assert.equal(controllaCompito(ret196).motivo, "verifica");
+  // Finte con le misure non collegate, in tutte le materie.
+  for (const [base, xs] of [[PAOLO, ["770 - 305 = 465", "770 + 490 = 1260"]], [PAOLO, ["305 + 160 = 465", "305 + 955 = 1260"]],
+    [LINDA, ["4 × 5 = 20", "12 × 4 = 48"]], [LINDA, ["12 + 8 = 20", "12 × 4 = 48"]], [LINDA, ["4 + 16 = 20", "16 × 3 = 48"]]]) {
+    const c = copia(base); c.verifica = ctl(xs);
+    assert.equal(controllaCompito(c).motivo, "verifica", xs.join(" | "));
+  }
+  const geo = { ...copia(PAOLO), materia: "geometria", soluzione_libro: "147 cm²", testo: R + " [147 cm²]",
+    passi: [{ titolo: "", spiegazione: "", calcolo: "56 : 2 = 28", ancora: "" }, { titolo: "", spiegazione: "", calcolo: "28 : 4 = 7", ancora: "" },
+      { titolo: "", spiegazione: "", calcolo: "7 × 3 = 21", ancora: "" }, { titolo: "", spiegazione: "", calcolo: "21 × 7 = 147", ancora: "" }],
+    risultato: { valore: "147", unita: "cm²" } };
+  for (const xs of [["7 × 8 = 56", "21 × 7 = 147"], ["49 + 7 = 56", "7 × 21 = 147"]]) {
+    const c = copia(geo); c.verifica = ctl(xs);
+    assert.equal(controllaCompito(c).motivo, "verifica", xs.join(" | "));
+  }
+  // La verifica vera del modello sul rettangolo (prova del 15 novembre) passa.
+  const vera = copia(geo); vera.verifica = ctl(["21 : 7 = 3", "(21 + 7) × 2 = 56", "21 × 7 = 147"]);
+  assert.deepEqual(controllaCompito(vera), { ok: true });
+});
+
+test("in avanti va bene anche un risultato frazionario", () => {
+  const c = { ...copia(PAOLO), testo: "Marco mangia una parte della torta da 12 fette e gliene restano 9. Che frazione ha mangiato?", soluzione_libro: "",
+    passi: [{ titolo: "", spiegazione: "", calcolo: "12 - 9 = 3", ancora: "" }, { titolo: "", spiegazione: "", calcolo: "3 : 12 = 1/4", ancora: "" }],
+    risultato: { valore: "1/4", unita: "" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "12 - 12 × 1/4 = 9" }] } };
+  assert.deepEqual(controllaCompito(c), { ok: true });
+});

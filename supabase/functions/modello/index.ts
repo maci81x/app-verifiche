@@ -538,7 +538,7 @@ Deno.serve(async (req) => {
       const conTesto = (x: any) => (x && !x.esercizi && scritto ? { ...x, testo: scritto } : x);
       let c = conTesto(pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto)));
       if (!c) return json({ errore: "nessun_esercizio" }, 422);
-      if (c.esercizi) { riuscito = true; return json(c); }
+      if (c.esercizi) return json(c); // l'elenco da scegliere non consuma un aiuto: lo consuma l'esercizio scelto
       if (eMatematica(c)) {
         // Ogni conto si ricalcola; se non torna si chiede una seconda volta, poi niente soluzione.
         // Il secondo tentativo si tiene solo se è migliore: conti giusti battono conti rotti.
@@ -558,8 +558,9 @@ Deno.serve(async (req) => {
         if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano", motivo: esito.motivo, passo: esito.passo ?? null }, 422);
         // In matematica non ci sono frasi del quaderno da evidenziare; gli indizi non dicono il risultato.
         // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
+        const scheda = { ...c, matematica: true, indizi: indiziSenzaRisultato(c), passi: c.passi.map((p: any) => ({ ...p, ancora: "" })), libro_diverso: !esito.ok };
         riuscito = true;
-        return json({ ...c, matematica: true, indizi: indiziSenzaRisultato(c), passi: c.passi.map((p: any) => ({ ...p, ancora: "" })), libro_diverso: !esito.ok });
+        return json(scheda);
       }
       // Altre materie: se ci sono appunti della stessa materia, si rifà con quelli come fonte e
       // si tengono solo le ancore che si ritrovano davvero negli appunti.
@@ -572,8 +573,9 @@ Deno.serve(async (req) => {
         if (conAppunti && !conAppunti.esercizi) c = conTesto(conAppunti);
       }
       const passi = c.passi.map((p: any) => ({ ...p, calcolo: "", ancora: p.ancora && appunti && ancoraRegge(p.ancora, appunti) ? p.ancora : "" }));
+      const scheda = { ...c, passi, libro_diverso: false };
       riuscito = true;
-      return json({ ...c, passi, libro_diverso: false });
+      return json(scheda);
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
