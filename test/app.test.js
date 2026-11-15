@@ -227,7 +227,7 @@ test("stampa della mappa: l'SVG e sotto l'elenco dei nodi con le loro ancore", (
   intestazioneOk(html);
   assert.match(html, /<svg class="mappa"/);
   assert.match(html, /Mappa concettuale/);
-  assert.match(html, /I flagellanti[\s\S]*si frustavano in pubblico/);
+  assert.match(html, /I flagellanti[\s\S]*<mark class="evidenzia">si frustavano in pubblico<\/mark>/);
   assert.match(html, /Caffa, in Crimea, assediata dai mongoli/); // anche il terzo livello nell'elenco
 });
 
@@ -237,8 +237,8 @@ test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e anc
     { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
   ]);
   intestazioneOk(html);
-  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*Rileggi: «[^»]*si frustavano/);
-  assert.match(html, /○ Mai provato[\s\S]*Mai chiesto/);
+  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*sbagliato 2 volte[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
+  assert.match(html, /○ Ancora da provare[\s\S]*Mai chiesto/);
 });
 
 test("verifica da stampare: prima solo le domande, poi su un'altra pagina il foglio soluzioni con le lettere giuste", () => {
@@ -269,7 +269,7 @@ test("stampa dell'esito: voto, prontezza e ogni concetto con simbolo, parola e a
   assert.match(html, /voto stimato 6/i);
   assert.match(html, /prontezza 60%/);
   // dal più debole: rosso, giallo, verde
-  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*le pulci dei ratti[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
+  assert.match(html, /✕ Da ripassare[\s\S]*Le cause[\s\S]*<mark class="evidenzia">le pulci dei ratti<\/mark>[\s\S]*negli appunti: 1348[\s\S]*▲[\s\S]*Il contagio[\s\S]*●[\s\S]*Arrivo della peste/);
 });
 
 // ---------------------------------------------------------------- web come aiuto (issue #4)
@@ -470,7 +470,7 @@ test("semaforo: sempre forma e parola insieme al colore; stato sconosciuto = mai
   assert.equal(run(`htmlStato("rosso")`), '<span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Da ripassare</span>');
   assert.equal(run(`htmlStato("verde")`), '<span class="sem" data-s="verde"><i aria-hidden="true">●</i> Lo sai</span>');
   assert.match(run(`htmlStato("giallo")`), /▲<\/i> Quasi/);
-  assert.match(run(`htmlStato("boh")`), /data-s="mai"><i aria-hidden="true">○<\/i> Mai provato/);
+  assert.match(run(`htmlStato("boh")`), /data-s="mai"><i aria-hidden="true">○<\/i> Ancora da provare/);
   assert.equal(run(`htmlStato("__proto__")`).includes('data-s="mai"'), true);
 });
 
@@ -490,7 +490,7 @@ test("card del nodo: ancora, avviso degli appunti, in breve, prova e spiegazione
   const html = run(`htmlCardNodo(${JSON.stringify(concetto)}, { concetto: ${JSON.stringify(concetto)}, errore: "negli appunti: un quarto", stato: "rosso" })`);
   assert.match(html, /<h3 id="card-nodo-titolo">Le vittime<\/h3>/);
   assert.match(html, /✕<\/i> Da ripassare/);
-  assert.match(html, /Dagli appunti<\/p><blockquote class="quaderno">Uccise circa un terzo della popolazione\.<\/blockquote>/);
+  assert.match(html, /Dagli appunti<\/p><blockquote class="quaderno"><mark class="evidenzia">Uccise circa un terzo della popolazione\.<\/mark><\/blockquote>/);
   assert.match(html, /class="avviso-appunti" role="note">.*negli appunti: un quarto/);
   assert.match(html, /In breve<\/p><p class="in-breve" data-tipo="ok" aria-live="polite">La peste uccise una persona su tre\.<\/p>/);
   assert.match(html, /data-azione="prova">Mettiti alla prova<\/button>/);
@@ -529,7 +529,7 @@ test("card di un sotto-punto: la sua ancora, il riassunto e la prova del suo con
   const c = { id: "c1", titolo: "Le conseguenze", ancora: "Conseguenze", fonte: "appunti", sintesi: "Mancano contadini.", figli: [] };
   const sp = { id: "c1-2", titolo: "Aumentano i salari", ancora: "i salari aumentano", fonte: "appunti", figli: [] };
   const html = run(`htmlCardNodo(${JSON.stringify(sp)}, { concetto: ${JSON.stringify(c)}, stato: "giallo" })`);
-  assert.match(html, /<blockquote class="quaderno">i salari aumentano<\/blockquote>/);
+  assert.match(html, /<blockquote class="quaderno"><mark class="evidenzia">i salari aumentano<\/mark><\/blockquote>/);
   assert.match(html, /In breve · Le conseguenze/);
   assert.match(html, /Mettiti alla prova su «Le conseguenze»/);
 });
