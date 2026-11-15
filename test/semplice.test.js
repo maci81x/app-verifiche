@@ -84,11 +84,18 @@ test("mappa a filetti: un pulsante per riquadro, figli rientrati, semaforo a des
       { id: "web-1", titolo: "Caffa", testo: "t", url: "https://x.it", fonte: "web", figli: [] }] },
     { id: "c2", titolo: "Senza frase", ancora: "", fonte: "appunti", figli: [] }] };
   const html = run(`htmlAlberoMappa(${JSON.stringify(albero)}, { c1: "rosso" })`);
-  assert.match(html, /<button type="button" class="m-nodo" data-id="c1" data-l="1" data-s="rosso" role="button" aria-pressed="false"[^>]*>/);
+  assert.match(html, /<button type="button" class="m-nodo" data-id="c1" data-l="1" data-s="rosso" aria-pressed="false"[^>]*>/);
+  assert.doesNotMatch(html, /role="button"/); // è già un pulsante
   assert.match(html, /Arrivo &lt;1347&gt;/);
   assert.match(html, /data-id="c1-1" data-l="2" data-s="rosso"/);
   assert.match(html, /data-id="web-1" data-l="2" data-s="web" data-fonte="web"/);
   assert.match(html, /<ul class="m-figli">/);
   assert.match(html, /✕<\/i> Da ripassare/);
   assert.match(html, /<div class="m-nodo" data-id="c2" data-l="1" data-s="mai"/); // senza frase: non si apre
+});
+
+test("verifica in linea: se la correzione dell'aperta non arriva si va avanti lo stesso, con 5 punti e il perché", () => {
+  assert.deepEqual(json(`esitoAperta({ risposta_attesa: "x" }, "la mia risposta", null)`),
+    { punti: 5, commento: "Non sono riuscito a correggere questa risposta. Confrontala tu con quello che ci voleva.", rubrica: null });
+  assert.deepEqual(json(`esitoAperta({ risposta_attesa: "Nel 1347" }, "", null)`), { punti: 0, commento: "Ci voleva: Nel 1347" });
 });

@@ -184,7 +184,7 @@ async function confermaTipi() {
 
 /* =================================================================== scheda dell'argomento */
 
-const BOTTONI_TEORIA = ["scelte-scheda", "btn-mappa", "btn-studiare", "btn-stampa-verifica", "btn-rileggi-concetti"];
+const BOTTONI_TEORIA = ["scelte-scheda", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica", "btn-rileggi-concetti"];
 
 // Un argomento di esercizi mostra i suoi tipi al posto dei concetti e niente prove di teoria.
 function adattaSchedaEsercizi(a) {
@@ -193,6 +193,7 @@ function adattaSchedaEsercizi(a) {
   $("btn-esercizi").hidden = !es || !(a.tipi || []).length;
   if (!es) return;
   BOTTONI_TEORIA.forEach((id) => { $(id).hidden = true; });
+  $("sum-punti").textContent = (a.tipi || []).length === 1 ? "Il tipo di esercizio" : "I tipi di esercizio";
   $("meta-scheda").textContent = a.materia + ", esercizi, " + contaVoci(a) + ", salvato il " + dataIt(a.creato);
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   (a.tipi || []).forEach((t) => {

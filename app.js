@@ -287,7 +287,7 @@ function htmlAlberoMappa(albero, stati) {
     const s = perNodo[n.id] || "mai", toccabile = !!(n.ancora || n.url), tag = toccabile ? "button" : "div";
     const segno = s === "web" ? '<span class="etichetta-web">dal web</span>' : htmlStato(s);
     return '<li><' + tag + (toccabile ? ' type="button"' : "") + ' class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + livello + '" data-s="' + s + '"' +
-      (n.fonte === FONTE_WEB ? ' data-fonte="web"' : "") + (toccabile ? ' role="button" aria-pressed="false" aria-haspopup="dialog"' : "") + ">" +
+      (n.fonte === FONTE_WEB ? ' data-fonte="web"' : "") + (toccabile ? ' aria-pressed="false" aria-haspopup="dialog"' : "") + ">" +
       '<span class="m-titolo">' + esc(n.titolo) + "</span>" + segno + "</" + tag + ">" +
       ((n.figli || []).length ? '<ul class="m-figli">' + n.figli.map((f) => riga(f, livello + 1)).join("") + "</ul>" : "") + "</li>";
   };
@@ -374,19 +374,20 @@ function vai(v, materia, titolo) {
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
   $("nome-passo").textContent = titolo || info[0];
-  $("testata").hidden = SENZA_TESTATA.includes(v);
+  $("testata").hidden = SENZA_TESTATA.includes(v) && !(v === "profili" && profilo); // da Profili si torna a Oggi
   $("barra-basso").hidden = !CON_BARRA.includes(v) || !profilo;
   document.body.dataset.barra = $("barra-basso").hidden ? "" : "1";
   document.querySelectorAll(".voce-barra").forEach((b) => {
     if (b.dataset.vai === v || ((v === "scheda" || v === "mappa") && b.dataset.vai === "argomenti")) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
   $("btn-menu").hidden = v !== "scheda";
+  if (profilo && ["libreria", "argomenti", "storico", "scheda"].includes(v)) modalita = scelteRicordate(profilo.id).modalita;
   document.querySelectorAll(".tacche i").forEach((el) => { el.dataset.on = (+el.dataset.t <= info[1]) ? "1" : "0"; });
   $("conta-passo").textContent = info[1] ? ("passo " + info[1] + " di 4") : ""; // il profilo sta nel tondo di Oggi
   $("btn-rail-indietro").hidden = v === "argomenti" || v === "storico";
   const chip = $("chip-materia");
   // Accanto al titolo solo il segno colorato: il nome della materia lo legge lo screen reader.
-  if (materia) { chip.hidden = false; chip.textContent = ""; chip.setAttribute("aria-label", "materia: " + materia); chip.title = materia; tinta(document.documentElement, materia); }
+  if (materia) { chip.hidden = false; chip.textContent = ""; chip.setAttribute("role", "img"); chip.setAttribute("aria-label", "materia: " + materia); chip.title = materia; tinta(document.documentElement, materia); }
   else if (VISTE[v][1] === 0 && v !== "scheda" && v !== "storico") { chip.hidden = true; tinta(document.documentElement, null); }
   $("tacche").hidden = !info[1]; // le tacche solo nel flusso della verifica (passi 1-4)
   window.scrollTo(0, 0); // subito in cima: il contenuto parte sotto la barra
@@ -543,6 +544,7 @@ async function entraProfilo(p, client) {
   // Prima le scelte ricordate su questo telefono, poi quelle salvate sul profilo (issue #26).
   const loc = leggiLocale(chiaveScelte(p.id), null);
   ({ livello, tipo, modalita } = scelteValide(loc || (st && st.scelte)));
+  ricordaScelte(p.id, { livello, tipo, modalita });
   errore($("err-profili"), "");
   caricaLibreria(); vai("libreria");
 }
@@ -592,6 +594,7 @@ const codiceValido = (c) => /^\d{4}$/.test(String(c || ""));
 // profilo aperto su questo telefono (la cancellazione usa la sua sessione).
 function disegnaSvuota() {
   $("imp-svuota").hidden = !profilo || !sb;
+  $("imp-dati-vuoto").hidden = !$("imp-svuota").hidden;
   if (!profilo) return;
   $("imp-svuota-aiuto").textContent = "Cancella argomenti, foto e prove di " + profilo.nome + ". I profili restano.";
   $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
@@ -719,6 +722,7 @@ function messaggioModello(e, predefinito) {
 
 async function caricaLibreria() {
   attesa($("stato-lib"), ["Apro la libreria"]);
+  urlCopertine = {}; // gli URL firmati scadono dopo un'ora: si richiedono
   const [a, s] = await Promise.all([
     sb.from("argomenti").select("id, materia, titolo, trascrizione, origine, percorso, creato, aggiornato, " +
       "esercizi_tipi(id, titolo, ancora, difficolta, figura, ordine, stato, media, tentativi), " +
@@ -903,7 +907,7 @@ function apriScheda(a) {
   $("mat-scheda").textContent = a.materia; tinta($("mat-scheda"), a.materia);
   $("meta-scheda").textContent = a.concetti.length ? rigaStatoArgomento(a) : "Ancora nessun punto.";
   $("sum-punti").textContent = a.concetti.length === 1 ? "Il punto" : "I " + a.concetti.length + " punti";
-  disegnaCopertina($("cop-scheda"), a);
+  disegnaCopertina($("cop-scheda"), a); caricaCopertine([a]);
   disegnaScelte(a);
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
@@ -917,7 +921,7 @@ function apriScheda(a) {
   $("btn-rivedi").hidden = !a.ultima;
   $("btn-rileggi-concetti").hidden = !!a.concetti.length || !a.trascrizione;
   errore($("err-scheda"), "");
-  ["scelte-scheda", "btn-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
+  ["scelte-scheda", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
   adattaSchedaEsercizi(a);
   vai("scheda", a.materia, a.titolo);
 }
@@ -935,7 +939,8 @@ function disegnaScelte(a) {
 }
 function scegli(chiave) {
   if (chiave === "ripassa") { apriMappa(corrente, "studiare"); return; }
-  imposta("modalita", chiave === "interroga" ? "orale" : "scritta");
+  // La card sceglie il modo solo per questa prova; lo ricorda solo un tocco sui segmenti.
+  modalita = chiave === "interroga" ? "orale" : "scritta";
   apriPrepara();
 }
 // Preparazione: livello, tipo e modo a segmenti, ricordati dall'ultima volta; un solo «Parti».
@@ -1389,7 +1394,6 @@ function disegnaMappa() {
   chiudiCardNodo(false); // il disegno nuovo sostituisce il nodo a cui era agganciata la card
   const box = $("disegno-mappa");
   box.innerHTML = htmlAlberoMappa(mappa.albero, statiDellaMappa(corrente)); // a schermo i filetti; la stampa resta in SVG
-  box.dataset.larghezza = String(box.clientWidth || 340);
   const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
   $("meta-mappa").textContent = n + (n === 1 ? " riquadro preso" : " riquadri presi") + " dagli appunti" + (web ? " e " + web + " dal web" : "") + ", mappa fatta il " + dataIt(mappa.generata) + "." +
     (mappa.scartati ? " Ho tolto " + mappa.scartati + (mappa.scartati === 1 ? " riquadro che negli appunti non c'era." : " riquadri che negli appunti non c'erano.") : "") +
@@ -1580,9 +1584,9 @@ async function correggiInLinea(d) {
         { id: d.id, domanda: d.testo, risposta_attesa: d.risposta_attesa, elementi: d.elementi || [], risposta_alunna: r.testo }] }))).valutazioni || [];
       p = esitoAperta(d, r.testo, val.find((x) => x.id === d.id));
     } catch (e) {
-      attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
-      errore($("err-ver"), messaggioModello(e, "Non sono riuscito a correggere la risposta. Tocca di nuovo Avanti fra un momento."));
-      return;
+      // Niente blocchi: la risposta resta, vale 5 e il riquadro dice di confrontarla da sé.
+      console.warn("correzione in linea non riuscita:", e && e.message);
+      p = esitoAperta(d, r.testo, null);
     }
     attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
   }
@@ -1800,7 +1804,7 @@ async function correggi() {
     if (pacchetto.length) val = (await conRiprova(() => modello({ azione: "correggi", modalita, pacchetto }))).valutazioni || [];
   } catch (e) {
     attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
-    errore($("err-ver"), messaggioModello(e, "La correzione delle risposte aperte non è riuscita. Tocca di nuovo Consegna fra un momento."));
+    errore($("err-ver"), messaggioModello(e, "La correzione delle risposte aperte non è riuscita. Tocca di nuovo il pulsante qui sotto fra un momento."));
     return;
   }
   const per = {};
@@ -1982,6 +1986,7 @@ function collega() {
   collegaCardNodo();
   $("btn-rail-indietro").addEventListener("click", () => {
     const padre = PADRE[document.body.dataset.vista];
+    if (document.body.dataset.vista === "impostazioni") { genEsci(); return; } // mai pannello del genitore aperto alle spalle
     if (padre === "scheda" && corrente) apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente);
     else if (!profilo) vai("profili");
     else { disegnaLibreria(); vai("libreria"); }
@@ -1996,8 +2001,23 @@ function collega() {
   $("btn-menu").addEventListener("click", () => apriFoglio("menu-scheda"));
   $("btn-menu-chiudi").addEventListener("click", () => chiudiFoglio("menu-scheda"));
   trascinaPerChiudere(document.querySelector("#menu-scheda .foglio-menu"), () => chiudiFoglio("menu-scheda"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("menu-scheda").hidden) { e.preventDefault(); chiudiFoglio("menu-scheda"); } });
-  $("menu-scheda").addEventListener("click", (e) => { if (e.target.id === "menu-scheda" || e.target.closest(".voce-menu")) chiudiFoglio("menu-scheda"); });
+  // Menu aperto: Esc chiude, Tab gira solo fra le sue voci.
+  document.addEventListener("keydown", (e) => {
+    const menu = $("menu-scheda");
+    if (menu.hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); chiudiFoglio("menu-scheda"); return; }
+    if (e.key !== "Tab") return;
+    const f = elementiFocus(menu), primo = f[0], ultimo = f[f.length - 1];
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === primo) { e.preventDefault(); ultimo.focus(); }
+    else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primo.focus(); }
+    else if (!menu.contains(document.activeElement)) { e.preventDefault(); primo.focus(); }
+  });
+  $("menu-scheda").addEventListener("click", (e) => {
+    const v = e.target.closest(".voce-menu");
+    if (e.target.id === "menu-scheda" || (v && v.id !== "btn-elimina")) chiudiFoglio("menu-scheda");
+  });
+  $("btn-menu-mappa").addEventListener("click", () => apriMappa(corrente, "mappa"));
   $("btn-parti").addEventListener("click", () => { modo = "argomento"; preparaVerifica([corrente], $("btn-parti"), $("stato-prep"), $("err-prep")); });
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
@@ -2047,19 +2067,8 @@ function collega() {
   $("btn-rigenera").addEventListener("click", () => { if (corrente) generaMappa(corrente); });
   $("btn-torna-scheda").addEventListener("click", () => apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente));
   const disegno = $("disegno-mappa");
-  disegno.addEventListener("click", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g) apriCardNodo(g); });
-  disegno.addEventListener("keyup", (e) => { const g = e.target.closest(".m-nodo[role=button]"); if (g && e.key === " ") { e.preventDefault(); apriCardNodo(g); } });
-  disegno.addEventListener("keydown", (e) => {
-    const g = e.target.closest(".m-nodo");
-    // Invio apre subito; lo spazio al rilascio, così il tasto non chiude la card appena aperta.
-    if (g && g.getAttribute("role") === "button" && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); if (e.key === "Enter") apriCardNodo(g); }
-  });
-  // Ruotando il telefono cambia la larghezza: si ridisegna (verticale sotto i 600px).
-  let attesaRidisegno = null;
-  window.addEventListener("resize", () => {
-    clearTimeout(attesaRidisegno);
-    attesaRidisegno = setTimeout(() => { if (String(disegno.clientWidth) !== disegno.dataset.larghezza) disegnaMappa(); }, 200);
-  });
+  // I riquadri sono <button>: clic, Invio e spazio arrivano tutti come click.
+  disegno.addEventListener("click", (e) => { const g = e.target.closest("button.m-nodo"); if (g) apriCardNodo(g); });
   $("btn-elimina").addEventListener("click", function () { doppioTocco(this, "Tocca di nuovo per eliminare, foto comprese", () => eliminaArgomento(corrente)); });
   $("foto-piu").addEventListener("change", (e) => {
     const nuove = Array.prototype.slice.call(e.target.files).filter((f) => f.type.indexOf("image/") === 0);
