@@ -374,7 +374,7 @@ function vai(v, materia) {
 
 const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
 const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
-const NOTA_QUADERNO = "Da correggere sul quaderno, "; // davanti a errore_appunti («negli appunti: …»)
+const NOTA_QUADERNO = "Da correggere sul quaderno. "; // davanti a errore_appunti («negli appunti: …»)
 const MSG_SENZA_PUNTI = "Questo argomento non ha ancora punti. Torna all'argomento e tocca Ritrova i punti.";
 const MSG_NESSUN_PROFILO = "Qui non c'è ancora nessun profilo. Chiedi a un genitore di crearlo da Impostazioni, qui sotto.";
 

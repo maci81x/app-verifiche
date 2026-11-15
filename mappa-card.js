@@ -30,7 +30,7 @@ function htmlCardNodo(n, ctx) {
   const s = sintesiDelConcetto(c, !!ctx.sintesiInArrivo);
   return testa(htmlStato(ctx.stato)) +
     '<p class="occhiello">Dai tuoi appunti</p><blockquote class="quaderno">' + evidenzia(n.ancora) + "</blockquote>" +
-    (ctx.errore ? '<p class="avviso-appunti" role="note"><span aria-hidden="true">✎</span> ' + esc(ctx.errore) + "</p>" : "") +
+    (ctx.errore ? '<p class="avviso-appunti" role="note">' + NOTA_QUADERNO + esc(ctx.errore) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? ", su «" + esc(c.titolo) + "»" : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +
     (ctx.senzaConcetto ? '<p class="legenda">Questo punto non c\'è più nell\'argomento: tocca Rigenera per rifare la mappa.</p>'

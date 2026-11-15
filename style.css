@@ -23,6 +23,7 @@
   --tinta:hsl(var(--h) calc(var(--s) * .9) 66%); --su-tinta:#15151A;
   --verde-bg:#16301F; --verde:#8FD9AE; --giallo-bg:#352A0C; --giallo:#F2CC6B;
   --rosso-bg:#3A1A16; --rosso:#F4A296; --grigio-bg:#2A2B31; --grigio:#C9CCD2;
+  --quadretto:#2E2E36;
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
@@ -31,6 +32,7 @@
   --tinta:hsl(var(--h) calc(var(--s) * .9) 66%); --su-tinta:#15151A;
   --verde-bg:#16301F; --verde:#8FD9AE; --giallo-bg:#352A0C; --giallo:#F2CC6B;
   --rosso-bg:#3A1A16; --rosso:#F4A296; --grigio-bg:#2A2B31; --grigio:#C9CCD2;
+  --quadretto:#2E2E36;
   color-scheme:dark;
 }
 [hidden]{display:none!important} /* alcune classi impongono display: hidden deve vincere sempre */
@@ -513,6 +515,9 @@ label.scatto.piccolo{padding:12px 14px;margin-top:8px}
 .pesi button::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid var(--inchiostro);box-sizing:border-box}
 .pesi button[data-pieno="1"]::before{background:var(--inchiostro)}
 /* Evidenziatore: solo la frase vera del quaderno. Il testo resta inchiostro anche di notte. */
+/* Di notte la banda copre tutta la riga: sopra il 28% l'inchiostro finirebbe sul fondo scuro e non si leggerebbe. */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) mark.evidenzia{background:var(--evidenziatore)}}
+:root[data-theme="dark"] mark.evidenzia{background:var(--evidenziatore)}
 mark.evidenzia{background:var(--evidenzia);color:var(--su-evidenziatore);padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone;border-radius:2px}
 .foglio mark.evidenzia{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 /* Logo 10+: «10» in inchiostro, «+» su un rettangolino giallo. */
@@ -521,6 +526,9 @@ mark.evidenzia{background:var(--evidenzia);color:var(--su-evidenziatore);padding
 /* Di notte l'azione principale è gialla con il testo inchiostro: il giallo su bianco sporco non si legge. */
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) button.azione{background:var(--evidenziatore);color:var(--su-evidenziatore)}}
 :root[data-theme="dark"] button.azione{background:var(--evidenziatore);color:var(--su-evidenziatore)}
-.primo button.azione{background:var(--su-evidenziatore);color:var(--evidenziatore)}
+/* La card gialla resta chiara anche di notte: dentro valgono i colori del semaforo del tema chiaro. */
+.primo{--verde-bg:#DDF3E4;--verde:#1A6B3E;--giallo-bg:#FFF0C2;--giallo:#8A5300;--rosso-bg:#FDE3DF;--rosso:#B0291A;--grigio-bg:#EEF0EC;--grigio:#4A4E57;--inchiostro:#1A1A1E;--inchiostro-2:#3F4148;--carta:#FFFFFF;--rialzo:#FFFFFF}
+/* Un solo pulsante pieno per schermata: in libreria è «Fotografa gli appunti», la card gialla è già l'invito. */
+.primo button.azione{background:transparent;border:2px solid var(--su-evidenziatore);color:var(--su-evidenziatore)}
 .primo button.minore{background:transparent;border-color:var(--su-evidenziatore);color:var(--su-evidenziatore)}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
