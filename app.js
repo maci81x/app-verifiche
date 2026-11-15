@@ -699,7 +699,7 @@ async function modello(corpo) {
     body: JSON.stringify(corpo),
   });
   const json = await r.json().catch(() => ({}));
-  if (r.status === 429) throw new Definitivo("rate_limited");
+  if (r.status === 429) throw new Definitivo(json.errore === "limite_giornaliero" ? "limite_giornaliero" : "rate_limited");
   if (r.status === 401 || r.status === 403) throw new Definitivo("not_granted");
   if (!r.ok) { const e = new Error(json.errore || ("errore " + r.status)); e.dati = json; throw e; }
   return json;
@@ -713,6 +713,7 @@ async function conRiprova(f) {
   }
 }
 function messaggioModello(e, predefinito) {
+  if (e instanceof Definitivo && e.message === "limite_giornaliero") return "Per oggi hai usato tutti gli aiuti: riprova domani.";
   if (e instanceof Definitivo && e.message === "rate_limited") return "Troppe richieste in poco tempo. Aspetta un minuto e riprova.";
   if (e instanceof Definitivo) return "Non riesco a collegarmi. Esci, rientra nel tuo profilo e riprova.";
   return predefinito;

@@ -60,12 +60,34 @@ function htmlSoluzioneCompito(c) {
     "<b>" + esc(p.titolo) + "</b>" + (p.spiegazione ? "<span>" + esc(p.spiegazione) + "</span>" : "") +
     (p.ancora ? '<span class="dal-quaderno">Sul tuo quaderno: ' + evidenzia(p.ancora) + "</span>" : "") +
     (p.calcolo ? formulaCalcolo(p.calcolo) : "") + "</button></li>").join("");
+  const s = c.strategia || {};
+  const controlli = (c.verifica && c.verifica.controlli) || (c.verifica && c.verifica.calcolo ? [{ testo: "", calcolo: c.verifica.calcolo }] : []);
   return (c.libro_diverso ? '<p class="avviso">Il libro dice ' + esc(c.soluzione_libro) + ", io ottengo " + esc(risultatoIt(c.risultato)) + ": controlliamo insieme il testo.</p>" : "") +
+    (s.nome ? '<div class="strategia"><p>Strategia: <b>' + esc(s.nome) + "</b></p>" + (s.perche ? "<p>" + esc(s.perche) + "</p>" : "") + "</div>" : "") +
     '<ol class="passi-compito">' + passi + "</ol>" +
     (risultatoIt(c.risultato) ? '<p class="risultato-compito">Risultato: <b>' + esc(risultatoIt(c.risultato)) + "</b></p>" : "") +
-    (c.verifica && (c.verifica.spiegazione || c.verifica.calcolo) ? '<div class="verifica-compito"><p class="occhiello">Verifica</p><p>' + esc(c.verifica.spiegazione) + "</p>" +
-      (c.verifica.calcolo ? formulaCalcolo(c.verifica.calcolo) : "") + "</div>" : "") +
-    (c.trucco ? '<div class="trucco"><p class="occhiello">Il trucco di questo problema</p><p>' + esc(c.trucco) + "</p></div>" : "");
+    (c.verifica && (c.verifica.spiegazione || controlli.length) ? '<div class="verifica-compito"><p class="occhiello">Verifica</p>' +
+      (c.verifica.spiegazione ? "<p>" + esc(c.verifica.spiegazione) + "</p>" : "") +
+      '<ul class="controlli">' + controlli.map((x) => '<li class="controllo"><span class="spunta" aria-hidden="true">✓</span><span>' + (x.testo ? esc(x.testo) : "") +
+        formulaCalcolo(x.calcolo) + "</span></li>").join("") + "</ul></div>" : "") +
+    (c.trucco ? '<div class="trucco"><p class="occhiello">Il trucco da ricordare</p><p>' + esc(c.trucco) + "</p></div>" : "");
+}
+
+// «Prova tu»: la mini-domanda con un campo per la risposta (numero o frazione).
+function htmlProvaTu(p, id) {
+  if (!p || !p.testo) return "";
+  return '<div class="prova-tu-box"><label for="' + id + '"><b>Prova tu:</b> ' + esc(p.testo) + "</label>" +
+    '<div class="prova-riga"><input type="text" id="' + id + '" inputmode="decimal" autocomplete="off" placeholder="La tua risposta">' +
+    '<button type="button" class="minore" data-azione="controlla" data-pt="' + id + '">Controlla</button></div>' +
+    '<div class="prova-esito" id="' + id + '-esito" aria-live="polite"></div></div>';
+}
+// Esito dal calcolo del server: «Ci sei» o «Non ancora: guarda il passo N» con come si fa.
+function htmlEsitoProvaTu(r, p) {
+  if (r.giusto) return '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span>' +
+    (r.esito === "senza_unita" ? " Il numero è giusto, manca l'unità: " + esc(p.risultato.unita) + "." : "") + "</p>";
+  const cosa = r.esito === "vuota" ? "Scrivi la tua risposta, poi tocca Controlla." : (r.esito === "non_numerica" ? "Scrivi solo il numero o la frazione." : "");
+  return '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora' + (p.passo && !cosa ? ": guarda il passo " + p.passo : "") + "</span></p>" +
+    (cosa ? "<p>" + esc(cosa) + "</p>" : (p.spiegazione ? "<p>" + esc(p.spiegazione) + "</p>" : ""));
 }
 
 // Barra divisa in parti uguali, le prime `colorate` piene: le frazioni come fette.
@@ -78,10 +100,9 @@ function svgBarraFrazioni(f) {
     (f.etichetta ? "<figcaption>" + esc(f.etichetta) + "</figcaption>" : "") + "</figure>";
 }
 
-// Una risposta alla domanda: testo, conti in formula, la barra se c'è, la mini-domanda.
-function htmlRisposta(r) {
-  return "<p>" + esc(r.risposta) + "</p>" + (r.calcoli || []).map(formulaCalcolo).join("") + svgBarraFrazioni(r.figura) +
-    (r.prova_tu ? '<p class="prova-tu">' + esc(r.prova_tu) + "</p>" : "");
+// Una risposta alla domanda: testo, conti in formula, la barra se c'è, il «Prova tu».
+function htmlRisposta(r, id) {
+  return "<p>" + esc(r.risposta) + "</p>" + (r.calcoli || []).map(formulaCalcolo).join("") + svgBarraFrazioni(r.figura) + htmlProvaTu(r.prova_tu, id);
 }
 
 // Gli ultimi 5 compiti, il più recente in cima; lo stesso testo non si ripete.
@@ -173,7 +194,7 @@ function mostraAiuto() {
 }
 function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati, provoIo); }
 function mostraSoluzione() {
-  $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito);
+  $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito) + htmlProvaTu(compito.prova_tu, "pt-sol");
   $("cp-soluzione").hidden = false;
   formuleIn("cp-soluzione");
   $("cp-soluzione").scrollIntoView({ block: "start" });
@@ -181,9 +202,9 @@ function mostraSoluzione() {
 
 function disegnaChat() {
   $("cp-pronte").innerHTML = (compito.domande_pronte || []).map((d) => '<button type="button" class="chip-domanda" data-domanda="' + esc(d) + '">' + esc(d) + "</button>").join("");
-  $("cp-chat").innerHTML = chatCompito.map((m) => m.chi === "io"
+  $("cp-chat").innerHTML = chatCompito.map((m, i) => m.chi === "io"
     ? '<p class="msg msg-io">' + esc(m.testo) + "</p>"
-    : '<div class="msg msg-app">' + (m.risposta ? htmlRisposta(m.risposta) : "<p>" + esc(m.testo) + "</p>") + "</div>").join("");
+    : '<div class="msg msg-app">' + (m.risposta ? htmlRisposta(m.risposta, "pt-c" + i) : "<p>" + esc(m.testo) + "</p>") + "</div>").join("");
 }
 async function chiediSulCompito(domanda) {
   domanda = String(domanda || "").trim();
@@ -233,7 +254,23 @@ function disegnaCompitiOggi() {
   });
 }
 
+// Il «Prova tu» con quell'id: quello della soluzione o quello di una risposta della chat.
+const provaTuDi = (id) => (id === "pt-sol" ? compito && compito.prova_tu : ((chatCompito[Number(id.slice(4))] || {}).risposta || {}).prova_tu);
+async function controllaProvaTu(id) {
+  const p = provaTuDi(id), campo = $(id), out = $(id + "-esito");
+  if (!p || !campo) return;
+  const risposta = campo.value.trim();
+  if (!risposta) { out.innerHTML = htmlEsitoProvaTu({ giusto: false, esito: "vuota" }, p); return; }
+  try {
+    const r = await modello({ azione: "prova_tu", atteso: p.risultato, risposta });
+    out.innerHTML = htmlEsitoProvaTu(r, p);
+  } catch (e) { out.innerHTML = "<p>" + esc(messaggioModello(e, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
+}
+
 function collegaCompito() {
+  // «Controlla» del Prova tu, ovunque sia (soluzione o chat); Invio nel campo fa lo stesso.
+  $("v-compito").addEventListener("click", (e) => { const b = e.target.closest("[data-azione=controlla]"); if (b) controllaProvaTu(b.dataset.pt); });
+  $("v-compito").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id && e.target.id.startsWith("pt-")) { e.preventDefault(); controllaProvaTu(e.target.id); } });
   $("foto-compito").addEventListener("change", (e) => {
     Array.prototype.slice.call(e.target.files).forEach((f) => { if (f.type.indexOf("image/") === 0) fotoCompito.push(f); });
     e.target.value = ""; immaginiCompito = []; disegnaFotoCompito();

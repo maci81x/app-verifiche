@@ -37,6 +37,9 @@
 //      Nelle altre materie, se ci sono appunti della stessa materia, si usano come fonte e le ancore si controllano.
 // POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda } → { risposta, calcoli, figura, prova_tu }
 // POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
+// POST { azione: "prova_tu", atteso: { valore, unita }, risposta } → { esito, giusto, punti, letto }: solo un calcolo (correzione.js).
+//      compito e compito_domanda contano come aiuti: al massimo 30 al giorno per profilo (giorno di Roma),
+//      contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
 //      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
 //
@@ -60,7 +63,8 @@ import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRis
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
-import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato } from "../_shared/compito.js";
+import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
+  correggiProvaTu, contaAiuti, giornoRoma } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
@@ -277,6 +281,14 @@ const SCHEMA_ANALISI = {
   required: ["analisi"], additionalProperties: false,
 } as const;
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
+const PROVA_TU = {
+  type: "object",
+  properties: {
+    testo: STRINGA, risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+    calcolo: STRINGA, passo: { type: "integer" }, spiegazione: STRINGA,
+  },
+  required: ["testo", "risultato", "calcolo", "passo", "spiegazione"], additionalProperties: false,
+} as const;
 // «Aiutami con un compito» (issue #27): un solo schema, con più esercizi si compila solo l'elenco.
 const SCHEMA_COMPITO = {
   type: "object",
@@ -286,10 +298,16 @@ const SCHEMA_COMPITO = {
     soluzione_libro: STRINGA, indizi: { type: "array", items: STRINGA },
     passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora"], additionalProperties: false } },
     risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
-    verifica: { type: "object", properties: { spiegazione: STRINGA, calcolo: STRINGA }, required: ["spiegazione", "calcolo"], additionalProperties: false },
+    verifica: {
+      type: "object",
+      properties: { spiegazione: STRINGA, controlli: { type: "array", items: { type: "object", properties: { testo: STRINGA, calcolo: STRINGA }, required: ["testo", "calcolo"], additionalProperties: false } } },
+      required: ["spiegazione", "controlli"], additionalProperties: false,
+    },
+    strategia: { type: "object", properties: { nome: STRINGA, perche: STRINGA }, required: ["nome", "perche"], additionalProperties: false },
     trucco: STRINGA, domande_pronte: { type: "array", items: STRINGA },
+    prova_tu: PROVA_TU,
   },
-  required: ["esercizi", "materia", "matematica", "testo", "dati", "cerca", "soluzione_libro", "indizi", "passi", "risultato", "verifica", "trucco", "domande_pronte"],
+  required: ["esercizi", "materia", "matematica", "testo", "dati", "cerca", "soluzione_libro", "strategia", "indizi", "passi", "risultato", "verifica", "trucco", "domande_pronte", "prova_tu"],
   additionalProperties: false,
 } as const;
 const SCHEMA_RISPOSTA_COMPITO = {
@@ -297,11 +315,27 @@ const SCHEMA_RISPOSTA_COMPITO = {
   properties: {
     risposta: STRINGA, calcoli: { type: "array", items: STRINGA },
     figura: { type: "object", properties: { tipo: { type: "string", enum: ["barra_frazioni", "nessuna"] }, parti: { type: "integer" }, colorate: { type: "integer" }, etichetta: STRINGA }, required: ["tipo", "parti", "colorate", "etichetta"], additionalProperties: false },
-    prova_tu: STRINGA,
+    prova_tu: PROVA_TU,
   },
   required: ["risposta", "calcoli", "figura", "prova_tu"], additionalProperties: false,
 } as const;
 const MAX_APPUNTI = 60_000;
+
+// Il conteggio degli aiuti vive nei metadati dell'account, che solo il server può scrivere: nessuna tabella nuova.
+const amministratore = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+async function usaAiuto(sub: string): Promise<boolean> {
+  const db = amministratore();
+  const { data, error } = await db.auth.admin.getUserById(sub);
+  if (error || !data?.user) throw error ?? new Error("utente non trovato");
+  const am = data.user.app_metadata ?? {};
+  const { permesso, aiuti } = contaAiuti(am, giornoRoma());
+  if (!permesso) return false;
+  const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+  if (e2) throw e2;
+  return true;
+}
 
 class Definitivo extends Error {}
 const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_disponibile: 503, not_granted: 403 };
@@ -480,6 +514,7 @@ Deno.serve(async (req) => {
       if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
           !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
         return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo dell'esercizio` }, 400);
+      if (!(await usaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
       const db = comeUtente(req);
       const { data: st } = await db.from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const base = { classe: st?.classe ?? null, testo: scritto || null, esercizio: testoBreve(b.esercizio, 200).trim() || null };
@@ -527,6 +562,7 @@ Deno.serve(async (req) => {
       const compito = pulisciCompito(b.compito);
       const domanda = testoBreve(b.domanda, 600).trim();
       if (!compito || compito.esercizi || !domanda) return json({ errore: "richiesta non valida" }, 400);
+      if (!(await usaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
       const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda });
       let r = pulisciRisposta(await chiedi(prompt, SCHEMA_RISPOSTA_COMPITO));
@@ -538,6 +574,13 @@ Deno.serve(async (req) => {
         if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
       }
       return json(r);
+    }
+
+    // «Prova tu» (issue #27): la risposta la giudica un calcolo, non il modello. Non conta come aiuto.
+    if (b.azione === "prova_tu") {
+      const atteso = b.atteso && typeof b.atteso === "object" ? { valore: testoBreve(b.atteso.valore, 40), unita: testoBreve(b.atteso.unita, 20) } : null;
+      if (!atteso?.valore) return json({ errore: "richiesta non valida" }, 400);
+      return json(correggiProvaTu(testoBreve(b.risposta, 60), atteso));
     }
 
     if (b.azione === "domande") {

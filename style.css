@@ -790,3 +790,18 @@ details.sezione[open]{padding-bottom:16px}
 :root[data-theme="dark"] .trucco{background:color-mix(in srgb,var(--evidenziatore) 16%,var(--carta))}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .msg-io{background:#F2F2EE;color:#15151A}}
 :root[data-theme="dark"] .msg-io{background:#F2F2EE;color:#15151A}
+/* strategia, controlli con la spunta, Prova tu (issue #27) */
+.strategia{border:1.5px solid var(--inchiostro);border-radius:20px;padding:16px 24px;margin:0 0 16px}
+.strategia p{margin:0}
+.strategia p+p{margin-top:6px;color:var(--inchiostro-2)}
+.strategia b{font-size:1.12rem}
+.controlli{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:10px}
+.controllo{display:flex;gap:10px;align-items:flex-start}
+.controllo .spunta{flex:none;width:28px;height:28px;border-radius:50%;background:var(--verde-bg);color:var(--verde);display:grid;place-items:center;font-weight:800}
+.controllo .riga-formula{display:block;margin-top:2px}
+.prova-tu-box{border-top:1px solid var(--bordo);margin-top:12px;padding-top:12px}
+.prova-tu-box label{display:block;margin-bottom:8px}
+.prova-riga{display:flex;gap:8px;align-items:center}
+.prova-riga input{flex:1;min-width:0}
+.prova-riga button{flex:none}
+.prova-esito p{margin:8px 0 0}

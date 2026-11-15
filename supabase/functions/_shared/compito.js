@@ -6,7 +6,7 @@
 // risultato nei dati del testo, la soluzione del libro (se c'è) deve coincidere.
 
 import { valutaSicuro, coincide, decimaliDichiarati } from "./calcolo.js";
-import { leggiRisposta } from "./correzione.js";
+import { leggiRisposta, confrontaRisultato } from "./correzione.js";
 import { numeriIn } from "./generati.js";
 
 export const MAX_INDIZI = 5, MAX_PASSI = 12, DOMANDE_PRONTE = 3, MAX_CRONOLOGIA = 10, MAX_PARTI_BARRA = 24;
@@ -69,19 +69,56 @@ export function controllaCompito(c) {
   if (rotto) return { ok: false, motivo: "passo", passo: rotto.n };
   const valore = testo(c.risultato?.valore, 40);
   if (valutaSicuro(valore) === null || !coincide(finale(conConto[conConto.length - 1].p.calcolo), valore)) return { ok: false, motivo: "risultato" };
-  // La verifica torna, arriva al risultato e rimette nel conto i dati veri del testo: almeno due
-  // (o tutti, se sono meno), senza contare le cifre delle frazioni, 0, 1 e il risultato stesso.
-  // Se il testo ha solo frazioni, la verifica ne deve usare una.
-  const v = testo(c.verifica?.calcolo, 400);
-  const sinistra = senzaUnita(conPer(v)).split("=").slice(0, -1).join(" ");
+  // La verifica: uno o più controlli (una ✓ ciascuno), ogni conto torna. Due forme:
+  //  - all'indietro: un controllo finisce con il risultato (210 + 280 + 465 + 305 = 1260);
+  //  - in avanti: il risultato entra nel primo conto e l'ultimo arriva a un dato del testo
+  //    (48 − (48 : 4 + 4) = 32 … 32 − (32 : 4 + 4) = 20).
+  // In tutte e due rientrano almeno due dati veri del testo (o tutti, se sono meno), senza contare
+  // le cifre delle frazioni, 0, 1 e il risultato. Se il testo ha solo frazioni, ne serve una.
+  const controlli = controlliDi(c.verifica).map((x) => x.calcolo);
+  if (!controlli.length || controlli.some((x) => !contoTorna(x))) return { ok: false, motivo: "verifica" };
+  const sinistre = controlli.map((x) => senzaUnita(conPer(x)).split("=").slice(0, -1).join(" "));
   const consegna = String(c.testo).replace(/\[[^\]]*\]/g, " ");
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
-  const usati = new Set(numeriIn(sinistra.replace(/\d+\s*\/\s*\d+/g, " ")).filter((n) => dati.has(n)));
-  const daiDati = dati.size ? usati.size >= Math.min(2, dati.size) : frazioni.some((f) => sinistra.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
-  if (!contoTorna(v) || !coincide(finale(v), valore) || !daiDati) return { ok: false, motivo: "verifica" };
+  const ultimo = finale(controlli[controlli.length - 1]);
+  const indietro = controlli.some((x) => coincide(finale(x), valore));
+  const avanti = !indietro && dati.has(ultimo) && sinistre.some((s) => numeriIn(s).some((n) => coincide(n, valore)));
+  const usati = new Set(sinistre.flatMap((s) => numeriIn(s.replace(/\d+\s*\/\s*\d+/g, " "))).filter((n) => dati.has(n)));
+  if (avanti) usati.add(ultimo);
+  const tutto = sinistre.join(" ").replace(/\s/g, "");
+  const daiDati = dati.size ? usati.size >= Math.min(2, dati.size) : frazioni.some((f) => tutto.includes(f.replace(/\s/g, "")));
+  if (!(indietro || avanti) || !daiDati) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
+}
+
+// I controlli della verifica; la forma vecchia con un calcolo solo vale come un controllo.
+const controlliDi = (v) => (Array.isArray(v?.controlli) && v.controlli.length
+  ? v.controlli.map((x) => ({ testo: testo(x?.testo, 300), calcolo: testo(x?.calcolo, 400) })).filter((x) => x.calcolo).slice(0, 8)
+  : (testo(v?.calcolo, 400) ? [{ testo: "", calcolo: testo(v.calcolo, 400) }] : []));
+
+// «Prova tu»: una mini-domanda con il suo risultato, tenuta solo se il suo conto torna e arriva lì.
+export function pulisciProvaTu(p) {
+  const t = testo(p?.testo, 400), valore = testo(p?.risultato?.valore, 40), calcolo = testo(p?.calcolo, 400);
+  if (!t || !valore || !calcolo || !contoTorna(calcolo) || !coincide(finale(calcolo), valore)) return null;
+  const passo = Number(p.passo);
+  return { testo: t, risultato: { valore, unita: testo(p.risultato?.unita, 20) }, calcolo,
+    passo: Number.isInteger(passo) && passo >= 1 && passo <= MAX_PASSI ? passo : null, spiegazione: testo(p.spiegazione, 800) };
+}
+// La risposta al «Prova tu» si corregge come gli esercizi (equivalenze, unità): mai il modello.
+export function correggiProvaTu(risposta, atteso) {
+  const calcolato = valutaSicuro(String(atteso?.valore ?? ""));
+  return confrontaRisultato(String(risposta ?? "").slice(0, 60), calcolato, { valore: String(atteso?.valore ?? ""), unita: String(atteso?.unita ?? "") });
+}
+
+// Limite degli aiuti (compito e compito_domanda): 30 al giorno per profilo, il giorno di Roma.
+export const MAX_AIUTI_GIORNO = 30;
+export const giornoRoma = (d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(d);
+export function contaAiuti(appMetadata, giorno) {
+  const a = appMetadata?.aiuti;
+  const n = a && a.giorno === giorno ? Number(a.n) || 0 : 0;
+  return n >= MAX_AIUTI_GIORNO ? { permesso: false, aiuti: { giorno, n } } : { permesso: true, aiuti: { giorno, n: n + 1 } };
 }
 
 // La risposta del modello ripulita. Con più esercizi nella pagina solo l'elenco da scegliere;
@@ -101,8 +138,10 @@ export function pulisciCompito(r) {
       titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 1200), calcolo: testo(p?.calcolo, 400), ancora: testo(p?.ancora, 400),
     })).filter((p) => p.titolo || p.spiegazione),
     risultato: { valore: testo(r.risultato?.valore, 60), unita: testo(r.risultato?.unita, 20) },
-    verifica: { spiegazione: testo(r.verifica?.spiegazione, 1200), calcolo: testo(r.verifica?.calcolo, 400) },
+    verifica: { spiegazione: testo(r.verifica?.spiegazione, 1200), controlli: controlliDi(r.verifica) },
+    strategia: { nome: testo(r.strategia?.nome, 80), perche: testo(r.strategia?.perche, 600) },
     trucco: testo(r.trucco, 800), domande_pronte: lista(r.domande_pronte, DOMANDE_PRONTE, 160),
+    prova_tu: pulisciProvaTu(r.prova_tu),
   };
 }
 
@@ -113,7 +152,7 @@ export function pulisciRisposta(r) {
   const f = r.figura, parti = Number(f?.parti), colorate = Number(f?.colorate);
   const figura = f && f.tipo === "barra_frazioni" && Number.isInteger(parti) && parti >= 1 && parti <= MAX_PARTI_BARRA &&
     Number.isInteger(colorate) && colorate >= 0 && colorate <= parti ? { tipo: "barra_frazioni", parti, colorate, etichetta: testo(f.etichetta, 40) } : null;
-  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: testo(r.prova_tu, 400) };
+  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: pulisciProvaTu(r.prova_tu) };
 }
 export const calcoliCheNonTornano = (r) => (r.calcoli || []).filter((x) => !contoTorna(x));
 

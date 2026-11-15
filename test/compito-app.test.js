@@ -109,7 +109,7 @@ test("strategia con un nome prima dei passi, verifica con una ✓ per controllo"
 test("Prova tu: campo per la risposta, poi Ci sei o Non ancora con il passo da guardare", () => {
   const p = { testo: "Se 11 fette valgono 770 €, quanto vale 1 fetta?", risultato: { valore: "70", unita: "€" }, calcolo: "770 : 11 = 70", passo: 5, spiegazione: "Dividi 770 per 11." };
   const h = run(`htmlProvaTu(${JSON.stringify(p)}, "pt-1")`);
-  assert.match(h, /Prova tu: Se 11 fette valgono 770 €, quanto vale 1 fetta\?/);
+  assert.match(h, /<b>Prova tu:<\/b> Se 11 fette valgono 770 €, quanto vale 1 fetta\?<\/label>/);
   assert.match(h, /<input type="text" id="pt-1"[^>]*inputmode="decimal"/);
   assert.match(h, /data-azione="controlla" data-pt="pt-1">Controlla</);
   assert.match(run(`htmlEsitoProvaTu({ giusto: true, esito: "giusto" }, ${JSON.stringify(p)})`), /●<\/i> Ci sei/);
