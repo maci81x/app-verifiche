@@ -29,7 +29,7 @@ function htmlCardNodo(n, ctx) {
   const sotto = c.id !== n.id;
   const s = sintesiDelConcetto(c, !!ctx.sintesiInArrivo);
   return testa(htmlStato(ctx.stato)) +
-    '<p class="occhiello">Dagli appunti</p><blockquote class="quaderno">' + esc(n.ancora) + "</blockquote>" +
+    '<p class="occhiello">Dagli appunti</p><blockquote class="quaderno">' + evidenzia(n.ancora) + "</blockquote>" +
     (ctx.errore ? '<p class="avviso-appunti" role="note"><span aria-hidden="true">✎</span> ' + esc(ctx.errore) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? " · " + esc(c.titolo) : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +

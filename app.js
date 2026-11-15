@@ -828,7 +828,7 @@ function mostraConcetti() {
     via.onclick = () => { concettiTolti.push(x.id); corrente.concetti = corrente.concetti.filter((y) => y !== x); mostraConcetti(); };
     alto.appendChild(h); alto.appendChild(pesi); alto.appendChild(via); d.appendChild(alto);
     const p = document.createElement("p"); p.textContent = x.descrizione; d.appendChild(p);
-    if (x.ancora) { const q = document.createElement("span"); q.className = "citazione"; q.textContent = x.ancora; d.appendChild(q); }
+    if (x.ancora) { const q = document.createElement("span"); q.className = "citazione"; q.innerHTML = evidenzia(x.ancora); d.appendChild(q); }
     if (x.errore_appunti) { const e = document.createElement("span"); e.className = "errore-appunti"; e.textContent = "✎ " + x.errore_appunti; d.appendChild(e); }
     c.appendChild(d);
   });
@@ -1282,7 +1282,7 @@ async function caricaStudiare(a) {
   listaStudiare.forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" + htmlStato(x.stato) +
-      '<p><span class="rileggi">Rileggi: «' + esc(x.ancora) + "»</span></p>" +
+      '<p><span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span></p>" +
       (x.errore_appunti ? '<span class="errore-appunti">✎ ' + esc(x.errore_appunti) + "</span>" : "");
     if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);
@@ -1619,7 +1619,8 @@ function disegnaSemaforo(righe) {
       htmlStato(x.stato);
     const p = document.createElement("p");
     if (x.stato === "verde") p.textContent = "Lo sai: basta un'occhiata prima della verifica.";
-    else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + '<span class="rileggi">Rileggi: «' + esc(x.ancora) + "»</span>";
+    // Evidenziata solo la frase vera del quaderno: la descrizione del modello resta testo normale.
+    else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + (x.ancora ? '<span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span>" : esc(x.descrizione || ""));
     d.appendChild(p);
     if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = "✎ " + x.errore_appunti; d.appendChild(s); }
     if (x.concetto_id && x.stato !== "verde")
@@ -1667,7 +1668,7 @@ async function mostraEsito(per) {
   const concettoDi = {}; argsProva.forEach((a) => a.concetti.forEach((c) => { concettoDi[c.id] = { c, a }; }));
   const righe = es.concetti.filter((x) => concettoDi[x.concetto_id]).map((x) => {
     const { c, a } = concettoDi[x.concetto_id];
-    return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || c.descrizione, errore_appunti: c.errore_appunti,
+    return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || "", descrizione: c.ancora ? "" : c.descrizione || "", errore_appunti: c.errore_appunti,
       da: modo === "ripasso" ? a.titolo : null, concetto_id: c.id, materia: a.materia };
   });
   esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },

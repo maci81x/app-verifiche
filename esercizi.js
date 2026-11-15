@@ -147,7 +147,7 @@ function rigaTipo(t, i) {
   const corpo = document.createElement("span");
   corpo.innerHTML = "<b>" + esc(t.titolo) + "</b>" +
     '<small>difficoltà <span aria-label="' + t.difficolta + ' su 3">' + pallini(t.difficolta) + "</span>" + (t.figura ? " · con figura" : "") + "</small>" +
-    '<span class="citazione">' + esc(t.ancora) + "</span>";
+    '<span class="citazione">' + evidenzia(t.ancora) + "</span>";
   l.appendChild(c); l.appendChild(corpo);
   return l;
 }
@@ -198,7 +198,7 @@ function adattaSchedaEsercizi(a) {
   (a.tipi || []).forEach((t) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = t.stato || "mai";
     d.innerHTML = "<h3>" + esc(t.titolo) + '<span class="voto">' + (t.media == null ? "—" : votoIt(Math.round(t.media * 2) / 2) + "/10") + "</span></h3>" + htmlStato(t.stato) +
-      '<span class="citazione">' + esc(t.ancora) + "</span>";
+      '<span class="citazione">' + evidenzia(t.ancora) + "</span>";
     sc.appendChild(d);
   });
 }

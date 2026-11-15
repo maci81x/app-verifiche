@@ -30,7 +30,7 @@ function elencoNodi(nodi) {
   return '<ol class="st-nodi">' + nodi.map((n) => "<li><b>" + esc(n.titolo) + "</b>" +
     (n.fonte === FONTE_WEB
       ? '<span class="st-ancora">' + ETICHETTA_WEB + ": " + esc(n.testo) + " — " + esc(n.url) + "</span>"
-      : (n.ancora ? '<span class="st-ancora">' + esc(n.ancora) + "</span>" : "")) + elencoNodi(n.figli) + "</li>").join("") + "</ol>";
+      : (n.ancora ? '<span class="st-ancora">' + evidenzia(n.ancora) + "</span>" : "")) + elencoNodi(n.figli) + "</li>").join("") + "</ol>";
 }
 
 function corpoMappa({ albero, stati }, carattere) {
@@ -41,7 +41,7 @@ function corpoMappa({ albero, stati }, carattere) {
 function corpoStudiare(lista) {
   return '<ol class="st-lista">' + lista.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
     "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + testoVolte(x) + "</span>" +
-    '<span class="st-ancora">Rileggi: «' + esc(x.ancora) + "»</span>" +
+    '<span class="st-ancora">Rileggi: ' + evidenzia(x.ancora) + "</span>" +
     (x.errore_appunti ? '<span class="st-nota">✎ ' + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
@@ -74,7 +74,8 @@ function corpoEsito({ indice, voto, verdetto, righe }) {
     '<ol class="st-lista">' + ordinate.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
       "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + Number(x.media).toFixed(1).replace(".", ",") + "/10</span>" +
       (x.da ? '<span class="st-nota">da ' + esc(x.da) + "</span>" : "") +
-      '<span class="st-ancora">' + (x.stato === "verde" ? esc(x.ancora) : "Rileggi: «" + esc(x.ancora) + "»") + "</span>" +
+      (x.ancora ? '<span class="st-ancora">' + (x.stato === "verde" ? "" : "Rileggi: ") + evidenzia(x.ancora) + "</span>"
+        : (x.descrizione ? '<span class="st-nota">' + esc(x.descrizione) + "</span>" : "")) +
       (x.errore_appunti ? '<span class="st-nota">✎ ' + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 

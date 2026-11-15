@@ -56,7 +56,7 @@ async function apriSpiegazione(c) {
   if (v !== "spiega") tornaDaSpiega = { vista: v, materia: c.materia === "varie" ? null : c.materia };
   spiegaAperta = c;
   $("t-spiega").textContent = c.titolo;
-  $("spiega-ancora").textContent = c.ancora ? "Negli appunti: «" + c.ancora + "»" : "";
+  $("spiega-ancora").innerHTML = c.ancora ? "Sul tuo quaderno: " + evidenzia(c.ancora) : "";
   $("corpo-spiega").innerHTML = ""; errore($("err-spiega"), "");
   attesa($("stato-spiega"), null); $("btn-rispiega").disabled = false;
   vai("spiega", tornaDaSpiega.materia);
