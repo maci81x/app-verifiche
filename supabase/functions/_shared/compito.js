@@ -152,6 +152,10 @@ export function contaAiuti(appMetadata, giorno) {
   return n >= MAX_AIUTI_GIORNO ? { permesso: false, aiuti: { giorno, n } } : { permesso: true, aiuti: { giorno, n: n + 1 } };
 }
 
+// I dati con il loro significato («1/6» → «la parte spesa per gli anelli»); le stringhe sole valgono ancora.
+const datiPuliti = (v) => (Array.isArray(v) ? v : []).map((d) => (typeof d === "string" ? { valore: testo(d, 120), significato: "" }
+  : { valore: testo(d?.valore, 120), significato: testo(d?.significato, 200) })).filter((d) => d.valore).slice(0, 20);
+
 // La risposta del modello ripulita. Con più esercizi nella pagina solo l'elenco da scegliere;
 // null se non c'è un testo da aiutare.
 export function pulisciCompito(r) {
@@ -163,7 +167,7 @@ export function pulisciCompito(r) {
   if (!t) return null;
   return {
     materia: testo(r.materia, 60), matematica: r.matematica === true, testo: t,
-    dati: lista(r.dati, 20, 120), cerca: testo(r.cerca, 300), soluzione_libro: testo(r.soluzione_libro, 120),
+    dati: datiPuliti(r.dati), cerca: testo(r.cerca, 300), soluzione_libro: testo(r.soluzione_libro, 120),
     indizi: lista(r.indizi, MAX_INDIZI),
     passi: (Array.isArray(r.passi) ? r.passi : []).slice(0, MAX_PASSI).map((p) => ({
       titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 1200), calcolo: testo(p?.calcolo, 400), ancora: testo(p?.ancora, 400),

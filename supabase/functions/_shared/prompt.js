@@ -343,7 +343,7 @@ export function promptCompito(dati) {
     "Campi:\n" +
       "- materia (per esempio matematica, geometria, italiano, storia, scienze) e matematica = true se servono conti (aritmetica, frazioni, geometria con misure, problemi);\n" +
       "- testo: il testo dell'esercizio trascritto fedelmente, numeri e simboli compresi (frazioni come 1/6), senza la soluzione del libro;\n" +
-      "- dati: i dati importanti copiati esattamente come sono nel testo (per esempio «1/6», «2/9», «465 €», «305 €»), così si possono evidenziare;\n" +
+      "- dati: i dati importanti; per ognuno valore = copiato esattamente come è nel testo (per esempio «1/6», «2/9», «465 €», «305 €», così si può evidenziare) e significato = che cosa rappresenta, in poche parole (per esempio «la parte dello stipendio spesa per gli anelli», «l'anticipo al ristorante», «i soldi che gli restano»);\n" +
       "- cerca: cosa chiede l'esercizio, in poche parole (per esempio «lo stipendio di Paolo»);\n" +
       "- soluzione_libro: se nel testo c'è la soluzione del libro (di solito fra parentesi quadre, per esempio [1260 €]), copiala; altrimenti vuoto;\n" +
       "- indizi: da 3 a 5 indizi a gradini, dal più leggero al più forte; nessuno dice il risultato finale; ognuno è una domanda o un suggerimento che fa fare il passo successivo (per esempio «Somma le frazioni spese: che frazione dello stipendio è andata in anelli e vestito?»);\n" +
@@ -357,7 +357,7 @@ export function promptCompito(dati) {
     "Matematica: " + REGOLE_CALCOLO + " L'ultimo passo con un calcolo finisce con il risultato. Controlla tu stesso ogni conto prima di rispondere.",
     "Materie senza conti (storia, scienze, italiano...): stessa struttura, calcolo sempre vuoto, la risposta spiegata nei passi.",
     dati.appunti ? "Appunti di chi studia su questa materia: usali come fonte principale. In ogni passo che si appoggia agli appunti, metti in ancora una frase copiata parola per parola dagli appunti (non riscritta): verrà evidenziata come frase del quaderno.\n" + dati.appunti : "",
-    'Rispondi solo con JSON: {"esercizi":[],"materia":"","matematica":true,"testo":"","dati":[""],"cerca":"","soluzione_libro":"","strategia":{"nome":"","perche":""},"indizi":[""],"passi":[{"titolo":"","spiegazione":"","calcolo":"","ancora":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]},"trucco":"","domande_pronte":["","",""],"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
+    'Rispondi solo con JSON: {"esercizi":[],"materia":"","matematica":true,"testo":"","dati":[{"valore":"","significato":""}],"cerca":"","soluzione_libro":"","strategia":{"nome":"","perche":""},"indizi":[""],"passi":[{"titolo":"","spiegazione":"","calcolo":"","ancora":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]},"trucco":"","domande_pronte":["","",""],"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
   ].filter(Boolean).join("\n\n");
 }
 
