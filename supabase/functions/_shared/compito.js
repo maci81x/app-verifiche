@@ -21,22 +21,36 @@ export function perClasse(classe) {
   return n ? n[1] + "ª media" : "scuola media";
 }
 
-// Euro e unità di misura dopo un numero non contano nel conto: «465 € + 305 €» = «465 + 305».
-const UNITA = /(\d|\))\s*(?:€|euro|mm|cm|dm|km|m|kg|hg|g|ml|cl|dl|l|ore|min|°)(?:[²³]|\^[23])?(?![a-zà-ù])/gi;
+// Euro e unità di misura dopo un numero si tolgono per fare il conto, ma in una catena ce ne può
+// essere una sola: «1 km + 500 m = 501 m» non torna e le equivalenze si scrivono come conti.
+const UNITA = /(\d|\))\s*(€|euro|mm|cm|dm|km|m|kg|hg|g|ml|cl|dl|l|ore|min|°)((?:[²³]|\^?[23])?)(?![a-zà-ù\d])/gi;
+const unitaIn = (s) => new Set([...String(s).replace(/€\s*(?=\d)/g, "1€").matchAll(UNITA)].map((m) => (m[2] === "euro" ? "€" : m[2].toLowerCase()) + m[3].replace(/\^/, "").replace("²", "2").replace("³", "3")));
 const senzaUnita = (s) => String(s).replace(/€\s*(?=\d)/g, "").replace(UNITA, "$1");
+// «70 x 18»: la x fra due numeri è un per.
+const conPer = (s) => String(s).replace(/(\d)\s*[xX]\s*(?=\d)/g, "$1×");
 
 // Ogni uguale della catena torna. Un pezzo scritto come numero decimale vale anche arrotondato
-// alle sue cifre (come in correzione.js); fra espressioni il valore deve essere lo stesso.
+// alle sue cifre (come in correzione.js), confrontato con il valore esatto del primo pezzo.
 export function contoTorna(calcolo) {
-  const pezzi = senzaUnita(testo(calcolo, 400)).split("=").map((p) => p.trim());
-  if (pezzi.length < 2 || pezzi.some((p) => !p || /[a-zà-ù]/i.test(p))) return false;
+  const grezzo = conPer(testo(calcolo, 400));
+  if (unitaIn(grezzo).size > 1) return false;
+  const pezzi = senzaUnita(grezzo).split("=").map((p) => p.trim());
+  if (pezzi.length < 2 || pezzi.some((p) => !p || /[a-zà-ù%π]/i.test(p))) return false;
   const valori = pezzi.map(valutaSicuro);
   if (valori.some((v) => v === null)) return false;
-  return valori.every((v, i) => i === 0 || (decimaliDichiarati(pezzi[i]) ? coincide(valori[i - 1], pezzi[i]) || coincide(v, pezzi[i - 1])
-    : Math.abs(v - valori[i - 1]) <= 1e-9 * Math.max(1, Math.abs(v))));
+  const esatto = valori[0];
+  return valori.every((v, i) => i === 0 || (decimaliDichiarati(pezzi[i]) ? coincide(esatto, pezzi[i])
+    : Math.abs(v - esatto) <= 1e-9 * Math.max(1, Math.abs(v))));
 }
 // Valore dell'ultimo pezzo di una catena che torna.
-const finale = (calcolo) => valutaSicuro(senzaUnita(calcolo).split("=").pop().trim());
+const finale = (calcolo) => valutaSicuro(senzaUnita(conPer(calcolo)).split("=").pop().trim());
+
+// Il ricalcolo non dipende solo da quello che dice il modello: un passo con un conto o una
+// materia di numeri bastano a fare i controlli.
+export const eMatematica = (c) => c.matematica === true || /mat|geom|aritm|algebr/i.test(c.materia || "") || (c.passi || []).some((p) => p.calcolo);
+
+// Gli indizi aiutano a fare il passo dopo: quelli che contengono già il risultato si tolgono.
+export const indiziSenzaRisultato = (c) => (c.indizi || []).filter((t) => !numeriIn(t, true).some((n) => coincide(n, String(c.risultato?.valore ?? ""))));
 
 // Il risultato del libro e il nostro coincidono? null se il libro non dice un numero leggibile.
 // "1.260,00 €" = 1260; "3/4" = "6/8" = 0,75.
@@ -55,12 +69,17 @@ export function controllaCompito(c) {
   if (rotto) return { ok: false, motivo: "passo", passo: rotto.n };
   const valore = testo(c.risultato?.valore, 40);
   if (valutaSicuro(valore) === null || !coincide(finale(conConto[conConto.length - 1].p.calcolo), valore)) return { ok: false, motivo: "risultato" };
-  // La verifica torna, arriva al risultato e usa almeno un numero dei dati del testo.
+  // La verifica torna, arriva al risultato e rimette nel conto i dati veri del testo: almeno due
+  // (o tutti, se sono meno), senza contare le cifre delle frazioni, 0, 1 e il risultato stesso.
+  // Se il testo ha solo frazioni, la verifica ne deve usare una.
   const v = testo(c.verifica?.calcolo, 400);
-  const sinistra = senzaUnita(v).split("=").slice(0, -1).join(" ");
-  // Dati = i numeri del testo, senza la soluzione del libro fra quadre e senza il risultato stesso.
-  const dati = new Set(numeriIn(String(c.testo).replace(/\[[^\]]*\]/g, " "), true).filter((n) => !coincide(n, valore)));
-  if (!contoTorna(v) || !coincide(finale(v), valore) || !numeriIn(sinistra).some((n) => dati.has(n))) return { ok: false, motivo: "verifica" };
+  const sinistra = senzaUnita(conPer(v)).split("=").slice(0, -1).join(" ");
+  const consegna = String(c.testo).replace(/\[[^\]]*\]/g, " ");
+  const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
+  const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
+  const usati = new Set(numeriIn(sinistra.replace(/\d+\s*\/\s*\d+/g, " ")).filter((n) => dati.has(n)));
+  const daiDati = dati.size ? usati.size >= Math.min(2, dati.size) : frazioni.some((f) => sinistra.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
+  if (!contoTorna(v) || !coincide(finale(v), valore) || !daiDati) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
 }

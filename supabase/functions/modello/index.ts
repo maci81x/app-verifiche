@@ -60,7 +60,7 @@ import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRis
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
-import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita } from "../_shared/compito.js";
+import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
@@ -484,32 +484,40 @@ Deno.serve(async (req) => {
       const { data: st } = await db.from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const base = { classe: st?.classe ?? null, testo: scritto || null, esercizio: testoBreve(b.esercizio, 200).trim() || null };
       const foto = scritto ? [] : imm;
-      let c = pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto));
+      // Il testo scritto (o corretto) da chi studia vale più di quello riscritto dal modello.
+      const conTesto = (x: any) => (x && !x.esercizi && scritto ? { ...x, testo: scritto } : x);
+      let c = conTesto(pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto)));
       if (!c) return json({ errore: "nessun_esercizio" }, 422);
       if (c.esercizi) return json(c);
-      if (c.matematica) {
+      if (eMatematica(c)) {
         // Ogni conto si ricalcola; se non torna si chiede una seconda volta, poi niente soluzione.
+        // Il secondo tentativo si tiene solo se è migliore: conti giusti battono conti rotti.
+        const voto = (e: any) => (e.ok ? 2 : e.motivo === "libro" ? 1 : 0);
         let esito = controllaCompito(c);
         if (!esito.ok) {
           const nota = esito.motivo === "libro"
             ? "Attenzione: il tuo risultato non coincide con la soluzione del libro. Rileggi il testo e rifai i conti."
             : "Attenzione: nel tentativo precedente un conto non tornava (" + (esito.motivo === "passo" ? "passo " + esito.passo : esito.motivo) + "). Rifai i conti uno per uno.";
-          const di_nuovo = pulisciCompito(await chiedi(promptCompito(base) + "\n\n" + nota, SCHEMA_COMPITO, foto));
-          if (di_nuovo && !di_nuovo.esercizi) { c = di_nuovo; esito = controllaCompito(c); }
+          const di_nuovo = conTesto(pulisciCompito(await chiedi(promptCompito(base) + "\n\n" + nota, SCHEMA_COMPITO, foto)));
+          if (di_nuovo && !di_nuovo.esercizi) {
+            const esito2 = controllaCompito(di_nuovo);
+            if (voto(esito2) > voto(esito)) { c = di_nuovo; esito = esito2; }
+          }
         }
         if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano" }, 422);
+        // In matematica non ci sono frasi del quaderno da evidenziare; gli indizi non dicono il risultato.
         // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
-        return json({ ...c, libro_diverso: !esito.ok });
+        return json({ ...c, matematica: true, indizi: indiziSenzaRisultato(c), passi: c.passi.map((p: any) => ({ ...p, ancora: "" })), libro_diverso: !esito.ok });
       }
       // Altre materie: se ci sono appunti della stessa materia, si rifà con quelli come fonte e
       // si tengono solo le ancore che si ritrovano davvero negli appunti.
       const { data: arg } = c.materia
-        ? await db.from("argomenti").select("trascrizione").eq("studente_id", io.sub).ilike("materia", c.materia).order("aggiornato", { ascending: false }).limit(5)
+        ? await db.from("argomenti").select("trascrizione").eq("studente_id", io.sub).ilike("materia", c.materia.replace(/[%_\\]/g, "")).order("aggiornato", { ascending: false }).limit(5)
         : { data: null };
       const appunti = (arg || []).map((a: any) => a.trascrizione || "").join("\n\n").slice(0, MAX_APPUNTI);
       if (appunti.trim()) {
         const conAppunti = pulisciCompito(await chiedi(promptCompito({ ...base, testo: base.testo || c.testo, appunti }), SCHEMA_COMPITO));
-        if (conAppunti && !conAppunti.esercizi) c = conAppunti;
+        if (conAppunti && !conAppunti.esercizi) c = conTesto(conAppunti);
       }
       const passi = c.passi.map((p: any) => ({ ...p, calcolo: "", ancora: p.ancora && appunti && ancoraRegge(p.ancora, appunti) ? p.ancora : "" }));
       return json({ ...c, passi, libro_diverso: false });

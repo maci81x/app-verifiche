@@ -36,6 +36,10 @@ test("aiuto a gradini: un indizio alla volta, poi Ho capito o Un altro indizio",
   assert.match(tutti, /Che cosa sono gli euro/);
   assert.doesNotMatch(tutti, /Un altro indizio/); // finiti gli indizi
   assert.equal((tutti.match(/class="azione"/g) || []).length, 0); // finiti gli indizi, il pieno non serve più
+  const provo = run(`htmlIndizi(${JSON.stringify(C)}, 1, true)`); // «Ho capito, provo io»: niente altri indizi
+  assert.match(provo, /Somma le frazioni spese/);
+  assert.doesNotMatch(provo, /Che frazione resta|Un altro indizio|Ho capito/);
+  assert.match(provo, /Fammi vedere tutta la soluzione/);
   assert.equal(run(`prossimoIndizio(3, 3)`), 3);
   assert.equal(run(`prossimoIndizio(1, 3)`), 2);
 });
@@ -45,6 +49,8 @@ test("Ho letto così: i dati del testo evidenziati, tutto escapato", () => {
   assert.equal((h.match(/<mark class="evidenzia">1\/6<\/mark>/g) || []).length, 2);
   assert.match(h, /&lt;b&gt;<mark class="evidenzia">465 €<\/mark>&lt;\/b&gt;/);
   assert.equal(run(`htmlTestoConDati("niente", [])`), "niente");
+  // un dato non si evidenzia dentro un numero più lungo
+  assert.equal(run(`htmlTestoConDati("costa 1260 euro, cioè 6 rate", ["6"])`), 'costa 1260 euro, cioè <mark class="evidenzia">6</mark> rate');
 });
 
 test("calcoli in formula: frazioni, per e diviso", () => {
@@ -84,4 +90,8 @@ test("i compiti di oggi: gli ultimi 5, il più recente in cima, niente doppioni"
   assert.equal(lista[0].compito.testo, "es 4");
   const ieri = json(`salvaCompito([], { testo: "vecchio" }, "2026-11-14T10:00:00Z")`);
   assert.equal(json(`compitiDiOggi(${JSON.stringify([...lista, ...ieri])}, new Date("2026-11-15T18:00:00Z"))`).length, 5);
+});
+
+test("i compiti di oggi reggono a una voce rotta nella memoria del telefono", () => {
+  assert.equal(json(`compitiDiOggi([null, { quando: "2026-11-15T10:00:00Z" }, { quando: "2026-11-15T10:00:00Z", compito: { testo: "a" } }], new Date("2026-11-15T12:00:00Z"))`).length, 1);
 });

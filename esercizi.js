@@ -228,7 +228,8 @@ function apriEsercizi(a) {
 
 // Come conRiprova, ma senza ripetere una generazione intera quando la risposta è già un
 // esito (nessun tipo, nessun esercizio con i conti giusti): lì decide la ragazza se riprovare.
-const ESITI_DEFINITIVI = ["nessun_tipo", "nessun_verificato"];
+// Anche quelli del compito (issue #27): rifare la stessa richiesta darebbe la stessa risposta.
+const ESITI_DEFINITIVI = ["nessun_tipo", "nessun_verificato", "conti_non_tornano", "nessun_esercizio"];
 async function conRiprovaEsercizi(f) {
   try { return await f(); } catch (e) {
     if (e instanceof Definitivo || (e.dati && ESITI_DEFINITIVI.includes(e.dati.errore))) throw e;

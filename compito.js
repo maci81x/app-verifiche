@@ -16,12 +16,14 @@ const MSG_CONTI_DOMANDA = "Su questa domanda i conti non mi tornano. Prova a chi
 const prossimoIndizio = (mostrati, totale) => Math.min(totale, mostrati + 1);
 
 // Gli indizi già chiesti e cosa si può fare dopo. Il link alla soluzione c'è sempre.
-function htmlIndizi(c, mostrati) {
+// provo: «Ho capito, provo io», e allora niente altri indizi in vista.
+function htmlIndizi(c, mostrati, provo = false) {
   const tot = (c.indizi || []).length;
   const visti = (c.indizi || []).slice(0, mostrati).map((t, i) =>
     '<li class="indizio"><span class="occhiello">Indizio ' + (i + 1) + "</span><p>" + esc(t) + "</p></li>").join("");
   let azioni;
-  if (!mostrati) azioni = tot ? '<button type="button" class="azione" data-azione="indizio">Dammi un indizio</button>' : "";
+  if (provo) azioni = "";
+  else if (!mostrati) azioni = tot ? '<button type="button" class="azione" data-azione="indizio">Dammi un indizio</button>' : "";
   else azioni = '<button type="button" class="minore" data-azione="provo">Ho capito, provo io</button>' +
     (mostrati < tot ? '<button type="button" class="minore" data-azione="indizio">Un altro indizio</button>' : "");
   return (visti ? '<ol class="indizi">' + visti + "</ol>" : "") +
@@ -42,7 +44,8 @@ const formulaCalcolo = (s) => '<span class="riga-formula">' + formulaHtml(calcol
 function htmlTestoConDati(testo, dati) {
   const voci = [...new Set((dati || []).map((d) => String(d).trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
   if (!voci.length) return esc(testo);
-  const re = new RegExp(voci.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  // Un dato non si evidenzia dentro un numero più lungo («6» non dentro «1260»).
+  const re = new RegExp("(?<![\\d.,/])(?:" + voci.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\d,/]|\\.\\d)", "g");
   let fuori = "", da = 0;
   String(testo).replace(re, (m, i) => { fuori += esc(String(testo).slice(da, i)) + evidenzia(m); da = i + m.length; return m; });
   return fuori + esc(String(testo).slice(da));
@@ -53,7 +56,7 @@ const risultatoIt = (r) => (r && r.valore ? r.valore + (r.unita ? " " + r.unita 
 // Passi numerati (toccandone uno si chiede di spiegarlo), risultato, verifica, il trucco.
 function htmlSoluzioneCompito(c) {
   const passi = (c.passi || []).map((p, i) =>
-    '<li class="passo" data-passo="' + (i + 1) + '"><button type="button" class="passo-tocca" data-passo="' + (i + 1) + '" aria-label="Spiegami il passo ' + (i + 1) + '">' +
+    '<li class="passo" data-passo="' + (i + 1) + '"><button type="button" class="passo-tocca" data-passo="' + (i + 1) + '"><span class="solo-lettore">Spiegami il passo ' + (i + 1) + ": </span>" +
     "<b>" + esc(p.titolo) + "</b>" + (p.spiegazione ? "<span>" + esc(p.spiegazione) + "</span>" : "") +
     (p.ancora ? '<span class="dal-quaderno">Sul tuo quaderno: ' + evidenzia(p.ancora) + "</span>" : "") +
     (p.calcolo ? formulaCalcolo(p.calcolo) : "") + "</button></li>").join("");
@@ -86,14 +89,15 @@ function salvaCompito(lista, c, quando) {
   return [{ quando, compito: c }, ...(lista || []).filter((x) => x && x.compito && x.compito.testo !== c.testo)].slice(0, MAX_COMPITI);
 }
 const stessoGiorno = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-const compitiDiOggi = (lista, oggi) => (lista || []).filter((x) => x && x.quando && stessoGiorno(new Date(x.quando), oggi));
+const compitiDiOggi = (lista, oggi) => (Array.isArray(lista) ? lista : []).filter((x) => x && x.compito && x.compito.testo && x.quando && stessoGiorno(new Date(x.quando), oggi));
 
 /* =================================================================== nel browser */
 
 // Le formule si disegnano con KaTeX appena arriva; finché non c'è restano leggibili come testo.
 const formuleIn = (id) => caricaKatex().then((ok) => { if (ok) rendiFormule($(id)); });
 
-let compito = null, fotoCompito = [], immaginiCompito = [], indiziMostrati = 0, chatCompito = [], simili = [], simileOra = 0;
+let compito = null, fotoCompito = [], immaginiCompito = [], indiziMostrati = 0, provoIo = false, chatCompito = [], simili = [], simileOra = 0;
+let compitoOccupato = false; // una richiesta al modello alla volta
 
 function apriCompito() {
   compito = null; fotoCompito = []; immaginiCompito = []; indiziMostrati = 0; chatCompito = []; simili = [];
@@ -108,23 +112,24 @@ function disegnaFotoCompito() {
 }
 
 async function leggiCompito(extra = {}) {
+  if (compitoOccupato) return;
   const scritto = $("cp-testo").value.trim();
   errore($("err-cp"), "");
   if (!fotoCompito.length && scritto.length < 20 && !extra.testo) { errore($("err-cp"), "Fotografa l'esercizio, oppure scrivi il testo qui sotto."); return; }
-  $("btn-cp-leggi").disabled = true;
+  $("btn-cp-leggi").disabled = true; compitoOccupato = true;
   attesa($("stato-cp"), extra.testo ? ["Rileggo il testo", "Rifaccio i conti uno per uno"] : ["Leggo l'esercizio", "Preparo gli indizi", "Rifaccio i conti uno per uno"]);
   try {
     if (!extra.testo && fotoCompito.length && !immaginiCompito.length)
       immaginiCompito = await Promise.all(fotoCompito.slice(0, 4).map(async (f) => base64(await ridimensiona(f))));
     const corpo = extra.testo ? { azione: "compito", testo: extra.testo } : (scritto && !fotoCompito.length ? { azione: "compito", testo: scritto } : { azione: "compito", immagini: immaginiCompito });
     if (extra.esercizio) corpo.esercizio = extra.esercizio;
-    const r = await conRiprova(() => modello(corpo));
-    attesa($("stato-cp"), null); $("btn-cp-leggi").disabled = false;
+    const r = await conRiprovaEsercizi(() => modello(corpo));
+    attesa($("stato-cp"), null); $("btn-cp-leggi").disabled = false; compitoOccupato = false;
     if (r.esercizi) { mostraScelta(r.esercizi); return; }
-    compito = r; indiziMostrati = 0; chatCompito = [];
+    compito = r; indiziMostrati = 0; provoIo = false; chatCompito = [];
     mostraLetto();
   } catch (e) {
-    attesa($("stato-cp"), null); $("btn-cp-leggi").disabled = false;
+    attesa($("stato-cp"), null); $("btn-cp-leggi").disabled = false; compitoOccupato = false;
     const m = e.message === "conti_non_tornano" ? MSG_CONTI
       : e.message === "nessun_esercizio" ? "Nella foto non trovo un esercizio. Riprova con una foto più vicina, oppure scrivi il testo."
       : messaggioModello(e, "Non sono riuscito a leggere l'esercizio. Riprova fra un momento.");
@@ -162,11 +167,11 @@ function mostraAiuto() {
   disegnaIndizi();
   $("cp-soluzione").hidden = true; $("cp-soluzione").innerHTML = "";
   disegnaChat();
-  $("btn-cp-simile").hidden = !compito.matematica; $("cp-simile").innerHTML = "";
+  $("btn-cp-simile").hidden = !compito.matematica; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
   if (profilo) salvaLocale(chiaveCompiti(profilo.id), salvaCompito(leggiLocale(chiaveCompiti(profilo.id), []), compito, new Date().toISOString()));
   window.scrollTo(0, 0);
 }
-function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati); }
+function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati, provoIo); }
 function mostraSoluzione() {
   $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito);
   $("cp-soluzione").hidden = false;
@@ -182,18 +187,19 @@ function disegnaChat() {
 }
 async function chiediSulCompito(domanda) {
   domanda = String(domanda || "").trim();
-  if (!domanda || !compito) return;
+  if (!domanda || !compito || compitoOccupato) return;
+  compitoOccupato = true;
   const cronologia = chatCompito.map((m) => ({ chi: m.chi, testo: m.testo }));
   chatCompito.push({ chi: "io", testo: domanda }); disegnaChat();
   $("cp-domanda").value = ""; $("btn-cp-chiedi").disabled = true;
   attesa($("stato-chat"), ["Ci penso", "Rifaccio i conti"]);
   try {
-    const r = await conRiprova(() => modello({ azione: "compito_domanda", compito, cronologia, domanda }));
+    const r = await conRiprovaEsercizi(() => modello({ azione: "compito_domanda", compito, cronologia, domanda }));
     chatCompito.push({ chi: "app", testo: r.risposta, risposta: r });
   } catch (e) {
     chatCompito.push({ chi: "app", testo: e.message === "conti_non_tornano" ? MSG_CONTI_DOMANDA : messaggioModello(e, "Non sono riuscito a rispondere. Riprova fra un momento.") });
   }
-  attesa($("stato-chat"), null); $("btn-cp-chiedi").disabled = false; disegnaChat(); formuleIn("cp-chat");
+  attesa($("stato-chat"), null); $("btn-cp-chiedi").disabled = false; compitoOccupato = false; disegnaChat(); formuleIn("cp-chat");
   const ultimo = $("cp-chat").lastElementChild; if (ultimo) ultimo.scrollIntoView({ block: "nearest" });
 }
 
@@ -202,7 +208,7 @@ async function esercizioSimile() {
   const b = $("btn-cp-simile"); b.disabled = true;
   attesa($("stato-simile"), ["Preparo un esercizio simile", "Rifaccio i conti"]);
   try {
-    const r = await conRiprova(() => modello({ azione: "esercizi_genera", modello: { testo: compito.testo }, quanti: 5 }));
+    const r = await conRiprovaEsercizi(() => modello({ azione: "esercizi_genera", modello: { testo: compito.testo }, quanti: 5 }));
     simili = r.esercizi || []; simileOra = 0;
     $("cp-simile").innerHTML = simili.length ? htmlEsercizio(simili[0], 0) : "";
     formuleIn("cp-simile");
@@ -222,7 +228,7 @@ function disegnaCompitiOggi() {
     const b = document.createElement("button"); b.type = "button"; b.className = "sessione";
     b.innerHTML = '<div class="alto"><span class="tit">' + esc(String(x.compito.testo).slice(0, 80)) + "…</span></div>" +
       '<div class="meta">' + esc(x.compito.materia || "compito") + (x.compito.risultato && x.compito.risultato.valore ? ", risultato " + esc(risultatoIt(x.compito.risultato)) : "") + "</div>";
-    b.onclick = () => { compito = x.compito; indiziMostrati = 0; chatCompito = []; simili = []; ["cp-foto", "cp-scegli", "cp-letto"].forEach((id) => { $(id).hidden = true; }); vai("compito"); mostraAiuto(); };
+    b.onclick = () => { compito = x.compito; indiziMostrati = 0; provoIo = false; chatCompito = []; simili = []; ["cp-foto", "cp-scegli", "cp-letto"].forEach((id) => { $(id).hidden = true; }); vai("compito"); mostraAiuto(); };
     box.appendChild(b);
   });
 }
@@ -239,7 +245,7 @@ function collegaCompito() {
   $("cp-indizi").addEventListener("click", (e) => {
     const b = e.target.closest("[data-azione]"); if (!b) return;
     if (b.dataset.azione === "indizio") { indiziMostrati = prossimoIndizio(indiziMostrati, compito.indizi.length); disegnaIndizi(); }
-    if (b.dataset.azione === "provo") { indiziMostrati = compito.indizi.length; disegnaIndizi(); $("cp-domanda").focus(); }
+    if (b.dataset.azione === "provo") { provoIo = true; disegnaIndizi(); $("cp-domanda").focus(); }
     if (b.dataset.azione === "soluzione") mostraSoluzione();
   });
   $("cp-soluzione").addEventListener("click", (e) => { const p = e.target.closest(".passo-tocca"); if (p) chiediSulCompito("Spiegami il passo " + p.dataset.passo); });
@@ -252,5 +258,7 @@ function collegaCompito() {
   $("btn-foto-appunti").addEventListener("click", () => { chiudiFoglio("menu-foto"); nuovoMateriale(); });
   $("btn-foto-compito").addEventListener("click", () => { chiudiFoglio("menu-foto"); apriCompito(); });
   $("menu-foto").addEventListener("click", (e) => { if (e.target.id === "menu-foto") chiudiFoglio("menu-foto"); });
+  $("btn-foto-chiudi").addEventListener("click", () => chiudiFoglio("menu-foto"));
+  trascinaPerChiudere(document.querySelector("#menu-foto .foglio-menu"), () => chiudiFoglio("menu-foto"));
   $("link-compito").addEventListener("click", apriCompito);
 }

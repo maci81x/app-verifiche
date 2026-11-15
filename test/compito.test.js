@@ -117,3 +117,44 @@ test("i problemi a parole ora si riconoscono e si generano", () => {
   assert.doesNotMatch(promptEserciziTipi("matematica", "frazioni", "testo"), /Niente problemi con testo lungo/);
   assert.doesNotMatch(promptEserciziGenera({ materia: "m", titolo: "t", classe: "2", quanti: 5, tipi: [] }), /Niente problemi con testo lungo/);
 });
+
+// ------------------------------------------------------------------ rilievi della revisione (#27)
+import { indiziSenzaRisultato, eMatematica } from "../supabase/functions/_shared/compito.js";
+
+test("la verifica deve usare davvero i dati del testo (almeno due, non le cifre delle frazioni)", () => {
+  for (const finta of ["1260 × 1 = 1260", "630 × 2 = 1260", "1260 : 6 × 6 = 1260", "465 + 795 = 1260"]) {
+    const c = copia(PAOLO); c.verifica.calcolo = finta;
+    assert.equal(controllaCompito(c).motivo, "verifica", finta);
+  }
+  const frazioni = { ...copia(PAOLO), testo: "Calcola 1/2 + 1/3.", dati: ["1/2", "1/3"], soluzione_libro: "",
+    passi: [{ titolo: "Somma", spiegazione: "", calcolo: "1/2 + 1/3 = 3/6 + 2/6 = 5/6", ancora: "" }],
+    risultato: { valore: "5/6", unita: "" }, verifica: { spiegazione: "", calcolo: "5/6 - 1/3 = 1/2" } };
+  frazioni.verifica.calcolo = "1/2 + 1/3 = 5/6"; // la verifica finisce con il risultato
+  assert.deepEqual(controllaCompito(frazioni), { ok: true }); // senza altri dati basta una frazione del testo
+});
+
+test("unità: una sola per catena; le equivalenze si scrivono come conti", () => {
+  assert.equal(contoTorna("1 km + 500 m = 501 m"), false);
+  assert.equal(contoTorna("1,5 m = 150 cm"), false);
+  assert.equal(contoTorna("1,5 × 100 = 150"), true);
+  assert.equal(contoTorna("5 cm2 + 3 cm2 = 8 cm2"), true);
+  assert.equal(contoTorna("5 cm² + 3 cm² = 8 cm²"), true);
+});
+
+test("scritture comuni: x come per, arrotondamenti confrontati con il valore esatto", () => {
+  assert.equal(contoTorna("70 x 18 = 1260"), true);
+  assert.equal(contoTorna("3,14 × 5 × 5 = 78,5"), true);
+  assert.equal(contoTorna("1,44 = 1,4 = 1,35"), false);
+  assert.equal(contoTorna("10 : 3 = 3,33"), true);
+});
+
+test("il ricalcolo non dipende solo da quello che dice il modello", () => {
+  assert.equal(eMatematica({ matematica: false, materia: "geometria", passi: [] }), true);
+  assert.equal(eMatematica({ matematica: false, materia: "", passi: [{ calcolo: "2 + 2 = 4" }] }), true);
+  assert.equal(eMatematica({ matematica: false, materia: "storia", passi: [{ calcolo: "" }] }), false);
+});
+
+test("nessun indizio dice già il risultato", () => {
+  const c = { ...copia(PAOLO), indizi: ["Somma le frazioni.", "Alla fine viene 1260 €.", "Pensa a 1.260 euro."] };
+  assert.deepEqual(indiziSenzaRisultato(c), ["Somma le frazioni."]);
+});
