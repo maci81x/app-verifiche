@@ -212,9 +212,11 @@ export function rispostaColRisultato(r, c) {
   if (!r || valutaSicuro(valore) === null) return false;
   const uguale = (t) => numeriIn(t, true).some((n) => coincide(n, valore)) ||
     (String(t).match(/\d+\s*\/\s*\d+/g) || []).some((f) => coincide(valutaSicuro(f), valore));
-  if (uguale(c.testo || "")) return false;
-  const p = r.prova_tu || {};
-  return [r.risposta, ...(r.calcoli || []), r.figura?.etichetta, p.testo, p.calcolo, p.spiegazione, p.risultato?.valore]
+  // le cifre di «1/6» non sono numeri del testo: con risultato 6 il controllo resta acceso
+  if (uguale(String(c.testo || "").replace(/\d+\s*\/\s*\d+/g, " "))) return false;
+  const p = r.prova_tu || {}, f = r.figura;
+  if (f && f.parti && coincide(f.colorate / f.parti, valore)) return true; // la barra 5 su 12 dice 5/12
+  return [r.risposta, ...(r.calcoli || []), f?.etichetta, p.testo, p.calcolo, p.spiegazione, p.risultato?.valore]
     .filter(Boolean).some(uguale);
 }
 export const AVVISO_BLOCCATA = "\n\nAttenzione: nel tentativo precedente la risposta conteneva il risultato finale. La soluzione non è ancora sbloccata: non scrivere il risultato in nessun campo (risposta, calcoli, figura, prova_tu) né un conto che ci arriva. Dai invece un indizio sul passo che serve, senza risultato.";
@@ -225,7 +227,7 @@ export async function rispondiSenzaRisultato(genera, c) {
   if (!r || !rispostaColRisultato(r, c)) return r;
   r = await genera(AVVISO_BLOCCATA);
   if (!r || !rispostaColRisultato(r, c)) return r;
-  const indizio = indiziSenzaRisultato(c)[0];
+  const indizio = (c.indizi || []).find((t) => !rispostaColRisultato({ risposta: t }, c));
   return { risposta: "Il risultato te lo faccio vedere dopo che hai provato." + (indizio ? " Intanto un indizio: " + indizio : " Rileggi i passi e scrivi la tua risposta."),
     calcoli: [], figura: null, prova_tu: null, passo: null };
 }

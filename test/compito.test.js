@@ -443,3 +443,18 @@ test("prompt della domanda: con la soluzione bloccata chiede di non dire il risu
   assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /non è ancora sbloccata/);
   assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /1260/); // dice al modello quale numero non scrivere
 });
+
+test("risposta col risultato: i numeri delle frazioni del testo non spengono il controllo; la barra della figura conta", () => {
+  const sei = { testo: "Luca ha speso 1/6 della paghetta e ha 30 €. Quanti sesti gli restano?", risultato: { valore: "5", unita: "sesti" } };
+  assert.equal(rispostaColRisultato(R({ risposta: "Gliene restano 5." }), sei), true);
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", indizi: ["In tutto 5/12.", "Porta tutto in dodicesimi."], risultato: { valore: "5/12", unita: "" } };
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 12, colorate: 5, etichetta: "" } }), fr), true);
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 12, colorate: 3, etichetta: "3/12" } }), fr), false);
+});
+
+test("risposta di riserva: l'indizio non porta il risultato nemmeno come frazione", async () => {
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", indizi: ["In tutto 5/12.", "Porta tutto in dodicesimi."], risultato: { valore: "5/12", unita: "" } };
+  const r = await rispondiSenzaRisultato(async () => R({ risposta: "Fa 5/12." }), fr);
+  assert.match(r.risposta, /Porta tutto in dodicesimi/);
+  assert.doesNotMatch(r.risposta, /5\/12/);
+});

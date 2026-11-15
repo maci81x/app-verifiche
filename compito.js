@@ -33,7 +33,8 @@ function htmlIndizi(c, mostrati, provo = false) {
 // La soluzione completa si sblocca dopo almeno 1 indizio e 1 risposta finale provata (anche sbagliata).
 // Lo stato sta nel compito, così si salva con lui e riaprendolo resta com'era.
 const MSG_BLOCCATA = "Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se non sei sicur*. Poi ti faccio vedere tutto.";
-const soluzioneSbloccata = (c) => !!(c && c.sblocco && c.sblocco.indizio && c.sblocco.risposta);
+// Senza indizi basta la risposta provata (altrimenti resterebbe bloccata per sempre).
+const soluzioneSbloccata = (c) => !!(c && c.sblocco && c.sblocco.risposta && (c.sblocco.indizio || !(c.indizi || []).length));
 const conSblocco = (c, cosa) => ({ ...c, sblocco: { ...(c.sblocco || {}), [cosa]: true } });
 // Esito della risposta provata prima della soluzione: mai il risultato, se è sbagliata.
 function htmlEsitoTentativo(r, c) {
@@ -249,8 +250,9 @@ function mostraAiuto() {
   window.scrollTo(0, 0);
 }
 function salvaQuesto() { if (profilo) salvaLocale(chiaveCompiti(profilo.id), salvaCompito(leggiLocale(chiaveCompiti(profilo.id), []), compito, new Date().toISOString())); }
-function segnaSblocco(cosa) {
-  if (compito.sblocco && compito.sblocco[cosa]) return;
+function segnaSblocco(cosa, quale = compito) {
+  // nel frattempo è cambiato compito? (un indizio intanto rifà l'oggetto, ma il compito è lo stesso)
+  if (!quale || !compito || quale.testo !== compito.testo || (compito.sblocco && compito.sblocco[cosa])) return;
   compito = conSblocco(compito, cosa); salvaQuesto();
   const ok = soluzioneSbloccata(compito);
   $("btn-cp-soluzione").setAttribute("aria-disabled", String(!ok));
@@ -261,9 +263,11 @@ async function provaRisposta() {
   const risposta = $("cp-mia-risposta").value.trim(), out = $("cp-tentativo-esito");
   if (!risposta) { out.innerHTML = "<p>Scrivi la tua risposta, anche se non sei sicur*.</p>"; return; }
   if (!(compito.risultato && compito.risultato.valore)) { segnaSblocco("risposta"); out.innerHTML = "<p>Fatto. Adesso confrontala con la soluzione.</p>"; return; }
+  const c = compito;
   try {
-    const r = await modello({ azione: "prova_tu", atteso: compito.risultato, risposta });
-    segnaSblocco("risposta"); out.innerHTML = htmlEsitoTentativo(r, compito);
+    const r = await modello({ azione: "prova_tu", atteso: c.risultato, risposta });
+    if (!compito || c.testo !== compito.testo) return;
+    segnaSblocco("risposta", c); out.innerHTML = htmlEsitoTentativo(r, c);
   } catch (e) { out.innerHTML = "<p>" + esc(messaggioModello(e, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
 function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati, provoIo); }

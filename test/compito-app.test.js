@@ -201,3 +201,9 @@ test("esito della risposta provata prima della soluzione: non svela il risultato
   assert.match(run(`htmlEsitoTentativo({ giusto: true, esito: "giusto" }, ${JSON.stringify(C)})`), /Ci sei/);
   assert.match(run(`htmlEsitoTentativo({ giusto: true, esito: "senza_unita" }, ${JSON.stringify(C)})`), /manca l'unità: €/);
 });
+
+test("senza indizi la soluzione si sblocca con la sola risposta provata (niente blocco per sempre)", () => {
+  const nudo = { ...C, indizi: [] };
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(nudo)})`), false);
+  assert.equal(run(`soluzioneSbloccata(conSblocco(${JSON.stringify(nudo)}, "risposta"))`), true);
+});
