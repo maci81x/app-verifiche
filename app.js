@@ -279,6 +279,21 @@ function layoutMappa(albero, larghezza, carattere = MAPPA.carattere, stati = {})
   return w < MAPPA.soglia ? mappaVerticale(radice, w, carattere) : mappaOrizzontale(radice, w, carattere);
 }
 
+// Mappa a schermo (issue #26): un elenco a filetti, figli rientrati con una linea grigia, semaforo a
+// destra. I riquadri con la frase o il link sono pulsanti e aprono la card. La stampa usa svgMappa.
+function htmlAlberoMappa(albero, stati) {
+  const perNodo = statiNodi(albero, stati);
+  const riga = (n, livello) => {
+    const s = perNodo[n.id] || "mai", toccabile = !!(n.ancora || n.url), tag = toccabile ? "button" : "div";
+    const segno = s === "web" ? '<span class="etichetta-web">dal web</span>' : htmlStato(s);
+    return '<li><' + tag + (toccabile ? ' type="button"' : "") + ' class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + livello + '" data-s="' + s + '"' +
+      (n.fonte === FONTE_WEB ? ' data-fonte="web"' : "") + (toccabile ? ' role="button" aria-pressed="false" aria-haspopup="dialog"' : "") + ">" +
+      '<span class="m-titolo">' + esc(n.titolo) + "</span>" + segno + "</" + tag + ">" +
+      ((n.figli || []).length ? '<ul class="m-figli">' + n.figli.map((f) => riga(f, livello + 1)).join("") + "</ul>" : "") + "</li>";
+  };
+  return '<ul class="m-albero" aria-label="Mappa dell’argomento">' + (albero.nodi || []).map((n) => riga(n, 1)).join("") + "</ul>";
+}
+
 // Nodi con lo stato del semaforo (data-s) e, se toccabili, pulsanti con aria-pressed.
 function svgMappa(layout) {
   const conFonte = (f) => (f === FONTE_WEB ? ' data-fonte="web"' : "");
@@ -308,6 +323,7 @@ let domande = [], idx = 0, risposte = {}, scartate = 0, argsProva = [];
 let livello = "medio", tipo = "miste", modalita = "scritta";
 let titoloProva = "", materiaProva = "", timer = null;
 let dettaglio = [], soloErrori = false;
+let corrette = {}; // verifica in linea (issue #26): { [domanda_id]: { punti, commento, rubrica } }
 // Ultimo "Cosa studiare" e ultimo esito mostrati: li riusa la stampa (stampa.js).
 let listaStudiare = [], esitoMostrato = null;
 let libreriaCaricata = false; // false se l'ultima lettura della libreria è fallita
@@ -345,19 +361,32 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Libreria", 0], materiale: ["Materiale", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Storico", 0], ripasso: ["Ripasso", 2], verifica: ["Verifica", 3], esito: ["Esito", 4] };
-function vai(v, materia) {
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4] };
+// Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
+const CON_BARRA = ["libreria", "argomenti", "storico", "scheda", "mappa", "esito"];
+const SENZA_TESTATA = ["libreria", "profili", "codice"];
+const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
+function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
+  if ($("menu-scheda")) chiudiFoglio("menu-scheda");
   if (v !== "verifica") fermaVoce();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
-  $("nome-passo").textContent = info[0];
+  $("nome-passo").textContent = titolo || info[0];
+  $("testata").hidden = SENZA_TESTATA.includes(v);
+  $("barra-basso").hidden = !CON_BARRA.includes(v) || !profilo;
+  document.body.dataset.barra = $("barra-basso").hidden ? "" : "1";
+  document.querySelectorAll(".voce-barra").forEach((b) => {
+    if (b.dataset.vai === v || ((v === "scheda" || v === "mappa") && b.dataset.vai === "argomenti")) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+  $("btn-menu").hidden = v !== "scheda";
   document.querySelectorAll(".tacche i").forEach((el) => { el.dataset.on = (+el.dataset.t <= info[1]) ? "1" : "0"; });
   $("conta-passo").textContent = info[1] ? ("passo " + info[1] + " di 4") : (profilo ? profilo.nome : "");
-  $("btn-rail-indietro").hidden = (v === "libreria" || v === "profili" || v === "codice" || v === "impostazioni");
+  $("btn-rail-indietro").hidden = v === "argomenti" || v === "storico";
   const chip = $("chip-materia");
-  if (materia) { chip.hidden = false; chip.textContent = materia; tinta(document.documentElement, materia); }
+  // Accanto al titolo solo il segno colorato: il nome della materia lo legge lo screen reader.
+  if (materia) { chip.hidden = false; chip.textContent = ""; chip.setAttribute("aria-label", "materia: " + materia); chip.title = materia; tinta(document.documentElement, materia); }
   else if (VISTE[v][1] === 0 && v !== "scheda" && v !== "storico") { chip.hidden = true; tinta(document.documentElement, null); }
   $("tacche").hidden = !info[1]; // le tacche solo nel flusso della verifica (passi 1-4)
   window.scrollTo(0, 0); // subito in cima: il contenuto parte sotto la barra
@@ -511,7 +540,9 @@ async function entraProfilo(p, client) {
   clearInterval(timerBlocco);
   sb = client; profilo = p;
   const { data: st } = await sb.from("studenti").select("scelte").eq("id", p.id).maybeSingle();
-  if (st && st.scelte) { livello = st.scelte.livello || livello; tipo = st.scelte.tipo || tipo; modalita = st.scelte.modalita || modalita; }
+  // Prima le scelte ricordate su questo telefono, poi quelle salvate sul profilo (issue #26).
+  const loc = leggiLocale(chiaveScelte(p.id), null);
+  ({ livello, tipo, modalita } = scelteValide(loc || (st && st.scelte)));
   errore($("err-profili"), "");
   caricaLibreria(); vai("libreria");
 }
@@ -868,8 +899,11 @@ async function salvaConcetti() {
 function apriScheda(a) {
   corrente = a; modo = "argomento";
   $("t-scheda").textContent = a.titolo;
-  $("meta-scheda").textContent = a.materia + ", " + a.concetti.length + (a.concetti.length === 1 ? " punto" : " punti") + " da sapere. Salvato il " + dataIt(a.creato) + ". " +
-    (a.ultima ? ("Ultima verifica il " + dataIt(a.ultima.data) + ", prontezza " + a.ultima.indice + "%.") : "Ancora nessuna verifica.");
+  $("mat-scheda").textContent = a.materia; tinta($("mat-scheda"), a.materia);
+  $("meta-scheda").textContent = a.concetti.length ? rigaStatoArgomento(a) : "Ancora nessun punto.";
+  $("sum-punti").textContent = a.concetti.length === 1 ? "Il punto" : "I " + a.concetti.length + " punti";
+  disegnaCopertina($("cop-scheda"), a);
+  disegnaScelte(a);
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato || "mai";
@@ -882,11 +916,53 @@ function apriScheda(a) {
   $("btn-rivedi").hidden = !a.ultima;
   $("btn-rileggi-concetti").hidden = !!a.concetti.length || !a.trascrizione;
   errore($("err-scheda"), "");
-  disegnaOpzioni("opz-scheda");
-  $("opz-scheda").hidden = false;
-  ["btn-ripassa-arg", "btn-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
+  ["scelte-scheda", "btn-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
   adattaSchedaEsercizi(a);
-  vai("scheda", a.materia);
+  vai("scheda", a.materia, a.titolo);
+}
+
+// Tre card grandi (issue #26): la consigliata gialla e per prima, con «Io farei questo».
+function disegnaScelte(a) {
+  const box = $("scelte-scheda"); box.innerHTML = "";
+  ordineScelte(a).forEach((x) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "scelta"; b.dataset.scelta = x.chiave;
+    if (x.consigliata) b.dataset.consigliata = "1";
+    b.innerHTML = (x.consigliata ? '<span class="occhiello">Io farei questo</span>' : "") + "<b>" + esc(x.titolo) + "</b><small>" + esc(x.spiega) + "</small>";
+    b.onclick = () => scegli(x.chiave);
+    box.appendChild(b);
+  });
+}
+function scegli(chiave) {
+  if (chiave === "ripassa") { apriMappa(corrente, "studiare"); return; }
+  imposta("modalita", chiave === "interroga" ? "orale" : "scritta");
+  apriPrepara();
+}
+// Preparazione: livello, tipo e modo a segmenti, ricordati dall'ultima volta; un solo «Parti».
+function apriPrepara() {
+  disegnaOpzioni("opz-prepara");
+  errore($("err-prep"), ""); attesa($("stato-prep"), null);
+  vai("prepara", corrente.materia, corrente.titolo);
+}
+
+// Miniatura della prima foto (60×80): l'argomento si riconosce dal suo quaderno.
+let urlCopertine = {};
+function disegnaCopertina(el, a) {
+  const f = (a.foto || [])[0];
+  el.innerHTML = "";
+  el.dataset.vuota = f ? "" : "1";
+  if (!f) return;
+  const img = document.createElement("img"); img.alt = ""; img.loading = "lazy";
+  if (urlCopertine[f.storage_path]) img.src = urlCopertine[f.storage_path]; else img.dataset.percorso = f.storage_path;
+  el.appendChild(img);
+}
+// Gli URL delle copertine in una sola richiesta, poi si riempiono le immagini già nella pagina.
+async function caricaCopertine(lista) {
+  const mancano = [...new Set(lista.map((a) => (a.foto || [])[0]).filter(Boolean).map((f) => f.storage_path))].filter((p) => !urlCopertine[p]);
+  if (mancano.length && sb) {
+    const { data } = await sb.storage.from(BUCKET).createSignedUrls(mancano, 3600);
+    (data || []).forEach((x) => { if (x.signedUrl) urlCopertine[x.path] = x.signedUrl; });
+  }
+  document.querySelectorAll("img[data-percorso]").forEach((img) => { const u = urlCopertine[img.dataset.percorso]; if (u) { img.src = u; delete img.dataset.percorso; } });
 }
 
 async function disegnaFotoScheda(a) {
@@ -999,6 +1075,47 @@ async function svuotaMemoria() {
   avviso($("err-imp"), "Fatto: gli argomenti di " + profilo.nome + " sono cancellati.");
 }
 
+/* =================================================================== fogli dal basso */
+// Menu «⋯» dell'argomento (issue #26): dialogo dal basso, Esc o tocco fuori per chiudere.
+// La pagina sotto un foglio si ferma dov'era (anche su iPhone): body fisso, poi si torna lì.
+let scrollFoglio = 0;
+function bloccaPagina() {
+  if (document.body.classList.contains("con-card")) return;
+  scrollFoglio = window.scrollY || 0; document.body.style.top = -scrollFoglio + "px";
+  document.body.classList.add("con-card");
+}
+function sbloccaPagina() {
+  if (!document.body.classList.contains("con-card")) return;
+  document.body.classList.remove("con-card"); document.body.style.top = "";
+  window.scrollTo(0, scrollFoglio);
+}
+// Trascinando il foglio verso il basso (dalla cima del suo contenuto) si chiude.
+function trascinaPerChiudere(foglio, chiudi) {
+  let y0 = null, dy = 0;
+  foglio.addEventListener("touchstart", (e) => { y0 = foglio.scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  foglio.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    foglio.style.transform = dy ? "translateY(" + dy + "px)" : "";
+  }, { passive: true });
+  foglio.addEventListener("touchend", () => {
+    foglio.style.transform = "";
+    if (y0 != null && dy > 90) chiudi();
+    y0 = null; dy = 0;
+  });
+}
+let focusPrimaFoglio = null;
+function apriFoglio(id) {
+  focusPrimaFoglio = document.activeElement;
+  $(id).hidden = false; bloccaPagina();
+  const primo = $(id).querySelector("button:not([hidden])"); if (primo) primo.focus();
+}
+function chiudiFoglio(id) {
+  if ($(id).hidden) return;
+  $(id).hidden = true; sbloccaPagina();
+  if (focusPrimaFoglio && focusPrimaFoglio.isConnected) focusPrimaFoglio.focus();
+}
+
 /* =================================================================== opzioni della prova */
 
 const OPZIONI = [
@@ -1011,28 +1128,43 @@ const OPZIONI = [
   ["Ti prepari per", "modalita", [["scritta", "Verifica scritta", "Domande come le trovi sul foglio"],
     ["orale", "Interrogazione", "Te le leggo ad alta voce e rispondi parlando"]]],
 ];
+// Scelte della preparazione (issue #26): ricordate sul telefono, una chiave per profilo; quelle
+// non valide tornano al valore di partenza.
+const chiaveScelte = (id) => "verifiche-scelte-" + id;
+function scelteValide(s) {
+  const fuori = { livello: "medio", tipo: "miste", modalita: "scritta" };
+  OPZIONI.forEach(([, ch, voci]) => { if (s && voci.some((v) => v[0] === s[ch])) fuori[ch] = s[ch]; });
+  return fuori;
+}
+const scelteRicordate = (id) => scelteValide(leggiLocale(chiaveScelte(id), null));
+const ricordaScelte = (id, s) => salvaLocale(chiaveScelte(id), scelteValide(s));
 function valore(ch) { return ch === "livello" ? livello : (ch === "tipo" ? tipo : modalita); }
 function imposta(ch, v) {
   if (ch === "livello") livello = v; else if (ch === "tipo") tipo = v; else modalita = v;
+  ricordaScelte(profilo.id, { livello, tipo, modalita });
   // Le scelte restano come l'ultima volta, anche su un altro telefono.
   sb.from("studenti").update({ scelte: { livello, tipo, modalita } }).eq("id", profilo.id).then(() => {});
 }
+// Righe di scelta a segmenti (issue #26); sotto, la spiegazione della voce scelta.
 function disegnaOpzioni(id) {
   const box = $(id); if (!box) return;
   box.innerHTML = "";
   OPZIONI.forEach((g) => {
-    const t = document.createElement("p"); t.className = "occhiello"; t.textContent = g[0]; box.appendChild(t);
-    const d = document.createElement("div"); d.className = "livelli";
+    const f = document.createElement("fieldset"); f.className = "gruppo-segmenti";
+    const t = document.createElement("legend"); t.className = "occhiello"; t.textContent = g[0]; f.appendChild(t);
+    const d = document.createElement("div"); d.className = "segmenti";
+    const spiega = document.createElement("p"); spiega.className = "legenda";
+    const scrivi = () => { spiega.textContent = (g[2].find((o) => o[0] === valore(g[1])) || [])[2] || ""; };
     g[2].forEach((o) => {
       const l = document.createElement("label");
       const i = document.createElement("input"); i.type = "radio"; i.name = g[1] + "-" + id; i.value = o[0];
       if (valore(g[1]) === o[0]) i.checked = true;
-      i.onchange = () => imposta(g[1], o[0]);
-      const b = document.createElement("b"); b.textContent = o[1];
-      const sm = document.createElement("small"); sm.textContent = o[2];
-      l.appendChild(i); l.appendChild(b); l.appendChild(sm); d.appendChild(l);
+      i.onchange = () => { imposta(g[1], o[0]); scrivi(); };
+      const b = document.createElement("span"); b.textContent = o[1];
+      l.appendChild(i); l.appendChild(b); d.appendChild(l);
     });
-    box.appendChild(d);
+    scrivi();
+    f.appendChild(d); f.appendChild(spiega); box.appendChild(f);
   });
 }
 
@@ -1057,6 +1189,10 @@ function rigaSessione(x, titolo) {
 }
 function disegnaStorico() {
   const box = $("andamento"); box.innerHTML = "";
+  // Ancora nessuna prova: un invito, non uno schermo vuoto (issue #26).
+  $("storico-vuoto").innerHTML = sessioni.length ? "" : htmlVuoto("Qui vedrai come vanno le prove", "Apri un argomento e fai la prima verifica: dopo, qui trovi il voto e cosa ripassare.");
+  $("storico-aiuto").hidden = !sessioni.length;
+  if (!sessioni.length) { $("filtri-storico").innerHTML = ""; $("lista-sessioni").innerHTML = ""; return; }
   const perMat = {};
   sessioni.forEach((x) => { (perMat[x.materia] = perMat[x.materia] || []).push(x); });
   const intest = document.createElement("p"); intest.className = "occhiello"; intest.textContent = "Andamento per materia"; box.appendChild(intest);
@@ -1129,7 +1265,7 @@ async function mostraSessione(x, daScheda) {
   });
   soloErrori = false; disegnaDettaglio();
   $("box-risposte").open = true;
-  $("btn-ancora").hidden = !daScheda; $("btn-torna-storico").hidden = !!daScheda;
+  $("btn-ancora").hidden = !daScheda; $("btn-ancora").className = "azione"; $("btn-torna-storico").hidden = !!daScheda;
   errore($("err-esito"), "");
   vai("esito", x.materia === "varie" ? null : x.materia);
 }
@@ -1250,10 +1386,9 @@ function disegnaAdattando(el, componi) {
 function disegnaMappa() {
   if (!mappa || $("v-mappa").hidden || $("pannello-mappa").hidden) return;
   chiudiCardNodo(false); // il disegno nuovo sostituisce il nodo a cui era agganciata la card
-  const box = $("disegno-mappa"), larghezza = box.clientWidth || 340;
-  const stati = statiDellaMappa(corrente);
-  disegnaAdattando(box, (car) => svgMappa(layoutMappa(mappa.albero, larghezza, car, stati)));
-  box.dataset.larghezza = String(larghezza);
+  const box = $("disegno-mappa");
+  box.innerHTML = htmlAlberoMappa(mappa.albero, statiDellaMappa(corrente)); // a schermo i filetti; la stampa resta in SVG
+  box.dataset.larghezza = String(box.clientWidth || 340);
   const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
   $("meta-mappa").textContent = n + (n === 1 ? " riquadro preso" : " riquadri presi") + " dagli appunti" + (web ? " e " + web + " dal web" : "") + ", mappa fatta il " + dataIt(mappa.generata) + "." +
     (mappa.scartati ? " Ho tolto " + mappa.scartati + (mappa.scartati === 1 ? " riquadro che negli appunti non c'era." : " riquadri che negli appunti non c'erano.") : "") +
@@ -1341,7 +1476,7 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
     const pesi = {}; args.forEach((a) => a.concetti.forEach((c) => { pesi[c.id] = c.peso; }));
     domande.forEach((d) => { d.peso = pesi[d.concetto_id] || 1; });
-    idx = 0; risposte = {};
+    idx = 0; risposte = {}; corrette = {};
     attesa(elStato, null); btn.disabled = false;
     vai("verifica", modo === "ripasso" ? null : args[0].materia);
     mostraDomanda();
@@ -1362,6 +1497,9 @@ function mostraDomanda() {
   $("q-conta").textContent = "Domanda " + (idx + 1) + " di " + domande.length;
   $("q-tipo").textContent = (modalita === "orale" ? "a voce, " : "") + (d.tipo === "aperta" ? "risposta aperta" : "scelta multipla");
   $("q-prog").style.width = Math.round(idx / domande.length * 100) + "%";
+  $("q-pallini").innerHTML = domande.map((_, i) => '<i data-f="' + (i < idx ? "fatta" : (i === idx ? "ora" : "")) + '"></i>').join("");
+  $("q-correzione").hidden = true; $("q-correzione").innerHTML = "";
+  $("btn-nonso").hidden = false;
   const da = $("q-da");
   if (modo === "ripasso") { da.hidden = false; da.textContent = "da: " + d.argomento_titolo; tinta(document.documentElement, d.materia); }
   else da.hidden = true;
@@ -1384,10 +1522,27 @@ function mostraDomanda() {
     ta.value = (risposte[d.id] && risposte[d.id].testo) || "";
     corpo.appendChild(ta);
   }
-  $("btn-avanti").textContent = idx === domande.length - 1 ? "Consegna" : "Avanti";
+  $("btn-avanti").textContent = modalita === "orale" && idx === domande.length - 1 ? "Consegna" : "Avanti";
   d._inizio = Date.now();
   errore($("err-ver"), "");
 }
+/* ---- verifica in linea (issue #26): la correzione compare sotto la domanda ---- */
+
+function esitoChiusa(d, scelta) {
+  const ok = scelta != null && scelta === d.corretta;
+  return { punti: ok ? 10 : 0, commento: ok ? "Giusta." : "La risposta giusta era: " + (d.opzioni[d.corretta] || "—") };
+}
+// Chip dell'esito, il commento e, se c'è, la frase del quaderno evidenziata.
+function htmlCorrezione(d, p) {
+  const s = p.punti >= 8 ? "verde" : (p.punti >= 5 ? "giallo" : "rosso");
+  const parola = { verde: "Giusta", giallo: "Quasi", rosso: "Non ancora" }[s];
+  return '<p class="corr-esito"><span class="sem" data-s="' + s + '"><i aria-hidden="true">' + segnoStato(s) + "</i> " + parola + "</span></p>" +
+    (p.commento && p.commento !== "Giusta." ? '<p class="corr-commento">' + esc(p.commento) + "</p>" : "") +
+    (d.ancora ? '<p class="occhiello">Sul tuo quaderno</p><p class="corr-quaderno">' + evidenzia(d.ancora) + "</p>" : "");
+}
+// Concetti passati da ✕ a ● con questa prova: la loro frase si evidenzia con una passata.
+const appenaSaputi = (prima, righe) => righe.filter((r) => prima[r.concetto_id] === "rosso" && r.stato === "verde").map((r) => r.concetto_id);
+
 function salvaCorrente(vuota) {
   const d = domande[idx];
   const secondi = Math.round((Date.now() - (d._inizio || Date.now())) / 1000);
@@ -1402,6 +1557,45 @@ function salvaCorrente(vuota) {
     risposte[d.id] = { tipo: "aperta", testo: vuota ? "" : t, secondi, guidata };
   }
   return true;
+}
+// Correzione sotto la domanda: la chiusa subito, l'aperta con il modello (una risposta sola).
+const inLinea = () => modalita !== "orale";
+function esitoAperta(d, testo, v) {
+  if (!testo) return { punti: 0, commento: d.risposta_attesa ? "Ci voleva: " + d.risposta_attesa : "Non hai risposto." };
+  if (!v) return { punti: 5, commento: "Non sono riuscito a correggere questa risposta. Confrontala tu con quello che ci voleva.", rubrica: null };
+  const tot = Math.min(10, Math.max(0, +v.totale || ((+v.completezza || 0) + (+v.correttezza || 0) + (+v.linguaggio || 0))));
+  return { punti: tot, commento: v.commento, rubrica: { completezza: v.completezza, correttezza: v.correttezza, linguaggio: v.linguaggio } };
+}
+async function correggiInLinea(d) {
+  const r = risposte[d.id] || {};
+  let p;
+  if (d.tipo === "chiusa") p = esitoChiusa(d, r.scelta);
+  else if (!r.testo) p = esitoAperta(d, "");
+  else {
+    $("btn-avanti").disabled = true; $("btn-nonso").disabled = true;
+    attesa($("stato-ver"), ["Correggo la risposta", "Guardo se hai detto tutto e se è giusto"]);
+    try {
+      const val = (await conRiprova(() => modello({ azione: "correggi", modalita, pacchetto: [
+        { id: d.id, domanda: d.testo, risposta_attesa: d.risposta_attesa, elementi: d.elementi || [], risposta_alunna: r.testo }] }))).valutazioni || [];
+      p = esitoAperta(d, r.testo, val.find((x) => x.id === d.id));
+    } catch (e) {
+      attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
+      errore($("err-ver"), messaggioModello(e, "Non sono riuscito a correggere la risposta. Tocca di nuovo Avanti fra un momento."));
+      return;
+    }
+    attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
+  }
+  corrette[d.id] = p;
+  // Le risposte restano in vista ma non si cambiano più; la giusta e quella scelta si vedono.
+  document.querySelectorAll("#q-corpo input, #q-corpo textarea").forEach((x) => { x.disabled = true; });
+  if (d.tipo === "chiusa") document.querySelectorAll("#q-corpo label").forEach((l) => {
+    const j = +l.querySelector("input").value;
+    if (j === d.corretta) l.dataset.esito = "giusta"; else if (j === r.scelta) l.dataset.esito = "sbagliata";
+  });
+  const box = $("q-correzione"); box.innerHTML = htmlCorrezione(d, p); box.hidden = false;
+  $("btn-nonso").hidden = true;
+  $("btn-avanti").textContent = idx === domande.length - 1 ? "Vedi com'è andata" : "Prossima";
+  box.scrollIntoView({ block: "nearest" });
 }
 function avanza() {
   if (idx < domande.length - 1) { idx++; mostraDomanda(); window.scrollTo({ top: 0, behavior: "smooth" }); return true; }
@@ -1482,11 +1676,16 @@ function ascolta(silenzioMs) {
     const fallisci = (codice) => { if (finito) return; finito = true; clearInterval(orologio); erroreVoce = codice; try { r.stop(); } catch (e) { /* già fermo */ } res(null); };
     const chiudi = () => {
       if (finito) return;
+      const v = $("voce"); if (v) v.dataset.sente = "";
       // Il microfono non è mai partito e non è arrivata nessuna parola: non è silenzio, è un guasto.
       if (!audio && !finale && !parziale) return fallisci("muto");
       finito = true; clearInterval(orologio); try { r.stop(); } catch (e) { /* già fermo */ } res((finale + " " + parziale).trim());
     };
     r.onaudiostart = () => { audio = true; };
+    // L'onda intorno al microfono si muove solo mentre sente una voce (issue #26).
+    const sente = (si) => { const v = $("voce"); if (v) v.dataset.sente = si ? "1" : ""; };
+    r.onspeechstart = () => sente(true);
+    r.onspeechend = () => sente(false);
     r.onresult = (ev) => {
       audio = true; parziale = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
@@ -1593,7 +1792,7 @@ async function correggi() {
   fermaVoce();
   $("btn-avanti").disabled = true; $("btn-nonso").disabled = true;
   attesa($("stato-ver"), ["Correggo le risposte", "Guardo se hai detto tutto, se è giusto e come l'hai detto", "Salvo la prova nello storico"]);
-  const pacchetto = domande.filter((d) => d.tipo === "aperta" && (risposte[d.id] || {}).testo)
+  const pacchetto = domande.filter((d) => d.tipo === "aperta" && (risposte[d.id] || {}).testo && !corrette[d.id])
     .map((d) => ({ id: d.id, domanda: d.testo, risposta_attesa: d.risposta_attesa, elementi: d.elementi || [], risposta_alunna: risposte[d.id].testo }));
   let val = [];
   try {
@@ -1606,16 +1805,10 @@ async function correggi() {
   const per = {};
   domande.forEach((d) => {
     const r = risposte[d.id] || {};
-    if (d.tipo === "chiusa") {
-      const ok = r.scelta != null && r.scelta === d.corretta;
-      per[d.id] = { punti: ok ? 10 : 0, commento: ok ? "Giusta." : "La risposta giusta era: " + (d.opzioni[d.corretta] || "—") };
-    } else if (!r.testo) per[d.id] = { punti: 0, commento: "Non hai risposto." };
-    else {
-      const v = val.find((x) => x.id === d.id);
-      const tot = v ? Math.min(10, Math.max(0, +v.totale || ((+v.completezza || 0) + (+v.correttezza || 0) + (+v.linguaggio || 0)))) : 5;
-      per[d.id] = { punti: tot, commento: v ? v.commento : "Non sono riuscito a correggere questa risposta. Confrontala tu con quello che ci voleva.",
-        rubrica: v ? { completezza: v.completezza, correttezza: v.correttezza, linguaggio: v.linguaggio } : null };
-    }
+    if (corrette[d.id]) per[d.id] = corrette[d.id];
+    else if (d.tipo === "chiusa") per[d.id] = esitoChiusa(d, r.scelta);
+    else if (!r.testo) per[d.id] = { punti: 0, commento: "Non hai risposto." };
+    else per[d.id] = esitoAperta(d, r.testo, val.find((x) => x.id === d.id));
   });
   attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
   await mostraEsito(per);
@@ -1623,8 +1816,8 @@ async function correggi() {
 
 // Anello di prontezza: l'arco dice quanto manca, il voto al centro lo dice in numero.
 function disegnaQuadrante(indice, v) {
-  const r = 44, giro = 2 * Math.PI * r, arco = $("arco");
-  arco.setAttribute("stroke-dasharray", (giro * indice / 100).toFixed(1) + " " + giro.toFixed(1));
+  const arco = $("arco"); // semicerchio con pathLength 100: l'arco è la prontezza
+  arco.setAttribute("stroke-dasharray", Math.max(0, Math.min(100, indice)) + " 100");
   arco.setAttribute("stroke", indice >= 75 ? "var(--verde)" : (indice >= 50 ? "var(--giallo)" : "var(--rosso)"));
   $("arco-num").textContent = votoIt(v);
   $("titolo-quadrante").textContent = "Prontezza " + indice + "%, voto stimato " + votoIt(v);
@@ -1644,21 +1837,23 @@ function verdettoEsito(es) {
   return ["Ci sei quasi.", "Rileggi i punti segnati Quasi e rifai la verifica."];
 }
 // righe: [{ titolo, media, stato, ancora, errore_appunti?, da?, concetto_id?, materia? }], dal più debole
-function disegnaSemaforo(righe) {
+function disegnaSemaforo(righe, saputi = []) {
   const e = $("esito-concetti"); e.innerHTML = "";
   $("occhiello-concetti").hidden = !righe.length;
   righe.sort((a, b) => a.media - b.media).forEach((x, i) => {
-    const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
-    d.innerHTML = '<h3><span class="ordine">' + (i + 1) + "</span>" + esc(x.titolo) + '<span class="voto">' + votoIt(Math.round(x.media * 2) / 2) + "/10</span></h3>" +
-      htmlStato(x.stato);
+    const d = document.createElement("div"); d.className = "esito-c compatto"; d.dataset.s = x.stato;
+    if (saputi.includes(x.concetto_id)) d.classList.add("appena-saputo");
+    d.innerHTML = '<h3><span class="ordine">' + (i + 1) + '</span><span class="tit">' + esc(x.titolo) + "</span>" + htmlStato(x.stato) + "</h3>";
     const p = document.createElement("p");
     if (x.stato === "verde") p.textContent = "Lo sai: basta un'occhiata prima della verifica.";
     // Evidenziata solo la frase vera del quaderno: la descrizione del modello resta testo normale.
     else p.innerHTML = (x.da ? "Da " + esc(x.da) + ". " : "") + (x.ancora ? '<span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span>" : esc(x.descrizione || ""));
     d.appendChild(p);
     if (x.errore_appunti && x.stato !== "verde") { const s = document.createElement("span"); s.className = "errore-appunti"; s.textContent = notaQuaderno(x.errore_appunti); d.appendChild(s); }
-    if (x.concetto_id && x.stato !== "verde")
-      d.appendChild(bottoneSpiega({ concetto_id: x.concetto_id, titolo: x.titolo, ancora: x.ancora, materia: x.materia }));
+    if (x.concetto_id && x.stato !== "verde") {
+      const b = bottoneSpiega({ concetto_id: x.concetto_id, titolo: x.titolo, ancora: x.ancora, materia: x.materia });
+      b.className = "link spiega-link"; d.appendChild(b);
+    }
     e.appendChild(d);
   });
 }
@@ -1702,14 +1897,16 @@ async function mostraEsito(per) {
   const concettoDi = {}; argsProva.forEach((a) => a.concetti.forEach((c) => { concettoDi[c.id] = { c, a }; }));
   const righe = es.concetti.filter((x) => concettoDi[x.concetto_id]).map((x) => {
     const { c, a } = concettoDi[x.concetto_id];
-    return { titolo: c.titolo, media: x.media, stato: x.stato, ancora: c.ancora || "", descrizione: c.ancora ? "" : c.descrizione || "", errore_appunti: c.errore_appunti,
+    return { titolo: c.titolo, media: x.media, stato: x.stato, prima: c.stato, ancora: c.ancora || "", descrizione: c.ancora ? "" : c.descrizione || "", errore_appunti: c.errore_appunti,
       da: modo === "ripasso" ? a.titolo : null, concetto_id: c.id, materia: a.materia };
   });
   esitoMostrato = { info: { titolo: titoloProva, materia: materiaProva, data: new Date().toISOString() },
     dati: { indice: es.indice, voto: es.voto, verdetto: $("verdetto-t").textContent + " " + $("verdetto-p").textContent, righe } };
-  disegnaSemaforo(righe.map((r) => ({ ...r })));
+  disegnaSemaforo(righe.map((r) => ({ ...r })), appenaSaputi(Object.fromEntries(righe.map((r) => [r.concetto_id, r.prima])), righe));
   rossiEsito = righe.filter((r) => r.stato === "rosso").sort((x, y) => x.media - y.media).map((r) => ({ id: r.concetto_id, titolo: r.titolo }));
   $("btn-ripassa-rossi").hidden = !rossiEsito.length;
+  // Un solo pulsante pieno: senza punti deboli il pieno diventa «Rifai la verifica».
+  $("btn-ancora").className = rossiEsito.length ? "link" : "azione";
   dettaglio = domande.map((d, i) => {
     const r = risposte[d.id] || {}, p = per[d.id];
     return { n: i + 1, testo: d.testo, tipo: d.tipo, guidata: !!r.guidata,
@@ -1782,19 +1979,31 @@ function collega() {
   collegaAiuto();
   collegaEsercizi();
   collegaCardNodo();
-  $("btn-rail-indietro").addEventListener("click", () => vai(profilo ? "libreria" : "profili"));
+  $("btn-rail-indietro").addEventListener("click", () => {
+    const padre = PADRE[document.body.dataset.vista];
+    if (padre === "scheda" && corrente) apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente);
+    else if (!profilo) vai("profili");
+    else { disegnaLibreria(); vai("libreria"); }
+  });
+  // Barra in basso: Oggi, Argomenti, Risultati (la fotocamera è #btn-nuovo).
+  document.querySelectorAll(".voce-barra").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.vai === "libreria") { disegnaLibreria(); vai("libreria"); }
+    else if (b.dataset.vai === "argomenti") { disegnaArgomenti(); vai("argomenti"); }
+    else { filtroMat = ""; disegnaStorico(); vai("storico"); }
+  }));
+  $("btn-profilo").addEventListener("click", () => { disegnaProfiliSalvati(); vai("profili"); });
+  $("btn-menu").addEventListener("click", () => apriFoglio("menu-scheda"));
+  $("btn-menu-chiudi").addEventListener("click", () => chiudiFoglio("menu-scheda"));
+  trascinaPerChiudere(document.querySelector("#menu-scheda .foglio-menu"), () => chiudiFoglio("menu-scheda"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("menu-scheda").hidden) { e.preventDefault(); chiudiFoglio("menu-scheda"); } });
+  $("menu-scheda").addEventListener("click", (e) => { if (e.target.id === "menu-scheda" || e.target.closest(".voce-menu")) chiudiFoglio("menu-scheda"); });
+  $("btn-parti").addEventListener("click", () => { modo = "argomento"; preparaVerifica([corrente], $("btn-parti"), $("stato-prep"), $("err-prep")); });
   $("tastierino").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) tasto(b.dataset.n); });
   $("btn-impostazioni").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); });
-  $("btn-impostazioni-lib").addEventListener("click", () => { errore($("err-imp"), ""); vai("impostazioni"); if (genitore) disegnaImpostazioni(); });
   $("btn-gen-entra").addEventListener("click", genEntra);
   $("gen-password").addEventListener("keydown", (e) => { if (e.key === "Enter") genEntra(); });
   $("btn-gen-esci").addEventListener("click", genEsci);
   $("btn-np-crea").addEventListener("click", creaProfilo);
-  $("btn-storico").addEventListener("click", () => {
-    if (!sessioni.length) { avviso($("avviso-db"), "Lo storico è vuoto. Fai la prima verifica e qui trovi com'è andata."); return; }
-    filtroMat = ""; disegnaStorico(); vai("storico");
-  });
-  $("btn-torna-lib").addEventListener("click", () => { disegnaLibreria(); vai("libreria"); });
   $("btn-ripassa-rossi").addEventListener("click", ripassaIRossi);
   $("btn-torna-storico").addEventListener("click", () => { disegnaStorico(); vai("storico"); });
 
@@ -1828,7 +2037,6 @@ function collega() {
     preparaVerifica([corrente], $("btn-genera"), $("stato-con"), $("err-con"));
   });
 
-  $("btn-ripassa-arg").addEventListener("click", () => { modo = "argomento"; preparaVerifica([corrente], $("btn-ripassa-arg"), $("stato-scheda"), $("err-scheda")); });
   $("btn-rivedi").addEventListener("click", () => { if (corrente && corrente.ultima) mostraSessione(corrente.ultima, true); });
   $("btn-rileggi-concetti").addEventListener("click", ritrovaConcetti);
   $("btn-mappa").addEventListener("click", () => apriMappa(corrente, "mappa"));
@@ -1879,11 +2087,19 @@ function collega() {
   });
 
   $("btn-avanti").addEventListener("click", () => {
+    // In linea: il primo tocco corregge sotto la domanda, il secondo («Prossima») va avanti.
+    if (inLinea() && !voceAttiva) {
+      const d = domande[idx];
+      if (corrette[d.id]) { avanza(); return; }
+      if (!salvaCorrente(false)) { errore($("err-ver"), "Scegli una risposta, oppure tocca Non lo so."); return; }
+      correggiInLinea(d); return;
+    }
     if (!salvaCorrente(false)) { errore($("err-ver"), "Scegli una risposta, oppure tocca Non lo so."); return; }
     const orale = voceAttiva; fermaVoce();
     if (avanza() && orale) avviaOrale();
   });
   $("btn-nonso").addEventListener("click", () => {
+    if (inLinea() && !voceAttiva) { salvaCorrente(true); correggiInLinea(domande[idx]); return; }
     salvaCorrente(true);
     const orale = voceAttiva; fermaVoce();
     if (avanza() && orale) avviaOrale();

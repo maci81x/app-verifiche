@@ -13,7 +13,7 @@ function elemento(tag = "div") {
   const el = {
     tagName: tag, children: [], dataset: {}, attributi: {}, hidden: false, value: "", textContent: "",
     _html: "", onclick: null,
-    classList: { add() {}, remove() {} },
+    classList: { add() {}, remove() {}, contains() { return false; } },
     style: { setProperty() {}, removeProperty() {} },
     get innerHTML() { return this._html + this.children.map((c) => c.testo()).join(""); },
     set innerHTML(v) { this._html = v; this.children = []; },

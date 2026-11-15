@@ -100,7 +100,7 @@ test("evidenziatore: la frase del quaderno escapata dentro <mark class=\"evidenz
 });
 
 test("correzioni prima del merge: niente sovrapposizioni, tinta per riga, nota solo su profili ed esito", () => {
-  assert.doesNotMatch(css.match(/\.barra-fissa\{[^}]*\}/)[0], /position:fixed/);
+  assert.doesNotMatch(css, /\.barra-fissa\{[^}]*position:fixed/);
   assert.match(css, /\[style\*="--h"\]\{--tinta:hsl\(var\(--h\) var\(--s\) var\(--l\)\)\}/);
   assert.match(css, /\*,\*::before,\*::after\{box-sizing:border-box\}/);
   assert.match(css, /\.nota\{display:none\}/);

@@ -41,6 +41,45 @@ function concettoPiuDebole(a) {
   return voci[0] || null;
 }
 
+/* ---- issue #26: Oggi e argomento ---- */
+
+const punti = (n) => n + (n === 1 ? " punto" : " punti");
+const elencoIt = (xs) => (xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " e " + xs[xs.length - 1]);
+
+// La riga sotto «Ciao Giulia.»: una frase vera, calcolata dai punti di tutti gli argomenti.
+function fraseOggi(argomenti) {
+  const lista = argomenti || [];
+  if (!lista.length) return "Fotografa i tuoi appunti: da lì parte tutto.";
+  const tot = riepilogoStati(lista);
+  if (tot.rosso) {
+    const materie = [...new Set(lista.filter((a) => contaStati(a).rosso).map((a) => a.materia))];
+    return "Hai " + punti(tot.rosso) + " da ripassare" + (materie.length === 1 ? " in " + materie[0] : ", in " + elencoIt(materie)) + ".";
+  }
+  if (tot.giallo) return "Hai " + punti(tot.giallo) + (tot.giallo === 1 ? " segnato" : " segnati") + " Quasi: basta un ripasso veloce.";
+  if (tot.mai) return "Hai " + punti(tot.mai) + " ancora da provare: comincia da lì.";
+  return "Tutto verde: oggi puoi fotografare qualcosa di nuovo.";
+}
+
+// «5 punti: 2 li sai, 1 quasi, 1 da ripassare, 1 ancora da provare»
+function rigaStatoArgomento(a) {
+  const c = contaStati(a), tot = STATI_BARRA.reduce((s, k) => s + c[k], 0);
+  const parole = { verde: (n) => (n === 1 ? "lo sai" : "li sai"), giallo: () => "quasi", rosso: () => "da ripassare", mai: () => "ancora da provare" };
+  return punti(tot) + ": " + STATI_BARRA.filter((k) => c[k]).map((k) => c[k] + " " + parole[k](c[k])).join(", ");
+}
+
+// Le tre scelte dell'argomento, la consigliata per prima: con dei punti da ripassare «Ripassa con
+// me», altrimenti «Fai la verifica». Le altre restano nel loro ordine.
+const SCELTE = {
+  verifica: { titolo: "Fai la verifica", spiega: "Domande scritte sui tuoi appunti, come in classe." },
+  interroga: { titolo: "Fatti interrogare", spiega: "Ti leggo le domande e rispondi a voce." },
+  ripassa: { titolo: "Ripassa con me", spiega: "Rileggi le frasi del quaderno sui punti più deboli." },
+};
+function ordineScelte(a) {
+  const prima = contaStati(a).rosso ? "ripassa" : "verifica";
+  return [prima, ...["verifica", "interroga", "ripassa"].filter((k) => k !== prima)]
+    .map((k, i) => ({ chiave: k, titolo: SCELTE[k].titolo, spiega: SCELTE[k].spiega, consigliata: i === 0 }));
+}
+
 // Barra divisa in verde/giallo/rosso (e grigio per i mai provati), larghezze in percentuale.
 function htmlBarra(conta) {
   const tot = STATI_BARRA.reduce((s, k) => s + conta[k], 0);
@@ -95,15 +134,14 @@ function disegnaProfili(lista) {
     t.innerHTML = "<b>" + esc(p.nome) + "</b>" + (sotto ? "<small>" + esc(sotto) + "</small>" : "");
     b.appendChild(t); b.onclick = () => apriCodice(p); box.appendChild(b);
   });
-  // In libreria: gli altri profili, per passare all'altra (con il suo codice).
-  const r = $("profili"); r.innerHTML = "";
-  lista.forEach((p) => {
-    const b = bottoneNome(p, "", tinte);
-    b.setAttribute("aria-pressed", profilo && p.id === profilo.id ? "true" : "false");
-    b.appendChild(document.createTextNode(p.nome));
-    b.onclick = () => { if (!profilo || p.id !== profilo.id) apriCodice(p); };
-    r.appendChild(b);
-  });
+  // In Oggi: il tondo del profilo aperto, con il suo colore (tocco = cambia profilo).
+  const t = $("btn-profilo");
+  if (profilo && t) {
+    t.textContent = profilo.nome.slice(0, 1).toUpperCase();
+    t.setAttribute("aria-label", "Profilo di " + profilo.nome + ": cambia profilo");
+    const c = tinte[String(profilo.id)];
+    if (c) { t.style.setProperty("--h-profilo", c[0]); t.style.setProperty("--s-profilo", c[1] + "%"); }
+  }
 }
 function disegnaProfiliSalvati() {
   disegnaProfili(ordinaProfili(leggiLocale(CHIAVE_PROFILI, []), leggiLocale(CHIAVE_ULTIMO, null)));
@@ -129,11 +167,10 @@ function htmlPrimo(a, debole) {
       ? '<button type="button" class="azione" data-azione="lampo">Ripassa questo</button>' +
         '<button type="button" class="link" data-azione="mappa">Apri la mappa</button>'
       : '<button type="button" class="azione" data-azione="mappa">Apri la mappa</button>';
-  return '<p class="occhiello">Da ripassare prima</p>' +
+  return '<p class="occhiello">Io farei questo</p>' +
     '<h2 class="primo-tit">' + esc(a.titolo) + "</h2>" +
-    '<p class="primo-meta">' + esc(a.materia) + "</p>" +
     htmlBarra(contaStati(a)) +
-    '<div class="bottoni">' + azione + "</div>";
+    '<div class="primo-azioni">' + azione + "</div>";
 }
 
 function disegnaPrimo(a) {
@@ -156,34 +193,56 @@ function disegnaPrimo(a) {
   };
 }
 
-// Un solo pulsante pieno: con la card gialla il pieno è «Ripassa questo», «Fotografa» va a contorno.
-const classeFotografa = (conCard) => (conCard ? "minore" : "azione");
+// Disegno degli stati vuoti (issue #26): un quaderno aperto con una pagina che si solleva,
+// inchiostro e giallo. Originale, in linea.
+const SVG_VUOTO = '<svg class="disegno-vuoto" width="120" height="96" viewBox="0 0 120 96" fill="none" aria-hidden="true">' +
+  '<path d="M60 22c-12-8-30-9-46-5v62c16-4 34-3 46 5 12-8 30-9 46-5V17c-16-4-34-3-46 5z" fill="var(--carta)" stroke="var(--inchiostro)" stroke-width="2.5" stroke-linejoin="round"/>' +
+  '<path d="M60 22v62" stroke="var(--inchiostro)" stroke-width="2.5"/>' +
+  '<path d="M60 22c10-10 26-14 40-12-6 14-6 30 0 46-14-2-30 2-40 12z" fill="var(--evidenziatore)" stroke="var(--inchiostro)" stroke-width="2.5" stroke-linejoin="round"/>' +
+  '<path d="M24 38h22M24 48h18M24 58h22" stroke="var(--inchiostro)" stroke-width="2.5" stroke-linecap="round"/></svg>';
+const htmlVuoto = (titolo, testo) => '<div class="vuoto">' + SVG_VUOTO + "<b>" + esc(titolo) + "</b>" + esc(testo) + "</div>";
 
+// Card di un argomento con la copertina (la prima foto), titolo, materia, semaforo e voto.
+function cardArgomento(a) {
+  const b = document.createElement("button"); b.className = "scheda con-copertina"; b.type = "button";
+  tinta(b, a.materia);
+  const cop = document.createElement("span"); cop.className = "copertina"; cop.setAttribute("aria-hidden", "true");
+  disegnaCopertina(cop, a);
+  const corpo = document.createElement("span"); corpo.className = "corpo";
+  corpo.innerHTML = '<span class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
+    '<span class="voto-arg"><span class="solo-lettore">' + (a.ultima ? "voto " : "nessuna verifica fatta") + "</span>" + (a.ultima ? votoArgomento(a) : '<span aria-hidden="true">—</span>') + "</span></span>" +
+    '<span class="materia">' + esc(a.materia) + "</span>" + htmlBarra(contaStati(a));
+  b.appendChild(cop); b.appendChild(corpo);
+  b.onclick = () => apriScheda(a);
+  return b;
+}
+
+// Oggi (issue #26): saluto, una frase vera, la card consigliata e gli argomenti. Niente altro.
 function disegnaLibreria() {
-  const som = $("sommario"), lista = $("lista-argomenti");
+  const lista = $("lista-argomenti");
   const tot = riepilogoStati(argomenti);
-  som.innerHTML = argomenti.length
-    ? '<div class="chips" role="group" aria-label="Riepilogo dei punti da studiare">' + ["verde", "giallo", "rosso"].map((s) => htmlChip(s, tot[s])).join("") + "</div>"
-    : "";
   if (profilo && libreriaCaricata) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
-  const primo = daRipassarePrima(argomenti);
-  disegnaPrimo(primo);
-  $("btn-nuovo").className = classeFotografa(!!primo);
+  $("ciao").textContent = profilo ? "Ciao " + profilo.nome + "." : "Ciao.";
+  $("frase-oggi").textContent = fraseOggi(argomenti);
+  disegnaPrimo(daRipassarePrima(argomenti));
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
   if (!argomenti.length) {
-    lista.innerHTML = '<div class="vuoto"><b>Comincia dal primo argomento</b>Fotografa i tuoi appunti: restano qui, con le foto, e li ritrovi ogni volta che ripassi.</div>';
+    lista.innerHTML = htmlVuoto("Il primo argomento parte da una foto", "Tocca la fotocamera qui sotto e fotografa i tuoi appunti: restano qui e li ritrovi ogni volta che ripassi.");
     return;
   }
-  argomenti.forEach((a) => {
-    const b = document.createElement("button"); b.className = "scheda"; b.type = "button";
-    tinta(b, a.materia);
-    const c = contaStati(a);
-    b.innerHTML = '<div class="alto"><span class="tit">' + esc(a.titolo) + "</span>" +
-      '<span class="voto-arg"><span class="solo-lettore">' + (a.ultima ? "voto " : "nessuna verifica fatta") + "</span>" + (a.ultima ? votoArgomento(a) : '<span aria-hidden="true">—</span>') + "</span></div>" +
-      htmlBarra(c) +
-      '<div class="meta"><span>' + esc(a.materia) + "</span><span>" + contaVoci(a) + "</span><span>" + dataIt(a.aggiornato) + "</span></div>";
-    b.onclick = () => apriScheda(a);
-    lista.appendChild(b);
+  argomenti.forEach((a) => lista.appendChild(cardArgomento(a)));
+  caricaCopertine(argomenti);
+}
+
+// Argomenti: tutti, divisi per materia, più il ripasso del quadrimestre.
+function disegnaArgomenti() {
+  const box = $("lista-tutti"); box.innerHTML = "";
+  $("btn-ripasso").hidden = !argomenti.length;
+  if (!argomenti.length) { box.innerHTML = htmlVuoto("Qui finiscono i tuoi argomenti", "Tocca la fotocamera qui sotto: ogni foto degli appunti diventa un argomento."); return; }
+  [...new Set(argomenti.map((a) => a.materia))].sort().forEach((m) => {
+    const t = document.createElement("p"); t.className = "occhiello"; t.textContent = m; box.appendChild(t);
+    argomenti.filter((a) => a.materia === m).forEach((a) => box.appendChild(cardArgomento(a)));
   });
+  caricaCopertine(argomenti);
 }

@@ -20,7 +20,7 @@ function sintesiDelConcetto(nodoConcetto, inPreparazione = false) {
 // HTML della card. n: nodo dell'albero; ctx: { concetto: nodo di primo livello, errore: errore_appunti,
 // stato: stato del semaforo }. Funzione pura (nei test gira senza browser).
 function htmlCardNodo(n, ctx) {
-  const testa = (etichetta) => '<div class="card-testa"><h3 id="card-nodo-titolo">' + esc(n.titolo) + "</h3>" + etichetta +
+  const testa = (etichetta) => '<div class="maniglia" aria-hidden="true"></div><div class="card-testa"><h3 id="card-nodo-titolo">' + esc(n.titolo) + "</h3>" + etichetta +
     '<button type="button" class="chiudi" data-azione="chiudi" aria-label="Chiudi">✕</button></div>';
   if (n.fonte === FONTE_WEB) {
     return testa('<span class="etichetta-web">dal web</span>') + '<p class="card-testo">' + esc(n.testo) + "</p>" + linkFonte(n);
@@ -60,21 +60,16 @@ function apriCardNodo(g) {
   g.setAttribute("aria-pressed", "true");
   nodoAperto = { g, n, concetto, dalDb };
   box.hidden = false;
-  // La pagina sotto si ferma dov'era (anche su iPhone): body fisso, alla chiusura si torna lì.
-  if (!document.body.classList.contains("con-card")) { scrollCard = window.scrollY || 0; document.body.style.top = -scrollCard + "px"; }
-  document.body.classList.add("con-card");
+  bloccaPagina();
   const chiudi = dentro.querySelector("[data-azione=chiudi]");
   if (chiudi) chiudi.focus();
 }
 
-let scrollCard = 0;
 function chiudiCardNodo(rimettiFocus = true) {
   const box = $("card-nodo");
   if (!box || box.hidden) return;
   box.hidden = true;
-  document.body.classList.remove("con-card");
-  document.body.style.top = "";
-  window.scrollTo(0, scrollCard);
+  sbloccaPagina();
   const prima = nodoAperto && nodoAperto.g;
   if (prima) prima.setAttribute("aria-pressed", "false");
   nodoAperto = null;
@@ -122,6 +117,7 @@ function collegaCardNodo() {
   const box = $("card-nodo");
   if (!box) return;
   box.addEventListener("click", (e) => { if (e.target === box) chiudiCardNodo(); else azioneCardNodo(e); });
+  trascinaPerChiudere($("card-nodo-corpo"), () => chiudiCardNodo());
   document.addEventListener("keydown", tastiCardNodo);
 }
 
