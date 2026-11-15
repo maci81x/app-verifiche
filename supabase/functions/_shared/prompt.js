@@ -295,6 +295,7 @@ export function promptEserciziGenera(dati) {
     "Sei un insegnante di matematica di scuola media italiana. Prepara " + dati.quanti + " esercizi per " + chiStudia(dati.classe) + ", simili a quelli del libro.",
     "Tipi di esercizio confermati, ognuno con un esercizio vero del libro come modello:\n" +
       JSON.stringify(dati.tipi.map((t) => ({ id: t.breve, titolo: t.titolo, esempio: t.ancora, difficolta: t.difficolta, figura: t.figura }))),
+    dati.mirati ? "Sono esercizi mirati su «" + dati.mirati.concetto + "», che in un compito ha messo in difficoltà. Mettili in ordine dal più facile al più difficile: il primo quasi uguale a questo passo del compito, «" + dati.mirati.calcolo + "»; il secondo un po' più difficile; dal terzo in poi PROBLEMI A PAROLE (una piccola storia con i dati scritti nel testo, che chiede di usare «" + dati.mirati.concetto + "»), simili a questo compito: «" + dati.mirati.testo + "». Numeri e storie diversi da quelli del compito." : "",
     "Distribuisci gli esercizi fra i tipi in modo più uniforme possibile. Ogni esercizio deve somigliare al suo modello (stessa struttura, stessa difficoltà) ma con numeri diversi. Numeri adatti all'età: risultati interi, frazioni semplici o decimali con al massimo due cifre.",
     "Una sola domanda per esercizio, con un solo risultato finale. Niente geometria analitica. I problemi a parole sono ammessi se il modello lo è: tutti i numeri che servono stanno scritti nel testo.",
     "Per ogni esercizio:\n" +
@@ -348,7 +349,7 @@ export function promptCompito(dati) {
       "- soluzione_libro: se nel testo c'è la soluzione del libro (di solito fra parentesi quadre, per esempio [1260 €]), copiala; altrimenti vuoto;\n" +
       "- indizi: da 3 a 5 indizi a gradini, dal più leggero al più forte; nessuno dice il risultato finale; ognuno è una domanda o un suggerimento che fa fare il passo successivo (per esempio «Somma le frazioni spese: che frazione dello stipendio è andata in anelli e vestito?»);\n" +
       "- strategia: PRIMA dei passi, la strategia con un nome che si ricorda (per esempio «andare a ritroso», «dalla parte all'intero», «stesso denominatore con il mcm», «trova cosa resta») e in perche una frase che dice perché funziona per questo problema (per esempio «Conosciamo la fine, i 20 panini: si parte da lì e si torna indietro»);\n" +
-      "- passi: la soluzione passo per passo; ogni passo ha un titolo breve in parole semplici (per esempio «Frazioni spese», «Frazione che resta», «Cosa sono i due importi in euro», «Collego frazione ed euro», «Trovo 1/18», «Trovo l'intero», oppure «Punto di partenza», «Torno indietro nella seconda ora»), una spiegazione di 1-3 frasi che dice il PERCHÉ di quel passo e non solo il conto (per esempio «Questi 24 sono ciò che restava dopo aver tolto 1/4, quindi sono i 3/4») con un'immagine concreta quando aiuta (la torta in fette, il mucchio di panini, i soldi) e, se c'è un conto, il calcolo; ancora resta vuota (si usa solo con gli appunti);\n" +
+      "- passi: la soluzione passo per passo; ogni passo ha un titolo breve in parole semplici (per esempio «Frazioni spese», «Frazione che resta», «Cosa sono i due importi in euro», «Collego frazione ed euro», «Trovo 1/18», «Trovo l'intero», oppure «Punto di partenza», «Torno indietro nella seconda ora»), una spiegazione di 1-3 frasi che dice il PERCHÉ di quel passo e non solo il conto (per esempio «Questi 24 sono ciò che restava dopo aver tolto 1/4, quindi sono i 3/4») con un'immagine concreta quando aiuta (la torta in fette, il mucchio di panini, i soldi), se c'è un conto il calcolo, e concetto = l'abilità che serve in quel passo, in parole semplici (per esempio «Lo stesso denominatore», «Trovare cosa resta», «Trovare l'intero se conosci una parte», «Andare a ritroso»); ancora resta vuota (si usa solo con gli appunti);\n" +
       "- risultato: valore (solo il numero o la frazione, con la virgola per i decimali) e unità (per esempio €, cm², vuota se non c'è); per le materie senza conti valore è la risposta in breve e unità vuota;\n" +
       "- verifica: sempre. In spiegazione una frase; in controlli uno o più controlli, ognuno con un testo breve (verrà mostrato con una ✓) e il suo calcolo. Si può verificare in due modi: rimettendo insieme le parti fino al risultato (per esempio «Anelli, vestito, ristorante e avanzo fanno lo stipendio» con «210 + 280 + 465 + 305 = 1260») oppure andando avanti dal risultato con i dati del testo, un controllo per ogni fase, fino a un dato del testo (per esempio «Prima ora: vende 12 + 4 = 16, restano 32» con «48 - (48 : 4 + 4) = 32», poi «Seconda ora: restano 20» con «32 - (32 : 4 + 4) = 20»). I controlli usano i numeri del testo;\n" +
       "- trucco: il trucco da ricordare, una frase sola (per esempio: quando torni indietro fai le operazioni al contrario e in ordine inverso);\n" +
@@ -357,7 +358,7 @@ export function promptCompito(dati) {
     "Matematica: " + REGOLE_CALCOLO + " L'ultimo passo con un calcolo finisce con il risultato. Controlla tu stesso ogni conto prima di rispondere.",
     "Materie senza conti (storia, scienze, italiano...): stessa struttura, calcolo sempre vuoto, la risposta spiegata nei passi.",
     dati.appunti ? "Appunti di chi studia su questa materia: usali come fonte principale. In ogni passo che si appoggia agli appunti, metti in ancora una frase copiata parola per parola dagli appunti (non riscritta): verrà evidenziata come frase del quaderno.\n" + dati.appunti : "",
-    'Rispondi solo con JSON: {"esercizi":[],"materia":"","matematica":true,"testo":"","dati":[{"valore":"","significato":""}],"cerca":"","soluzione_libro":"","strategia":{"nome":"","perche":""},"indizi":[""],"passi":[{"titolo":"","spiegazione":"","calcolo":"","ancora":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]},"trucco":"","domande_pronte":["","",""],"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
+    'Rispondi solo con JSON: {"esercizi":[],"materia":"","matematica":true,"testo":"","dati":[{"valore":"","significato":""}],"cerca":"","soluzione_libro":"","strategia":{"nome":"","perche":""},"indizi":[""],"passi":[{"titolo":"","spiegazione":"","calcolo":"","ancora":"","concetto":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]},"trucco":"","domande_pronte":["","",""],"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
   ].filter(Boolean).join("\n\n");
 }
 
@@ -372,8 +373,29 @@ export function promptCompitoDomanda(dati) {
       strategia: c.strategia, risultato: c.risultato, verifica: c.verifica, trucco: c.trucco,
     }),
     (dati.cronologia || []).length ? "Messaggi di prima (io = chi studia, app = tu):\n" + dati.cronologia.map((m) => m.chi + ": " + m.testo).join("\n") : "",
+    dati.bloccata ? "La soluzione completa non è ancora sbloccata: chi studia non ha ancora provato a rispondere. Non scrivere il risultato finale (" + ((c.risultato || {}).valore || "") + ") in nessun campo, né un conto che ci arriva: aiuta con un indizio sul passo che serve." : "",
     "Domanda: " + dati.domanda,
+    "In passo scrivi il numero del passo della soluzione su cui è la domanda (0 se non riguarda un passo preciso).",
     "Campi: risposta (il testo, con un esempio concreto); calcoli: i conti che mostri, ognuno come catena di uguali (" + REGOLE_CALCOLO + "), vuoto se non servono; figura: se aiuta un disegno delle frazioni, tipo «barra_frazioni» con parti (quante fette in tutto, al massimo 24), colorate (quante evidenziare) ed etichetta (per esempio «11/18»), altrimenti tipo «nessuna» con parti e colorate a 0; prova_tu: una mini-domanda di controllo con gli stessi numeri (per esempio «Se 11 fette valgono 770 €, quanto vale 1 fetta?»), con risultato (valore e unità) che risponde esattamente alla domanda (se chiede quante fette, il risultato è il numero di fette, non una frazione), il calcolo che ci arriva, passo = il numero del passo della soluzione a cui si collega, spiegazione = come si fa in 1-2 frasi; tutto vuoto se non serve.",
-    'Rispondi solo con JSON: {"risposta":"","calcoli":[""],"figura":{"tipo":"nessuna","parti":0,"colorate":0,"etichetta":""},"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""}}',
+    'Rispondi solo con JSON: {"risposta":"","calcoli":[""],"figura":{"tipo":"nessuna","parti":0,"colorate":0,"etichetta":""},"prova_tu":{"testo":"","risultato":{"valore":"","unita":""},"calcolo":"","passo":0,"spiegazione":""},"passo":0}',
   ].filter(Boolean).join("\n\n");
+}
+
+// Problemi gemelli (aggiunta 2 di Roby): stessa strategia e stessi passi, contesto e numeri diversi.
+// { classe, compito, tipi: ["vicino", "lontano", "variante"] }
+export function promptGemelli(dati) {
+  const c = dati.compito || {};
+  const passi = (c.passi || []).filter((p) => p.calcolo).map((p, i) => (i + 1) + ". " + p.titolo + ": " + p.calcolo).join("\n");
+  const cosa = { vicino: "gemello vicino: stessa struttura e un contesto simile (per esempio lo stipendio diventa la paghetta)",
+    lontano: "gemello lontano: stessa struttura e un contesto diverso (una pizza in fette, i km di una gita, le pagine di un libro, i litri di una piscina)",
+    variante: "gemello con una variante: un passo in più o un dato da ricavare, per controllare che la strategia sia capita e non copiata" };
+  return [
+    "Sei un tutor di scuola media italiana. Prepara problemi gemelli di un compito appena risolto da " + chiStudia(dati.classe) + ": stessa strategia e stessa sequenza di passi, ma storia e numeri diversi, così la strategia si fissa. " + VOCE_TUTOR,
+    "Il compito:\n" + c.testo + (c.strategia && c.strategia.nome ? "\nStrategia: " + c.strategia.nome : "") + "\nPassi con i conti:\n" + passi,
+    "Scrivi un gemello per ognuno di questi tipi, in quest'ordine:\n" + dati.tipi.map((t) => "- " + t + ": " + cosa[t]).join("\n"),
+    "Regole: gli stessi titoli dei passi del compito (con i numeri nuovi) e lo stesso numero di passi con un conto (il gemello con la variante ne può avere uno in più o in meno); tutti i risultati intermedi interi (o frazioni semplici dove il compito usa le frazioni, o euro con i centesimi): mai numeri come 7,333; scegli i numeri partendo dal risultato e tornando indietro, così ogni divisione torna esatta. Contesti adatti a 10-14 anni e vari (non sempre soldi), con nomi propri di fantasia diversi fra loro e non tutti dello stesso genere. Il testo del problema non contiene la soluzione.",
+    REGOLE_CALCOLO + " L'ultimo conto arriva al risultato. Controlla tu stesso ogni conto.",
+    "Per ogni gemello anche la verifica, come nel compito: controlli con un testo breve e un calcolo, rimettendo insieme le parti fino al risultato oppure andando avanti dal risultato fino a un dato del testo; i controlli usano i numeri del testo del gemello.",
+    'Rispondi solo con JSON: {"gemelli":[{"tipo":"vicino","testo":"","passi":[{"titolo":"","spiegazione":"","calcolo":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]}}]}',
+  ].join("\n\n");
 }

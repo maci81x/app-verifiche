@@ -26,7 +26,7 @@ test("aiuto a gradini: un indizio alla volta, poi Ho capito o Un altro indizio",
   const zero = run(`htmlIndizi(${JSON.stringify(C)}, 0)`);
   assert.doesNotMatch(zero, /Somma le frazioni/);
   assert.match(zero, /data-azione="indizio">Dammi un indizio</);
-  assert.match(zero, /data-azione="soluzione">Fammi vedere tutta la soluzione</);
+  assert.doesNotMatch(zero, /data-azione="soluzione"/); // la soluzione ha il suo bottone, sotto «La tua risposta»
   const uno = run(`htmlIndizi(${JSON.stringify(C)}, 1)`);
   assert.match(uno, /Somma le frazioni spese/);
   assert.doesNotMatch(uno, /Che frazione resta/);
@@ -39,7 +39,7 @@ test("aiuto a gradini: un indizio alla volta, poi Ho capito o Un altro indizio",
   const provo = run(`htmlIndizi(${JSON.stringify(C)}, 1, true)`); // «Ho capito, provo io»: niente altri indizi
   assert.match(provo, /Somma le frazioni spese/);
   assert.doesNotMatch(provo, /Che frazione resta|Un altro indizio|Ho capito/);
-  assert.match(provo, /Fammi vedere tutta la soluzione/);
+
   assert.equal(run(`prossimoIndizio(3, 3)`), 3);
   assert.equal(run(`prossimoIndizio(1, 3)`), 2);
 });
@@ -57,7 +57,8 @@ test("calcoli in formula: frazioni, per e diviso", () => {
   assert.equal(run(`calcoloLatex("1/6 + 2/9 = 3/18 + 4/18 = 7/18")`), "\\frac{1}{6} + \\frac{2}{9} = \\frac{3}{18} + \\frac{4}{18} = \\frac{7}{18}");
   assert.equal(run(`calcoloLatex("70 × 18 = 1260")`), "70 \\times 18 = 1260");
   assert.equal(run(`calcoloLatex("770 : 11 = 70")`), "770 \\div 11 = 70");
-  assert.equal(run(`calcoloLatex("465 € + 305 € = 770 €")`), "465\\text{ €} + 305\\text{ €} = 770\\text{ €}");
+  // KaTeX non conosce €: nella formula l'unità non c'è (resta nel testo del passo)
+  assert.equal(run(`calcoloLatex("465 € + 305 € = 770 €")`), "465 + 305 = 770");
 });
 
 test("soluzione passo per passo: passi numerati da toccare, verifica, trucco; libro diverso detto senza giudicare", () => {
@@ -129,4 +130,80 @@ test("Cosa sai: il dato in grassetto e il suo significato; l'evidenziatura usa i
   assert.equal(run(`htmlSai(["2/9"])`), "<li><b>2/9</b></li>"); // compiti salvati prima: stringhe
   assert.match(run(`htmlTestoConDati("ha speso 1/6 e restano 305 €.", ${JSON.stringify(dati)})`), /<mark class="evidenzia">1\/6<\/mark>[\s\S]*<mark class="evidenzia">305 €<\/mark>/);
   assert.equal(run(`htmlSai([{ valore: "<b>", significato: "<i>" }])`), "<li><b>&lt;b&gt;</b>: &lt;i&gt;</li>");
+});
+
+// ------------------------------------------------------------------ segnali, esercizi mirati, ripasso 1-3-7 (#27)
+const PASSI = [{ titolo: "Frazioni spese", concetto: "Lo stesso denominatore" }, { titolo: "Frazione che resta", concetto: "Trovare cosa resta" },
+  { titolo: "Trovo 1/18", concetto: "Trovare l'intero se conosci una parte" }];
+
+test("segnali di difficoltà: indizi, domande e Prova tu sbagliati o saltati, mappati sui concetti dei passi", () => {
+  const segnali = [{ tipo: "indizio", passo: 1 }, { tipo: "domanda", passo: 1 }, { tipo: "prova", passo: 1, esito: "sbagliato" },
+    { tipo: "domanda", passo: 3 }, { tipo: "prova", passo: 2, esito: "giusto" }, { tipo: "domanda", passo: 0 }];
+  assert.deepEqual(json(`concettiDifficili(${JSON.stringify(segnali)}, ${JSON.stringify(PASSI)})`),
+    [{ concetto: "Lo stesso denominatore", passo: 1, segnali: 3 }, { concetto: "Trovare l'intero se conosci una parte", passo: 3, segnali: 1 }]);
+  assert.deepEqual(json(`concettiDifficili([], ${JSON.stringify(PASSI)})`), []);
+  // al massimo 3 concetti
+  const tanti = [1, 2, 3, 1, 2, 3, 4].map((p) => ({ tipo: "indizio", passo: p }));
+  assert.equal(json(`concettiDifficili(${JSON.stringify(tanti)}, ${JSON.stringify([...PASSI, { titolo: "x", concetto: "Quarto" }])})`).length, 3);
+});
+
+test("esercizi mirati: complimento preciso solo con 3 su 3", () => {
+  assert.equal(run(`esitoAllenamento("Lo stesso denominatore", [true, true, true])`), "«Lo stesso denominatore» adesso lo sai fare: 3 su 3.");
+  assert.equal(run(`esitoAllenamento("Lo stesso denominatore", [true, false, true])`), "2 su 3: rifai quello segnato Non ancora, poi provane uno in più.");
+});
+
+test("ripasso a 1, 3 e 7 giorni; dopo un errore si riparte da 1", () => {
+  const v = json(`nuovoRipasso({ testo: "Paolo…" }, new Date("2026-11-15T10:00:00Z"))`);
+  assert.equal(v.giorni, 1); assert.equal(v.prossimo, "2026-11-16");
+  assert.deepEqual(json(`ripassiDovuti([${JSON.stringify(v)}], new Date("2026-11-15T20:00:00Z"))`), []);
+  assert.equal(json(`ripassiDovuti([${JSON.stringify(v)}], new Date("2026-11-16T08:00:00Z"))`).length, 1);
+  const tre = json(`aggiornaRipasso(${JSON.stringify(v)}, true, new Date("2026-11-16T08:00:00Z"))`);
+  assert.equal(tre.giorni, 3); assert.equal(tre.prossimo, "2026-11-19");
+  const sette = json(`aggiornaRipasso(${JSON.stringify(tre)}, true, new Date("2026-11-19T08:00:00Z"))`);
+  assert.equal(sette.giorni, 7); assert.equal(sette.prossimo, "2026-11-26");
+  assert.equal(json(`aggiornaRipasso(${JSON.stringify(sette)}, true, new Date("2026-11-26T08:00:00Z"))`).finito, true);
+  const daCapo = json(`aggiornaRipasso(${JSON.stringify(sette)}, false, new Date("2026-11-26T08:00:00Z"))`);
+  assert.equal(daCapo.giorni, 1); assert.equal(daCapo.prossimo, "2026-11-27");
+  assert.deepEqual(json(`ripassiDovuti([{ ...${JSON.stringify(sette)}, finito: true }, null], new Date("2026-12-30T08:00:00Z"))`), []);
+});
+
+test("revisione: esito dell'allenamento al plurale, date del ripasso giuste anche col cambio d'ora", () => {
+  assert.equal(run(`esitoAllenamento("X", [false, false, true])`), "1 su 3: rifai quelli segnati Non ancora, poi provane uno in più.");
+  // 28 marzo 2027: in Italia si passa all'ora legale; il ripasso dopo 1 giorno è il 29
+  assert.equal(json(`nuovoRipasso({ testo: "a" }, new Date("2027-03-27T23:30:00Z"))`).prossimo, "2027-03-29");
+  assert.equal(json(`nuovoRipasso({ testo: "a" }, new Date("2027-03-28T10:00:00Z"))`).prossimo, "2027-03-29");
+});
+
+/* ---- soluzione bloccata finché non si prova (decisione di Roby sulla #27) ---- */
+test("soluzione bloccata senza tentativi; sbloccata dopo un indizio e una risposta provata", () => {
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(C)})`), false);
+  const conIndizio = json(`conSblocco(${JSON.stringify(C)}, "indizio")`);
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(conIndizio)})`), false);
+  const soloRisposta = json(`conSblocco(${JSON.stringify(C)}, "risposta")`);
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(soloRisposta)})`), false);
+  const tutti = json(`conSblocco(conSblocco(${JSON.stringify(C)}, "risposta"), "indizio")`);
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(tutti)})`), true);
+  assert.equal(C.sblocco, undefined); // il compito di partenza non cambia
+  assert.match(run("MSG_BLOCCATA"), /^Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se non sei sicur\*\. Poi ti faccio vedere tutto\.$/);
+});
+
+test("lo sblocco si ricorda per quel compito: riaperto da I compiti di oggi resta sbloccato", () => {
+  const sbloccato = json(`conSblocco(conSblocco(${JSON.stringify(C)}, "indizio"), "risposta")`);
+  const lista = json(`salvaCompito(salvaCompito([], ${JSON.stringify(C)}, "2026-11-15T18:00:00Z"), ${JSON.stringify(sbloccato)}, "2026-11-15T18:05:00Z")`);
+  assert.equal(lista.length, 1);
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(lista[0].compito)})`), true);
+});
+
+test("esito della risposta provata prima della soluzione: non svela il risultato", () => {
+  const no = run(`htmlEsitoTentativo({ giusto: false, esito: "sbagliato" }, ${JSON.stringify(C)})`);
+  assert.match(no, /Non ancora/);
+  assert.doesNotMatch(no, /1260/);
+  assert.match(run(`htmlEsitoTentativo({ giusto: true, esito: "giusto" }, ${JSON.stringify(C)})`), /Ci sei/);
+  assert.match(run(`htmlEsitoTentativo({ giusto: true, esito: "senza_unita" }, ${JSON.stringify(C)})`), /manca l'unità: €/);
+});
+
+test("senza indizi la soluzione si sblocca con la sola risposta provata (niente blocco per sempre)", () => {
+  const nudo = { ...C, indizi: [] };
+  assert.equal(run(`soluzioneSbloccata(${JSON.stringify(nudo)})`), false);
+  assert.equal(run(`soluzioneSbloccata(conSblocco(${JSON.stringify(nudo)}, "risposta"))`), true);
 });

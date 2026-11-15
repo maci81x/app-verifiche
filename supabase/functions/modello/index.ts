@@ -35,9 +35,15 @@
 //      se non torna si chiede una seconda volta, poi { errore: "conti_non_tornano" }. Se il risultato non è
 //      quello del libro, dopo il secondo tentativo la scheda arriva con libro_diverso: true.
 //      Nelle altre materie, se ci sono appunti della stessa materia, si usano come fonte e le ancore si controllano.
-// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda } → { risposta, calcoli, figura, prova_tu }
+// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda, sbloccata } → { risposta, calcoli, figura, prova_tu }
+//      Senza sbloccata: true la risposta non deve contenere il risultato finale; se lo contiene si rigenera.
 // POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
 // POST { azione: "prova_tu", atteso: { valore, unita }, risposta } → { esito, giusto, punti, letto }: solo un calcolo (correzione.js).
+// POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
+//      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
+//      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
+// POST { azione: "esercizi_genera", modello: { testo, concetto, calcolo }, mirati: true } → fino a 3 esercizi mirati
+//      su un concetto, dal più facile al problema a parole, più quelli in più (extra) per chi sbaglia.
 //      compito e compito_domanda contano come aiuti: al massimo 30 al giorno per profilo (giorno di Roma),
 //      contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
@@ -54,7 +60,7 @@ import {
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
-  promptCompito, promptCompitoDomanda,
+  promptCompito, promptCompitoDomanda, promptGemelli,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -64,7 +70,8 @@ import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } fr
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
-  correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma } from "../_shared/compito.js";
+  correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
+  rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
@@ -298,7 +305,7 @@ const SCHEMA_COMPITO = {
     dati: { type: "array", items: { type: "object", properties: { valore: STRINGA, significato: STRINGA }, required: ["valore", "significato"], additionalProperties: false } },
     cerca: STRINGA,
     soluzione_libro: STRINGA, indizi: { type: "array", items: STRINGA },
-    passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora"], additionalProperties: false } },
+    passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA, concetto: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora", "concetto"], additionalProperties: false } },
     risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
     verifica: {
       type: "object",
@@ -317,11 +324,23 @@ const SCHEMA_RISPOSTA_COMPITO = {
   properties: {
     risposta: STRINGA, calcoli: { type: "array", items: STRINGA },
     figura: { type: "object", properties: { tipo: { type: "string", enum: ["barra_frazioni", "nessuna"] }, parti: { type: "integer" }, colorate: { type: "integer" }, etichetta: STRINGA }, required: ["tipo", "parti", "colorate", "etichetta"], additionalProperties: false },
-    prova_tu: PROVA_TU,
+    prova_tu: PROVA_TU, passo: { type: "integer" },
   },
-  required: ["risposta", "calcoli", "figura", "prova_tu"], additionalProperties: false,
+  required: ["risposta", "calcoli", "figura", "prova_tu", "passo"], additionalProperties: false,
 } as const;
 const MAX_APPUNTI = 60_000;
+const SCHEMA_GEMELLI = {
+  type: "object",
+  properties: {
+    gemelli: { type: "array", items: { type: "object", properties: {
+      tipo: { type: "string", enum: TIPI_GEMELLI }, testo: STRINGA,
+      passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA }, required: ["titolo", "spiegazione", "calcolo"], additionalProperties: false } },
+      risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+      verifica: { type: "object", properties: { spiegazione: STRINGA, controlli: { type: "array", items: { type: "object", properties: { testo: STRINGA, calcolo: STRINGA }, required: ["testo", "calcolo"], additionalProperties: false } } }, required: ["spiegazione", "controlli"], additionalProperties: false },
+    }, required: ["tipo", "testo", "passi", "risultato", "verifica"], additionalProperties: false } },
+  },
+  required: ["gemelli"], additionalProperties: false,
+} as const;
 
 // Il conteggio degli aiuti vive nei metadati dell'account, che solo il server può scrivere: nessuna tabella nuova.
 const amministratore = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -464,16 +483,19 @@ Deno.serve(async (req) => {
     // «Fammi un esercizio simile» (issue #27): il modello è l'esercizio del compito, non un argomento salvato.
     if (b.azione === "esercizi_genera" && b.modello && typeof b.modello === "object") {
       const modello = testoBreve(b.modello.testo, 4000).trim();
-      if (!modello || !QUANTI.includes(b.quanti)) return json({ errore: "richiesta non valida" }, 400);
+      const mirati = b.mirati === true ? { concetto: testoBreve(b.modello.concetto, 80).trim(), calcolo: testoBreve(b.modello.calcolo, 400).trim(), testo: modello } : null;
+      if (mirati) b.quanti = 5; // se ne chiedono di più: tre in ordine di difficoltà e quelli in più per chi sbaglia
+      if (!modello || !QUANTI.includes(b.quanti) || (mirati && !mirati.concetto)) return json({ errore: "richiesta non valida" }, 400);
       const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
       const perBreve = { t1: { id: "compito", titolo: "Esercizio simile" } };
       const elenco = [{ breve: "t1", titolo: "Esercizio simile al compito", ancora: modello, difficolta: 2, figura: false }];
       const gruppi = Array.from({ length: b.quanti / PER_CHIAMATA }, () =>
-        chiedi(promptEserciziGenera({ materia: "matematica", titolo: "", classe: st?.classe ?? null, quanti: quantiDaChiedere(PER_CHIAMATA), tipi: elenco }), schemaEsercizi(["t1"])));
+        chiedi(promptEserciziGenera({ materia: "matematica", titolo: "", classe: st?.classe ?? null, quanti: quantiDaChiedere(PER_CHIAMATA), tipi: elenco, mirati }), schemaEsercizi(["t1"])));
       const risposte = await Promise.all(gruppi);
       const esito = eserciziVerificati(risposte.flatMap((r) => r.esercizi as unknown[]), perBreve, b.quanti);
       if (!esito.esercizi.length) return json({ errore: "nessun_verificato", scartati: esito.scartati }, 422);
-      return json(esito);
+      // Mirati: l'ordine del modello va dal più facile al problema a parole; i primi tre, gli altri di scorta.
+      return json(mirati ? { esercizi: esito.esercizi.slice(0, 3), extra: esito.esercizi.slice(3), scartati: esito.scartati } : esito);
     }
 
     if (b.azione === "esercizi_genera") {
@@ -589,17 +611,42 @@ Deno.serve(async (req) => {
       let riuscito = false;
       try {
       const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
-      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda });
-      let r = pulisciRisposta(await chiedi(prompt, SCHEMA_RISPOSTA_COMPITO));
+      // Finché l'app non dice sbloccata (almeno 1 indizio e 1 risposta provata) il risultato non si dice.
+      const bloccata = b.sbloccata !== true;
+      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda, bloccata });
+      const genera = async (extra = "") => pulisciRisposta(await chiedi(prompt + extra, SCHEMA_RISPOSTA_COMPITO));
+      let r = bloccata ? await rispondiSenzaRisultato(genera, compito) : await genera();
       if (!r) return json({ errore: "lettura non riuscita" }, 502);
       // I conti della risposta si ricalcolano come quelli della soluzione: una seconda volta, poi niente.
       if (calcoliCheNonTornano(r).length) {
-        const di_nuovo = pulisciRisposta(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno.", SCHEMA_RISPOSTA_COMPITO));
-        if (di_nuovo) r = di_nuovo;
+        const di_nuovo = await genera("\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno." + (bloccata ? AVVISO_BLOCCATA : ""));
+        if (di_nuovo && !(bloccata && rispostaColRisultato(di_nuovo, compito))) r = di_nuovo;
         if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
       }
       riuscito = true;
       return json(r);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    if (b.azione === "gemelli") {
+      const compito = pulisciCompito(b.compito);
+      if (!compito || compito.esercizi || !compito.passi.some((p: any) => p.calcolo)) return json({ errore: "richiesta non valida" }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+        const classe = st?.classe ?? null;
+        let esito = pulisciGemelli(await chiedi(promptGemelli({ classe, compito, tipi: TIPI_GEMELLI }), SCHEMA_GEMELLI), compito);
+        // I tipi scartati si rigenerano una volta, chiedendo solo quelli.
+        if (esito.mancano.length) {
+          const di_nuovo = pulisciGemelli(await chiedi(promptGemelli({ classe, compito, tipi: esito.mancano }), SCHEMA_GEMELLI), compito);
+          const tutti = [...esito.gemelli, ...di_nuovo.gemelli.filter((g) => esito.mancano.includes(g.tipo))];
+          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, mancano: [] };
+        }
+        if (!esito.gemelli.length) return json({ errore: "nessun_gemello", scartati: esito.scartati }, 422);
+        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati };
+        riuscito = true;
+        return json(fuori);
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 <div class="wrap">
@@ -109,6 +109,7 @@
   <p class="sotto" id="frase-oggi"></p>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
+  <div id="ripasso-oggi"></div>
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
@@ -165,17 +166,42 @@
       <p><b>Cerchi:</b> <span id="cp-cerchi"></span></p>
     </div>
     <div id="cp-indizi"></div>
+    <div class="prova-tu-box" id="cp-tentativo">
+      <label for="cp-mia-risposta"><b>La tua risposta</b></label>
+      <div class="prova-riga"><input type="text" id="cp-mia-risposta" inputmode="decimal" autocomplete="off" placeholder="Il risultato che trovi"><button type="button" class="minore" id="btn-cp-provo">Controlla</button></div>
+      <div class="prova-esito" id="cp-tentativo-esito" aria-live="polite"></div>
+    </div>
+    <p class="link-riga"><button type="button" class="link" id="btn-cp-soluzione" aria-disabled="true">Fammi vedere tutta la soluzione</button></p>
+    <p class="aiuto" id="cp-bloccata" aria-live="polite"></p>
     <div id="cp-soluzione" hidden></div>
     <h3 class="sez-titolo">Fai una domanda</h3>
     <div class="pronte" id="cp-pronte"></div>
     <div class="chat" id="cp-chat" aria-live="polite"></div>
     <div id="stato-chat"></div>
     <div class="bottoni">
+      <button class="minore" id="btn-cp-gemelli">Allenati con problemi gemelli</button>
       <button class="minore" id="btn-cp-simile">Fammi un esercizio simile</button>
       <button class="minore" id="btn-cp-fine">Ho finito</button>
     </div>
     <div id="stato-simile"></div>
     <div id="cp-simile"></div>
+  </div>
+  <div id="cp-allenati" hidden>
+    <div id="cp-blocco-difficili">
+      <h2>Allenati su quello che ti ha messo in difficoltà</h2>
+      <p class="aiuto">Tre esercizi veloci, dal più facile al problema a parole. I conti li ho già rifatti.</p>
+      <div class="scelte" id="cp-difficili"></div>
+      <div id="stato-mirati"></div>
+      <div id="cp-mirati"></div>
+    </div>
+    <div id="cp-blocco-gemelli">
+      <h3 class="sez-titolo">Problemi gemelli</h3>
+      <p class="aiuto">Stessi passi, storie diverse: così la strategia resta.</p>
+      <div class="bottoni"><button class="minore" id="btn-cp-gemelli-2">Allenati con problemi gemelli</button></div>
+    </div>
+    <div id="stato-gemelli"></div>
+    <div id="cp-gemelli"></div>
+    <div class="bottoni"><button class="minore" id="btn-cp-oggi">Torna a Oggi</button></div>
   </div>
   <div class="fondo-fisso chiedi" id="cp-chiedi" hidden>
     <label class="solo-lettore" for="cp-domanda">La tua domanda</label>
@@ -502,16 +528,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=18"></script>
-<script src="app.js?v=18"></script>
-<script src="libreria.js?v=18"></script>
-<script src="stampa.js?v=18"></script>
-<script src="aiuto.js?v=18"></script>
-<script src="mappa-card.js?v=18"></script>
-<script src="figure.js?v=18"></script>
-<script src="formule.js?v=18"></script>
-<script src="esercizi.js?v=18"></script>
-<script src="prova-esercizi.js?v=18"></script>
-<script src="compito.js?v=18"></script>
+<script src="semaforo.js?v=19"></script>
+<script src="app.js?v=19"></script>
+<script src="libreria.js?v=19"></script>
+<script src="stampa.js?v=19"></script>
+<script src="aiuto.js?v=19"></script>
+<script src="mappa-card.js?v=19"></script>
+<script src="figure.js?v=19"></script>
+<script src="formule.js?v=19"></script>
+<script src="esercizi.js?v=19"></script>
+<script src="prova-esercizi.js?v=19"></script>
+<script src="compito.js?v=19"></script>
 </body>
 </html>

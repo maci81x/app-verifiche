@@ -323,3 +323,138 @@ test("Cosa sai: ogni dato con il suo significato (le stringhe vecchie restano va
   assert.deepEqual(pulisciCompito(copia(PAOLO)).dati[0], { valore: "1/6", significato: "" });
   assert.match(promptCompito({ classe: "2", testo: TESTO_PAOLO }), /significato/);
 });
+
+// ------------------------------------------------------------------ gemelli ed esercizi mirati (#27, aggiunte di Roby)
+import { numeriAdatti, motivoGemello, pulisciGemelli, TIPI_GEMELLI } from "../supabase/functions/_shared/compito.js";
+import { promptGemelli, promptEserciziGenera as genera } from "../supabase/functions/_shared/prompt.js";
+
+const GIULIA = { tipo: "vicino", testo: "Giulia spende 1/5 della paghetta per un libro, 3/10 per il cinema, 6 € per una merenda e le restano 9 €. Quanto è la paghetta?",
+  passi: [
+    { titolo: "Frazioni spese", calcolo: "1/5 + 3/10 = 2/10 + 3/10 = 5/10" },
+    { titolo: "Frazione che resta", calcolo: "10/10 - 5/10 = 5/10" },
+    { titolo: "Cosa sono i due importi in euro", calcolo: "6 + 9 = 15" },
+    { titolo: "Collego frazione ed euro", calcolo: "" },
+    { titolo: "Trovo 1/10", calcolo: "15 : 5 = 3" },
+    { titolo: "Trovo l'intero", calcolo: "3 × 10 = 30" }],
+  risultato: { valore: "30", unita: "€" },
+  verifica: { spiegazione: "", controlli: [{ testo: "Libro, cinema, merenda e avanzo fanno la paghetta", calcolo: "6 + 9 + 6 + 9 = 30" }] } };
+
+test("gemelli: numeri intermedi interi o frazioni semplici, niente 7,333", () => {
+  assert.equal(numeriAdatti("1/5 + 3/10 = 2/10 + 3/10 = 5/10"), true);
+  assert.equal(numeriAdatti("36 : 3 × 4 = 48"), true);
+  assert.equal(numeriAdatti("12,50 € + 7,50 € = 20 €"), true); // euro con i centesimi
+  assert.equal(numeriAdatti("(10 + 5) / 2 × 3 = 22,5"), false);
+  assert.equal(numeriAdatti("22/3 = 7,33"), false);
+  assert.equal(numeriAdatti("100 / 7 = 100/7"), false);
+  assert.equal(numeriAdatti("1 - 5/12 = 12/12 - 5/12 = 7/12"), true);
+  assert.equal(numeriAdatti("22 : 3 = 7,33"), false);
+  assert.equal(numeriAdatti("16 : 2 × 3 = 24"), true);
+  assert.equal(numeriAdatti("29 : 2 = 14,5"), false);
+  assert.equal(numeriAdatti("29 : 3 = 9,67"), false);
+});
+
+test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri si scartano", () => {
+  assert.equal(motivoGemello(GIULIA, PAOLO), null);
+  const rotto = copia(GIULIA); rotto.passi[4].calcolo = "15 : 5 = 4";
+  assert.equal(motivoGemello(rotto, PAOLO), "conto");
+  const corto = copia(GIULIA); corto.passi = corto.passi.slice(0, 4);
+  assert.equal(motivoGemello(corto, PAOLO), "passi");
+  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "30 - 9 = 21" }], risultato: { valore: "21", unita: "€" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "6 + 9 + 6 = 21" }] } }, PAOLO), null); // la variante può avere un passo in più
+  const strano = copia(GIULIA); strano.passi[4].calcolo = "16 : 3 = 5,33"; strano.passi[5].calcolo = "5,33 × 10 = 53,3"; strano.risultato.valore = "53,3";
+  assert.equal(motivoGemello(strano, PAOLO), "numeri");
+  assert.equal(motivoGemello({ ...copia(GIULIA), testo: PAOLO.testo }, PAOLO), "contesto");
+  const fine = copia(GIULIA); fine.risultato.valore = "31";
+  assert.equal(motivoGemello(fine, PAOLO), "risultato");
+  const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: GIULIA.testo.replace("Giulia spende", "Marco usa").replace("paghetta", "mancia") }] }, PAOLO);
+  assert.deepEqual(r.gemelli.map((g) => g.tipo), ["vicino", "lontano"]);
+  assert.equal(r.scartati, 1);
+  assert.deepEqual(r.mancano, ["variante"]);
+  assert.deepEqual(TIPI_GEMELLI, ["vicino", "lontano", "variante"]);
+});
+
+test("prompt dei gemelli e degli esercizi mirati", () => {
+  const p = promptGemelli({ classe: "2", compito: PAOLO, tipi: ["vicino", "lontano", "variante"] });
+  for (const r of [/stessa strategia/i, /gemello vicino/i, /gemello lontano/i, /variante/i, /interi/i, /nomi/i]) assert.match(p, r);
+  assert.doesNotMatch(p, /alunna|ragazza/);
+  const m = genera({ materia: "matematica", titolo: "", classe: "2", quanti: 5, tipi: [{ breve: "t1", titolo: "x", ancora: "y", difficolta: 2, figura: false }],
+    mirati: { concetto: "Lo stesso denominatore", calcolo: "1/6 + 2/9 = 3/18 + 4/18 = 7/18", testo: TESTO_PAOLO } });
+  assert.match(m, /dal più facile al più difficile/i);
+  assert.match(m, /Lo stesso denominatore/);
+  assert.match(m, /problemi a parole/i);
+});
+
+test("revisione: il risultato del gemello si verifica sul suo testo", () => {
+  const scollegato = { ...copia(GIULIA), testo: "Sara spende 1/4 dei soldi e le restano 10 €. Quanti soldi aveva?",
+    passi: [{ titolo: "a", calcolo: "2 + 2 = 4" }, { titolo: "b", calcolo: "4 + 1 = 5" }, { titolo: "c", calcolo: "5 + 1 = 6" }, { titolo: "d", calcolo: "6 + 1 = 7" }, { titolo: "e", calcolo: "10 × 7 = 70" }],
+    risultato: { valore: "70", unita: "€" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "10 × 7 = 70" }] } };
+  assert.equal(motivoGemello(scollegato, PAOLO), "verifica");
+  assert.equal(motivoGemello({ ...copia(GIULIA), verifica: { spiegazione: "", controlli: [] } }, PAOLO), "verifica");
+  assert.equal(motivoGemello(GIULIA, PAOLO), null);
+});
+
+/* ---- soluzione bloccata finché non si prova (decisione di Roby sulla #27) ---- */
+import { rispostaColRisultato, rispondiSenzaRisultato } from "../supabase/functions/_shared/compito.js";
+
+const BLOCCO = { testo: "Paolo spende 1/6 dello stipendio per gli anelli, 2/9 per il vestito, 465 € al ristorante e gli restano 305 €. Quanto guadagna?",
+  indizi: ["Somma le frazioni spese.", "Gli euro valgono 1260 in tutto."], risultato: { valore: "1260", unita: "€" } };
+const R = (x) => ({ risposta: "Somma 1/6 e 2/9 con lo stesso denominatore.", calcoli: [], figura: null, prova_tu: null, passo: 1, ...x });
+
+test("risposta col risultato: nel testo, nei conti, nell'etichetta o nel Prova tu; anche scritto 1.260", () => {
+  assert.equal(rispostaColRisultato(R({}), BLOCCO), false);
+  assert.equal(rispostaColRisultato(R({ risposta: "Alla fine lo stipendio è 1.260 €." }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ calcoli: ["770 : 11 × 18 = 1260"] }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 18, colorate: 18, etichetta: "1260 €" } }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ prova_tu: { testo: "Quanto guadagna?", risultato: { valore: "1260", unita: "€" }, calcolo: "70 × 18 = 1260", passo: 6, spiegazione: "" } }), BLOCCO), true);
+  // risultato a frazione: «5/12» scritto conta, «5» e «12» separati no
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", risultato: { valore: "5/12", unita: "" } };
+  assert.equal(rispostaColRisultato(R({ risposta: "In tutto 5/12 della torta." }), fr), true);
+  assert.equal(rispostaColRisultato(R({ risposta: "Porta tutto in dodicesimi: 12 è il denominatore comune, 1/4 diventa 3/12." }), fr), false);
+  // se il risultato è già un numero del testo non c'è niente da nascondere
+  assert.equal(rispostaColRisultato(R({ risposta: "Restano 305 €." }), { ...BLOCCO, risultato: { valore: "305", unita: "€" } }), false);
+});
+
+test("domanda con soluzione bloccata: se la risposta contiene il risultato si rigenera chiedendo un indizio senza", async () => {
+  const chieste = [];
+  const genera = (risposte) => async (extra = "") => { chieste.push(extra); return risposte.shift(); };
+  // prima col risultato, poi senza: si tiene la seconda
+  let r = await rispondiSenzaRisultato(genera([R({ risposta: "Fa 1260 €." }), R({ risposta: "Pensa a quante parti restano." })]), BLOCCO);
+  assert.equal(r.risposta, "Pensa a quante parti restano.");
+  assert.equal(chieste.length, 2);
+  assert.equal(chieste[0], "");
+  assert.match(chieste[1], /non.*risultato/i);
+  assert.match(chieste[1], /indizio/i);
+  // senza risultato al primo colpo: una sola chiamata
+  chieste.length = 0;
+  r = await rispondiSenzaRisultato(genera([R({})]), BLOCCO);
+  assert.equal(chieste.length, 1);
+  // due volte col risultato: risposta di riserva con un indizio che non lo contiene
+  r = await rispondiSenzaRisultato(genera([R({ risposta: "1260" }), R({ calcoli: ["70 × 18 = 1260"] })]), BLOCCO);
+  assert.equal(rispostaColRisultato(r, BLOCCO), false);
+  assert.match(r.risposta, /Somma le frazioni spese/);
+  assert.doesNotMatch(r.risposta, /1260/);
+  assert.deepEqual(r.calcoli, []);
+  assert.equal(r.prova_tu, null);
+  assert.equal(await rispondiSenzaRisultato(genera([null]), BLOCCO), null);
+});
+
+test("prompt della domanda: con la soluzione bloccata chiede di non dire il risultato", () => {
+  const base = { classe: "2", compito: BLOCCO, cronologia: [], domanda: "Quanto guadagna?" };
+  assert.doesNotMatch(promptCompitoDomanda(base), /non è ancora sbloccata/);
+  assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /non è ancora sbloccata/);
+  assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /1260/); // dice al modello quale numero non scrivere
+});
+
+test("risposta col risultato: i numeri delle frazioni del testo non spengono il controllo; la barra della figura conta", () => {
+  const sei = { testo: "Luca ha speso 1/6 della paghetta e ha 30 €. Quanti sesti gli restano?", risultato: { valore: "5", unita: "sesti" } };
+  assert.equal(rispostaColRisultato(R({ risposta: "Gliene restano 5." }), sei), true);
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", indizi: ["In tutto 5/12.", "Porta tutto in dodicesimi."], risultato: { valore: "5/12", unita: "" } };
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 12, colorate: 5, etichetta: "" } }), fr), true);
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 12, colorate: 3, etichetta: "3/12" } }), fr), false);
+});
+
+test("risposta di riserva: l'indizio non porta il risultato nemmeno come frazione", async () => {
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", indizi: ["In tutto 5/12.", "Porta tutto in dodicesimi."], risultato: { valore: "5/12", unita: "" } };
+  const r = await rispondiSenzaRisultato(async () => R({ risposta: "Fa 5/12." }), fr);
+  assert.match(r.risposta, /Porta tutto in dodicesimi/);
+  assert.doesNotMatch(r.risposta, /5\/12/);
+});

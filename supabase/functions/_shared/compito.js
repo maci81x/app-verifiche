@@ -83,7 +83,13 @@ export function controllaCompito(c) {
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
   // Anche le parole-numero sono dati: «il triplo dell'altezza» è un 3 da rispettare.
   for (const [re, n] of [[/\b(doppi[oa]|metà)\b/i, 2], [/\b(tripl[oa]|terz[oa])\b/i, 3], [/\b(quadrupl[oa]|quart[oa])\b/i, 4]]) if (re.test(consegna)) dati.add(n);
-  const quanti = Math.min(2, dati.size);
+  // Se il testo ha frazioni, usarne una (o il suo denominatore) vale come un dato in più: «10 × 7 = 70» per
+  // «spende 1/4 e restano 10 €» non rimette niente della frazione e non basta.
+  const denominatori = new Set(frazioni.map((f) => Number(f.split("/")[1])));
+  // il denominatore conta solo se non è già un dato del testo (in «1/4 … più 4» il 4 non vale due volte)
+  const usaFrazione = (s) => frazioni.some((f) => s.replace(/\s/g, "").includes(f.replace(/\s/g, ""))) || numeriIn(s).some((n) => denominatori.has(n) && !dati.has(n));
+  const quanti = Math.min(2, dati.size + (frazioni.length ? 1 : 0));
+  const contaDati = (s) => datiIn(s).size + (frazioni.length && usaFrazione(s) ? 1 : 0);
   const datiIn = (s) => new Set(numeriIn(s.replace(/\d+\s*\/\s*\d+/g, " ")).filter((n) => dati.has(n)));
   const conFrazione = (s) => frazioni.some((f) => s.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
   const haValore = (s) => numeriIn(s).some((n) => coincide(n, valore)) || (/\//.test(valore) && s.replace(/\s/g, "").includes(valore.replace(/\s/g, "")));
@@ -104,7 +110,7 @@ export function controllaCompito(c) {
       .filter((n) => dati.has(n))).size >= quanti;
   };
   const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) &&
-    (dati.size ? datiIn(s).size >= quanti || conMisure(s, i) : conFrazione(s)));
+    (dati.size ? contaDati(s) >= quanti || conMisure(s, i) : conFrazione(s)));
   // In avanti: il risultato entra davvero nel primo conto (cambiandolo, cambia il conto), ogni controllo
   // riparte da dove è arrivato il precedente, l'ultimo arriva a un dato del testo.
   const ultimo = finale(controlli[controlli.length - 1]);
@@ -171,6 +177,7 @@ export function pulisciCompito(r) {
     indizi: lista(r.indizi, MAX_INDIZI),
     passi: (Array.isArray(r.passi) ? r.passi : []).slice(0, MAX_PASSI).map((p) => ({
       titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 1200), calcolo: testo(p?.calcolo, 400), ancora: testo(p?.ancora, 400),
+      concetto: testo(p?.concetto, 80),
     })).filter((p) => p.titolo || p.spiegazione),
     risultato: { valore: testo(r.risultato?.valore, 60), unita: testo(r.risultato?.unita, 20) },
     verifica: { spiegazione: testo(r.verifica?.spiegazione, 1200), controlli: controlliDi(r.verifica) },
@@ -187,10 +194,93 @@ export function pulisciRisposta(r) {
   const f = r.figura, parti = Number(f?.parti), colorate = Number(f?.colorate);
   const figura = f && f.tipo === "barra_frazioni" && Number.isInteger(parti) && parti >= 1 && parti <= MAX_PARTI_BARRA &&
     Number.isInteger(colorate) && colorate >= 0 && colorate <= parti ? { tipo: "barra_frazioni", parti, colorate, etichetta: testo(f.etichetta, 40) } : null;
-  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: pulisciProvaTu(r.prova_tu) };
+  const passo = Number(r.passo);
+  return { risposta, calcoli: lista(r.calcoli, 6, 400), figura, prova_tu: pulisciProvaTu(r.prova_tu), passo: Number.isInteger(passo) && passo >= 1 && passo <= MAX_PASSI ? passo : null };
 }
 export const calcoliCheNonTornano = (r) => (r.calcoli || []).filter((x) => !contoTorna(x));
 
 // Cronologia della chat per il prompt: ultimi 10 messaggi, solo testo.
 export const cronologiaPulita = (c) => (Array.isArray(c) ? c : []).slice(-MAX_CRONOLOGIA)
   .map((m) => ({ chi: m?.chi === "io" ? "io" : "app", testo: testo(m?.testo, 1500) })).filter((m) => m.testo);
+
+/* ---- soluzione bloccata finché non si prova (decisione di Roby sulla #27) ---- */
+// La risposta a una domanda dice il risultato finale? Nel testo, nei conti, nell'etichetta della figura
+// o nel Prova tu; anche scritto «1.260» o come frazione «5/12». Se il risultato è già un numero
+// del testo dell'esercizio non c'è niente da nascondere.
+export function rispostaColRisultato(r, c) {
+  const valore = String(c?.risultato?.valore ?? "").trim();
+  if (!r || valutaSicuro(valore) === null) return false;
+  const uguale = (t) => numeriIn(t, true).some((n) => coincide(n, valore)) ||
+    (String(t).match(/\d+\s*\/\s*\d+/g) || []).some((f) => coincide(valutaSicuro(f), valore));
+  // le cifre di «1/6» non sono numeri del testo: con risultato 6 il controllo resta acceso
+  if (uguale(String(c.testo || "").replace(/\d+\s*\/\s*\d+/g, " "))) return false;
+  const p = r.prova_tu || {}, f = r.figura;
+  if (f && f.parti && coincide(f.colorate / f.parti, valore)) return true; // la barra 5 su 12 dice 5/12
+  return [r.risposta, ...(r.calcoli || []), f?.etichetta, p.testo, p.calcolo, p.spiegazione, p.risultato?.valore]
+    .filter(Boolean).some(uguale);
+}
+export const AVVISO_BLOCCATA = "\n\nAttenzione: nel tentativo precedente la risposta conteneva il risultato finale. La soluzione non è ancora sbloccata: non scrivere il risultato in nessun campo (risposta, calcoli, figura, prova_tu) né un conto che ci arriva. Dai invece un indizio sul passo che serve, senza risultato.";
+// genera(extra) → risposta pulita o null. Col risultato si rigenera una volta chiedendo un indizio;
+// se lo contiene ancora, una risposta di riserva con un indizio che non lo dice.
+export async function rispondiSenzaRisultato(genera, c) {
+  let r = await genera("");
+  if (!r || !rispostaColRisultato(r, c)) return r;
+  r = await genera(AVVISO_BLOCCATA);
+  if (!r || !rispostaColRisultato(r, c)) return r;
+  const indizio = (c.indizi || []).find((t) => !rispostaColRisultato({ risposta: t }, c));
+  return { risposta: "Il risultato te lo faccio vedere dopo che hai provato." + (indizio ? " Intanto un indizio: " + indizio : " Rileggi i passi e scrivi la tua risposta."),
+    calcoli: [], figura: null, prova_tu: null, passo: null };
+}
+
+/* ---- problemi gemelli (aggiunta 2 di Roby) ---- */
+export const TIPI_GEMELLI = ["vicino", "lontano", "variante"];
+const mcd = (a, b) => (b ? mcd(b, a % b) : a);
+// Numeri adatti alla classe in ogni pezzo della catena: interi; euro con i centesimi solo se la catena
+// parla di euro; frazioni solo come frazioni scritte (fra interi e frazioni, con + e −), non oltre l'intero.
+// Niente 7,333… né 22,5 quaderni.
+const SOLO_FRAZIONI = /^\(?\s*\d+(?:\s*\/\s*\d+)?(?:\s*[+\-]\s*\d+(?:\s*\/\s*\d+)?)*\s*\)?$/;
+export function numeriAdatti(calcolo) {
+  const grezzo = conPer(testo(calcolo, 400)), euro = /€|euro/i.test(grezzo);
+  const intero = (x) => Math.abs(x - Math.round(x)) < 1e-9;
+  return senzaUnita(grezzo).split("=").every((p) => {
+    const v = valutaSicuro(p.trim());
+    if (v === null) return false;
+    if (intero(v)) return true;
+    if (euro && intero(v * 100)) return true;
+    return /\//.test(p) && SOLO_FRAZIONI.test(p.trim().replace(/[−–]/g, "-")) && Math.abs(v) <= 1;
+  });
+}
+// null se il gemello va bene, altrimenti il motivo: stesso numero di passi con un conto (la variante
+// ne può avere uno in più o in meno), contesto diverso, ogni conto torna con numeri adatti, l'ultimo
+// arriva al risultato.
+export function motivoGemello(g, c) {
+  if (!g || !testo(g.testo) || !TIPI_GEMELLI.includes(g.tipo)) return "forma";
+  if (testo(g.testo).toLowerCase() === testo(c.testo).toLowerCase()) return "contesto";
+  const conti = (g.passi || []).map((p) => testo(p?.calcolo, 400)).filter(Boolean);
+  const attesi = (c.passi || []).filter((p) => p.calcolo).length;
+  if (g.tipo === "variante" ? Math.abs(conti.length - attesi) > 1 : conti.length !== attesi) return "passi";
+  if (!conti.every(contoTorna)) return "conto";
+  if (!conti.every(numeriAdatti)) return "numeri";
+  const valore = testo(g.risultato?.valore, 40);
+  if (valutaSicuro(valore) === null || !coincide(finale(conti[conti.length - 1]), valore)) return "risultato";
+  // Il risultato si verifica sul testo del gemello, come per il compito: conti scollegati dalla storia non passano.
+  const prova = controllaCompito({ testo: g.testo, materia: c.materia, soluzione_libro: "", passi: (g.passi || []).map((p) => ({ calcolo: testo(p?.calcolo, 400) })),
+    risultato: { valore, unita: testo(g.risultato?.unita, 20) }, verifica: g.verifica });
+  if (!prova.ok) return "verifica";
+  return null;
+}
+// I gemelli buoni, uno per tipo, nell'ordine vicino, lontano, variante; quanti scartati e i tipi mancanti.
+export function pulisciGemelli(r, c) {
+  const buoni = new Map(); let scartati = 0;
+  for (const g of Array.isArray(r?.gemelli) ? r.gemelli : []) {
+    if (motivoGemello(g, c)) { scartati++; continue; } // non rispetta le regole: si scarta (e si rigenera)
+    if (buoni.has(g.tipo)) continue;                     // un doppione buono non è uno scarto
+    buoni.set(g.tipo, {
+      tipo: g.tipo, testo: testo(g.testo, 1500),
+      passi: g.passi.map((p) => ({ titolo: testo(p?.titolo, 120), spiegazione: testo(p?.spiegazione, 600), calcolo: testo(p?.calcolo, 400) })).filter((p) => p.titolo || p.calcolo).slice(0, MAX_PASSI + 2),
+      risultato: { valore: testo(g.risultato.valore, 40), unita: testo(g.risultato?.unita, 20) },
+      verifica: { spiegazione: testo(g.verifica?.spiegazione, 600), controlli: controlliDi(g.verifica) },
+    });
+  }
+  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
+}
