@@ -98,3 +98,16 @@ test("evidenziatore: la frase del quaderno escapata dentro <mark class=\"evidenz
   assert.match(css, /mark\.evidenzia\{[^}]*background:var\(--evidenzia\)/);
   assert.match(css, /mark\.evidenzia\{[^}]*box-decoration-break:clone/);
 });
+
+test("correzioni prima del merge: niente sovrapposizioni, tinta per riga, nota solo su profili ed esito", () => {
+  assert.doesNotMatch(css.match(/\.barra-fissa\{[^}]*\}/)[0], /position:fixed/);
+  assert.match(css, /\[style\*="--h"\]\{--tinta:hsl\(var\(--h\) var\(--s\) var\(--l\)\)\}/);
+  assert.match(css, /\*,\*::before,\*::after\{box-sizing:border-box\}/);
+  assert.match(css, /\.nota\{display:none\}/);
+  assert.match(css, /body\[data-vista="profili"\] \.nota,body\[data-vista="esito"\] \.nota\{display:block\}/);
+  assert.match(css, /\.bottoni-esito\{[^}]*flex-direction:column/);
+  assert.match(css, /html:has\(body\.con-card\)\{overflow:hidden\}/);
+  assert.match(html, /<div class="tacche" id="tacche"/);
+  assert.doesNotMatch(html.match(/<section id="v-libreria"[\s\S]*?<\/section>\n/)[0], /btn-svuota/);
+  assert.match(html.match(/<section id="v-impostazioni"[\s\S]*?<\/section>\n/)[0], /id="btn-svuota"/);
+});

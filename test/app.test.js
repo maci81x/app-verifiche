@@ -572,8 +572,13 @@ test("libreria: barra verde/giallo/rosso con le parole per chi non vede i colori
 });
 
 test("profili: tinta fissa per id, sottotitolo con classe e da ripassare solo se noto", () => {
-  assert.equal(run(`tintaProfilo("abc")`), run(`tintaProfilo("abc")`));
-  assert.ok(run(`tintaProfilo("abc")`) >= 0 && run(`tintaProfilo("abc")`) < 360);
+  // Tinte delle materie (niente bordeaux), una diversa per profilo, uguali su ogni telefono.
+  const t1 = JSON.parse(run(`JSON.stringify(tinteProfili([{ id: "b" }, { id: "a" }]))`));
+  const t2 = JSON.parse(run(`JSON.stringify(tinteProfili([{ id: "a" }, { id: "b" }]))`));
+  assert.deepEqual(t1, t2);
+  assert.notEqual(t1.a.join(), t1.b.join());
+  const ammesse = JSON.parse(run(`JSON.stringify(MATERIE.filter((m) => m[0] !== "arte").map((m) => m[2]))`));
+  assert.ok([t1.a[0], t1.b[0]].every((h) => ammesse.includes(h)));
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 3)`), "2ª media, 3 da ripassare");
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, 0)`), "2ª media, niente da ripassare");
   assert.equal(run(`sottotitoloProfilo({ classe: "2ª media" }, null)`), "2ª media");
@@ -625,5 +630,24 @@ test("volte da rivedere: il conteggio dello storico non sembra lo stato di oggi"
 test("Rileggi solo se c'è la frase; nota sul quaderno con i due punti", () => {
   const html = stampa("studiare", [{ id: "a", titolo: "Senza frase", ancora: "", stato: "rosso", sbagliato: 1 }]);
   assert.doesNotMatch(html, /Rileggi/);
-  assert.match(run(`NOTA_QUADERNO`), /^Da correggere sul quaderno: $/);
+  assert.equal(run(`notaQuaderno("x")`), "Sul quaderno c'è un errore: x");
+});
+
+// ------------------------------------------------------------------ correzioni prima del merge #18
+test("nota sul quaderno: niente «negli appunti» ripetuto, poi minuscolo", () => {
+  assert.equal(run(`notaQuaderno("Negli appunti c'è scritto 1384: la data giusta è 1348.")`), "Sul quaderno c'è un errore: 1384: la data giusta è 1348.");
+  assert.equal(run(`notaQuaderno("negli appunti: versi decasillabi invece di endecasillabi")`), "Sul quaderno c'è un errore: versi decasillabi invece di endecasillabi");
+  assert.equal(run(`notaQuaderno("La data giusta è 1348")`), "Sul quaderno c'è un errore: la data giusta è 1348");
+  assert.equal(run(`notaQuaderno("")`), "");
+});
+
+test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la mappa come link, conteggi una volta", () => {
+  const a = { titolo: "La peste", materia: "storia", concetti: [{ id: "c1", stato: "rosso" }, { id: "c2", stato: "giallo" }] };
+  const html = run(`htmlPrimo(${JSON.stringify(a)}, { id: "c1" })`);
+  assert.equal((html.match(/class="azione"/g) || []).length, 1);
+  assert.match(html, /class="azione" data-azione="lampo">Ripassa questo</);
+  assert.match(html, /class="link" data-azione="mappa">Apri la mappa</);
+  assert.equal((html.match(/data-s="rosso"/g) || []).length, 2); // barra e conteggio sotto, non anche nella riga della materia
+  const senza = run(`htmlPrimo(${JSON.stringify(a)}, null)`);
+  assert.match(senza, /class="azione" data-azione="mappa">Apri la mappa</);
 });
