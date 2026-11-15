@@ -41,14 +41,21 @@ function calcoloLatex(s) {
 const formulaCalcolo = (s) => '<span class="riga-formula">' + formulaHtml(calcoloLatex(s)) + "</span>";
 
 // Il testo letto con i dati importanti evidenziati (il testo è quello della foto). Tutto escapato.
+const valoreDato = (d) => String(d && typeof d === "object" ? d.valore || "" : d || "").trim();
 function htmlTestoConDati(testo, dati) {
-  const voci = [...new Set((dati || []).map((d) => String(d).trim()).filter(Boolean))].sort((a, b) => b.length - a.length);
+  const voci = [...new Set((dati || []).map(valoreDato).filter(Boolean))].sort((a, b) => b.length - a.length);
   if (!voci.length) return esc(testo);
   // Un dato non si evidenzia dentro un numero più lungo («6» non dentro «1260»).
   const re = new RegExp("(?<![\\d.,/])(?:" + voci.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")(?![\\d,/]|\\.\\d)", "g");
   let fuori = "", da = 0;
   String(testo).replace(re, (m, i) => { fuori += esc(String(testo).slice(da, i)) + evidenzia(m); da = i + m.length; return m; });
   return fuori + esc(String(testo).slice(da));
+}
+
+// «Cosa sai»: ogni dato con il suo significato (1/6: la parte spesa per gli anelli).
+function htmlSai(dati) {
+  return (dati || []).map((d) => { const v = valoreDato(d), s = d && typeof d === "object" ? String(d.significato || "").trim() : "";
+    return v ? "<li><b>" + esc(v) + "</b>" + (s ? ": " + esc(s) : "") + "</li>" : ""; }).join("");
 }
 
 const risultatoIt = (r) => (r && r.valore ? r.valore + (r.unita ? " " + r.unita : "") : "");
@@ -182,7 +189,7 @@ function mostraLetto() {
 
 function mostraAiuto() {
   $("cp-letto").hidden = true; $("cp-aiuto").hidden = false; $("cp-chiedi").hidden = false;
-  $("cp-sai").innerHTML = (compito.dati || []).map((d) => "<li>" + esc(d) + "</li>").join("");
+  $("cp-sai").innerHTML = htmlSai(compito.dati);
   $("cp-cerchi").textContent = compito.cerca || "";
   $("cp-blocco-sai").hidden = !(compito.dati || []).length && !compito.cerca;
   disegnaIndizi();

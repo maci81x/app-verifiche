@@ -294,7 +294,9 @@ const SCHEMA_COMPITO = {
   type: "object",
   properties: {
     esercizi: { type: "array", items: { type: "object", properties: { id: STRINGA, inizio: STRINGA }, required: ["id", "inizio"], additionalProperties: false } },
-    materia: STRINGA, matematica: { type: "boolean" }, testo: STRINGA, dati: { type: "array", items: STRINGA }, cerca: STRINGA,
+    materia: STRINGA, matematica: { type: "boolean" }, testo: STRINGA,
+    dati: { type: "array", items: { type: "object", properties: { valore: STRINGA, significato: STRINGA }, required: ["valore", "significato"], additionalProperties: false } },
+    cerca: STRINGA,
     soluzione_libro: STRINGA, indizi: { type: "array", items: STRINGA },
     passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora"], additionalProperties: false } },
     risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
