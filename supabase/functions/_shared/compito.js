@@ -86,7 +86,14 @@ export function controllaCompito(c) {
   const conFrazione = (s) => frazioni.some((f) => s.replace(/\s/g, "").includes(f.replace(/\s/g, "")));
   const haValore = (s) => numeriIn(s).some((n) => coincide(n, valore));
   // All'indietro: un controllo arriva al risultato senza averlo a sinistra e usa lui stesso i dati.
-  const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) && (dati.size ? datiIn(s).size >= quanti : conFrazione(s)));
+  // Oppure (geometria) il conto del risultato usa misure trovate che un altro controllo riporta a un dato
+  // del testo: «2 × (21 + 7) = 56» e poi «21 × 7 = 147».
+  const operandi = (s) => new Set(numeriIn(s).filter((n) => n !== 0 && n !== 1));
+  const finali = controlli.map(finale);
+  const conMisure = (s, i) => controlli.some((_, k) => k !== i && dati.has(finali[k]) && [...operandi(s)].some((n) => operandi(sinistre[k]).has(n))) &&
+    new Set([...sinistre.flatMap((x) => [...datiIn(x)]), ...finali.filter((f) => dati.has(f))]).size >= quanti;
+  const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) &&
+    (dati.size ? datiIn(s).size >= quanti || conMisure(s, i) : conFrazione(s)));
   // In avanti: il risultato entra davvero nel primo conto (cambiandolo, cambia il conto), ogni controllo
   // riparte da dove è arrivato il precedente, l'ultimo arriva a un dato del testo.
   const ultimo = finale(controlli[controlli.length - 1]);

@@ -554,7 +554,8 @@ Deno.serve(async (req) => {
             if (voto(esito2) > voto(esito)) { c = di_nuovo; esito = esito2; }
           }
         }
-        if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano" }, 422);
+        // Il motivo (passo, risultato, verifica) aiuta a capire un rifiuto; l'app mostra lo stesso messaggio.
+        if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano", motivo: esito.motivo, passo: esito.passo ?? null }, 422);
         // In matematica non ci sono frasi del quaderno da evidenziare; gli indizi non dicono il risultato.
         // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
         riuscito = true;

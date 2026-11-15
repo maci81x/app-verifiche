@@ -257,3 +257,23 @@ test("aiuto prenotato prima del modello e restituito se la risposta non riesce",
   assert.deepEqual(rimborsoAiuti({ aiuti: { giorno: "2026-11-15", n: 0 } }, "2026-11-15"), { giorno: "2026-11-15", n: 0 });
   assert.equal(rimborsoAiuti({ aiuti: { giorno: "2026-11-14", n: 5 } }, "2026-11-15"), null); // giorno nuovo: niente da restituire
 });
+
+test("geometria: si verifica che le misure trovate diano i dati, poi il risultato", () => {
+  const G = { ...copia(PAOLO), materia: "geometria", soluzione_libro: "147 cm²",
+    testo: "Un rettangolo ha il perimetro di 56 cm e la base è il triplo dell'altezza. Calcola l'area del rettangolo. [147 cm²]", dati: ["56 cm", "il triplo"],
+    passi: [
+      { titolo: "Semiperimetro", spiegazione: "", calcolo: "56 : 2 = 28", ancora: "" },
+      { titolo: "Altezza", spiegazione: "", calcolo: "28 : 4 = 7", ancora: "" },
+      { titolo: "Base", spiegazione: "", calcolo: "7 × 3 = 21", ancora: "" },
+      { titolo: "Area", spiegazione: "", calcolo: "21 × 7 = 147", ancora: "" }],
+    risultato: { valore: "147", unita: "cm²" },
+    verifica: { spiegazione: "", controlli: [
+      { testo: "Il perimetro torna", calcolo: "2 × (21 + 7) = 56" },
+      { testo: "La base è il triplo dell'altezza", calcolo: "7 × 3 = 21" },
+      { testo: "L'area", calcolo: "21 × 7 = 147" }] } };
+  assert.deepEqual(controllaCompito(G), { ok: true });
+  const finta = copia(G); finta.verifica.controlli = [{ testo: "", calcolo: "21 × 7 = 147" }];
+  assert.equal(controllaCompito(finta).motivo, "verifica"); // l'area da sola non controlla niente
+  const scollegata = copia(G); scollegata.verifica.controlli = [{ testo: "", calcolo: "2 × (20 + 8) = 56" }, { testo: "", calcolo: "21 × 7 = 147" }];
+  assert.equal(controllaCompito(scollegata).motivo, "verifica"); // le misure del controllo non sono quelle dell'area
+});
