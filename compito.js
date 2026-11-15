@@ -90,6 +90,9 @@ const compitiDiOggi = (lista, oggi) => (lista || []).filter((x) => x && x.quando
 
 /* =================================================================== nel browser */
 
+// Le formule si disegnano con KaTeX appena arriva; finché non c'è restano leggibili come testo.
+const formuleIn = (id) => caricaKatex().then((ok) => { if (ok) rendiFormule($(id)); });
+
 let compito = null, fotoCompito = [], immaginiCompito = [], indiziMostrati = 0, chatCompito = [], simili = [], simileOra = 0;
 
 function apriCompito() {
@@ -97,6 +100,7 @@ function apriCompito() {
   ["cp-scegli", "cp-letto", "cp-aiuto"].forEach((id) => { $(id).hidden = true; });
   $("cp-foto").hidden = false; $("cp-testo").value = ""; disegnaFotoCompito();
   errore($("err-cp"), ""); attesa($("stato-cp"), null); $("cp-chiedi").hidden = true;
+  caricaKatex(); // in anticipo: quando arriva la soluzione probabilmente è già pronto
   vai("compito");
 }
 function disegnaFotoCompito() {
@@ -166,7 +170,7 @@ function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indizi
 function mostraSoluzione() {
   $("cp-soluzione").innerHTML = '<h3 class="sez-titolo">La soluzione, passo per passo</h3>' + htmlSoluzioneCompito(compito);
   $("cp-soluzione").hidden = false;
-  if (typeof caricaKatex === "function") caricaKatex();
+  formuleIn("cp-soluzione");
   $("cp-soluzione").scrollIntoView({ block: "start" });
 }
 
@@ -189,19 +193,19 @@ async function chiediSulCompito(domanda) {
   } catch (e) {
     chatCompito.push({ chi: "app", testo: e.message === "conti_non_tornano" ? MSG_CONTI_DOMANDA : messaggioModello(e, "Non sono riuscito a rispondere. Riprova fra un momento.") });
   }
-  attesa($("stato-chat"), null); $("btn-cp-chiedi").disabled = false; disegnaChat();
+  attesa($("stato-chat"), null); $("btn-cp-chiedi").disabled = false; disegnaChat(); formuleIn("cp-chat");
   const ultimo = $("cp-chat").lastElementChild; if (ultimo) ultimo.scrollIntoView({ block: "nearest" });
 }
 
 async function esercizioSimile() {
-  if (simili.length > simileOra + 1) { simileOra++; $("cp-simile").innerHTML = htmlEsercizio(simili[simileOra], simileOra); return; }
+  if (simili.length > simileOra + 1) { simileOra++; $("cp-simile").innerHTML = htmlEsercizio(simili[simileOra], simileOra); formuleIn("cp-simile"); return; }
   const b = $("btn-cp-simile"); b.disabled = true;
   attesa($("stato-simile"), ["Preparo un esercizio simile", "Rifaccio i conti"]);
   try {
     const r = await conRiprova(() => modello({ azione: "esercizi_genera", modello: { testo: compito.testo }, quanti: 5 }));
     simili = r.esercizi || []; simileOra = 0;
     $("cp-simile").innerHTML = simili.length ? htmlEsercizio(simili[0], 0) : "";
-    if (typeof caricaKatex === "function") caricaKatex();
+    formuleIn("cp-simile");
     b.textContent = "Fammene un altro";
   } catch (e) {
     errore($("cp-simile"), messaggioModello(e, "Non sono riuscito a preparare un esercizio simile con i conti giusti. Riprova fra un momento."));
