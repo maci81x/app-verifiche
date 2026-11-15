@@ -226,7 +226,7 @@ test("stampa della mappa: l'SVG e sotto l'elenco dei nodi con le loro ancore", (
   const html = stampa("mappa", { albero: { ...ALBERO, nodi: [{ ...ALBERO.nodi[1], ancora: "si frustavano in pubblico" }, ALBERO.nodi[0]] }, stati: { k2: "rosso" } });
   intestazioneOk(html);
   assert.match(html, /<svg class="mappa"/);
-  assert.match(html, /Mappa concettuale/);
+  assert.match(html, /Mappa dell'argomento/);
   assert.match(html, /I flagellanti[\s\S]*<mark class="evidenzia">si frustavano in pubblico<\/mark>/);
   assert.match(html, /Caffa, in Crimea, assediata dai mongoli/); // anche il terzo livello nell'elenco
 });
@@ -237,7 +237,7 @@ test("stampa di Cosa studiare: stato con simbolo e parola, volte sbagliato e anc
     { id: "d", titolo: "Mai chiesto", ancora: "x y", stato: "mai", sbagliato: 0 },
   ]);
   intestazioneOk(html);
-  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*non ancora per 2 volte[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
+  assert.match(html, /✕ Da ripassare[\s\S]*I flagellanti[\s\S]*2 volte da rivedere[\s\S]*<mark class="evidenzia">si frustavano<\/mark>/);
   assert.match(html, /○ Ancora da provare[\s\S]*Mai chiesto/);
 });
 
@@ -608,4 +608,22 @@ test("a voce: per ogni guasto del microfono dice cosa fare, mai un errore muto",
     assert.ok(!m.includes("(" + c + ")"), "codice noto senza spiegazione: " + c);
   }
   assert.match(run('messaggioVoce("bad-grammar")'), /\(bad-grammar\)/); // un codice nuovo si vede, per capire il guasto
+});
+
+// ------------------------------------------------------------------ revisione #18
+test("evidenziatore solo sulla frase del quaderno: il testo di un esercizio generato non passa per ancora", () => {
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Calcola l'area", ancora: "Calcola l'area" })`), "");
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Chi erano?", ancora: "si frustavano", concetti: null })`), "si frustavano");
+  assert.equal(run(`ancoraDellaDomanda({ testo: "Chi erano?", ancora: "x", concetti: { ancora: "dal concetto" } })`), "dal concetto");
+});
+
+test("volte da rivedere: il conteggio dello storico non sembra lo stato di oggi", () => {
+  assert.equal(run(`testoVolte({ sbagliato: 1, stato: "verde" })`), "1 volta da rivedere");
+  assert.equal(run(`testoVolte({ sbagliato: 3, stato: "rosso" })`), "3 volte da rivedere");
+});
+
+test("Rileggi solo se c'è la frase; nota sul quaderno con i due punti", () => {
+  const html = stampa("studiare", [{ id: "a", titolo: "Senza frase", ancora: "", stato: "rosso", sbagliato: 1 }]);
+  assert.doesNotMatch(html, /Rileggi/);
+  assert.match(run(`NOTA_QUADERNO`), /^Da correggere sul quaderno: $/);
 });

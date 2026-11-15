@@ -9,7 +9,7 @@
 // In bianco e nero il colore non basta: ogni stato ha anche un simbolo e una parola.
 // Stesse forme e parole dell'app (semaforo.js): ✕ Da ripassare, ▲ Quasi, ● Lo sai, ○ Ancora da provare.
 const DOCUMENTI_STAMPA = {
-  mappa: "Mappa concettuale", studiare: "Cosa studiare", verifica: "Verifica", esito: "Com'è andata la prova",
+  mappa: "Mappa dell'argomento", studiare: "Cosa studiare", verifica: "Verifica", esito: "Com'è andata la prova",
   esercizi: "Esercizi", esito_esercizi: "Com'è andata con gli esercizi",
 };
 const LARGHEZZA_MAPPA_STAMPA = 700; // circa la larghezza utile di un A4, in pixel CSS
@@ -41,7 +41,7 @@ function corpoMappa({ albero, stati }, carattere) {
 function corpoStudiare(lista) {
   return '<ol class="st-lista">' + lista.map((x) => '<li class="st-voce">' + statoStampa(x.stato) +
     "<b>" + esc(x.titolo) + '</b><span class="st-volte">' + testoVolte(x) + "</span>" +
-    '<span class="st-ancora">Rileggi: ' + evidenzia(x.ancora) + "</span>" +
+    (x.ancora ? '<span class="st-ancora">Rileggi: ' + evidenzia(x.ancora) + "</span>" : "") +
     (x.errore_appunti ? '<span class="st-nota">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "") + "</li>").join("") + "</ol>";
 }
 
@@ -158,7 +158,7 @@ function apriStampa(tipo, info, dati) {
   docStampa = { tipo, info: { ...infoBase(), ...info }, dati };
   entraInStampa(docStampa.info.materia);
   $("opz-stampa").hidden = true;
-  $("btn-stampa-ora").disabled = false;
+  $("btn-stampa-ora").disabled = false; $("btn-stampa-ora").hidden = false;
   disegnaStampa();
 }
 
@@ -191,7 +191,7 @@ function apriVerificaDaStampare(args, ripasso, elErr) {
   docStampa = { tipo: "verifica", info: { ...infoBase(), titolo, materia }, dati: [] };
   entraInStampa(materia);
   $("doc-stampa").innerHTML = "";
-  $("btn-stampa-ora").disabled = true;
+  $("btn-stampa-ora").disabled = true; $("btn-stampa-ora").hidden = true; // un solo pulsante pieno: prima «Prepara»
   $("opz-stampa").hidden = false;
   disegnaSceltaStampa();
 }
@@ -228,7 +228,7 @@ async function preparaVerificaDaStampare() {
     // Le opzioni si mescolano una volta: domande e soluzioni usano lo stesso ordine.
     docStampa = { ...docStampa, dati: r.domande.map((d) => (d.tipo === "chiusa" ? { ...d, _ord: mescola(d.opzioni.length) } : d)) };
     disegnaStampa();
-    $("btn-stampa-ora").disabled = false;
+    $("btn-stampa-ora").disabled = false; $("btn-stampa-ora").hidden = false;
     if (r.domande.length < scelta.quante)
       avviso($("err-stampa"), "Ho preparato " + r.domande.length + " domande invece di " + scelta.quante + ": le altre non venivano dai tuoi appunti, quindi le ho tolte.");
   } catch (e) {

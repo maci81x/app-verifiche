@@ -136,7 +136,7 @@ function leggiOpzioni(d) {
 // righe: [{ concetto_id, sessione_id, data, punteggio }].
 const SBAGLIATA = 8, ORDINE_STATO = { rosso: 0, giallo: 1, mai: 2, verde: 3 };
 function testoVolte(x) {
-  if (x.sbagliato) return "non ancora per " + x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte");
+  if (x.sbagliato) return x.sbagliato + (x.sbagliato === 1 ? " volta" : " volte") + " da rivedere";
   return x.stato === "mai" ? "mai provato" : "sempre giusto";
 }
 // Titolo e materia di una prova su uno o più argomenti (il ripasso ne mescola diversi).
@@ -374,7 +374,7 @@ function vai(v, materia) {
 
 const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
 const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
-const NOTA_QUADERNO = "Da correggere sul quaderno. "; // davanti a errore_appunti («negli appunti: …»)
+const NOTA_QUADERNO = "Da correggere sul quaderno: "; // davanti a errore_appunti («negli appunti: …»)
 const MSG_SENZA_PUNTI = "Questo argomento non ha ancora punti. Torna all'argomento e tocca Ritrova i punti.";
 const MSG_NESSUN_PROFILO = "Qui non c'è ancora nessun profilo. Chiedi a un genitore di crearlo da Impostazioni, qui sotto.";
 
@@ -1068,6 +1068,13 @@ function disegnaStoricoArgomento(a) {
   mie.forEach((x) => box.appendChild(rigaSessione(x, dataOraIt(x.data))));
 }
 
+// Frase del quaderno di una domanda salvata. Un esercizio senza tipo salva come ancora il suo
+// stesso testo (generato, non del quaderno): quello non si evidenzia.
+function ancoraDellaDomanda(d) {
+  if (d.concetti && d.concetti.ancora) return d.concetti.ancora;
+  return d.ancora && d.ancora !== d.testo ? d.ancora : "";
+}
+
 // Riapre una prova passata: domande, risposte e semaforo di quel giorno, dal database.
 async function mostraSessione(x, daScheda) {
   const { data, error } = await sb.from("domande")
@@ -1083,7 +1090,7 @@ async function mostraSessione(x, daScheda) {
   const perC = {};
   (data || []).forEach((d) => {
     const r = (d.risposte || [])[0] || {};
-    const k = d.concetto_titolo, c = perC[k] || (perC[k] = { s: 0, n: 0, ancora: (d.concetti && d.concetti.ancora) || d.ancora, concetto_id: d.concetto_id });
+    const k = d.concetto_titolo, c = perC[k] || (perC[k] = { s: 0, n: 0, ancora: ancoraDellaDomanda(d), concetto_id: d.concetto_id });
     c.s += Number(r.punteggio || 0); c.n++;
   });
   const materia = x.materia === "varie" ? null : x.materia;
@@ -1285,7 +1292,7 @@ async function caricaStudiare(a) {
   listaStudiare.forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato;
     d.innerHTML = "<h3>" + esc(x.titolo) + '<span class="voto">' + testoVolte(x) + "</span></h3>" + htmlStato(x.stato) +
-      '<p><span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span></p>" +
+      (x.ancora ? '<p><span class="rileggi">Rileggi: ' + evidenzia(x.ancora) + "</span></p>" : "") +
       (x.errore_appunti ? '<span class="errore-appunti">' + NOTA_QUADERNO + esc(x.errore_appunti) + "</span>" : "");
     if (x.stato !== "verde") d.appendChild(bottoneSpiega({ concetto_id: x.id, titolo: x.titolo, ancora: x.ancora, materia: a.materia }));
     lista.appendChild(d);

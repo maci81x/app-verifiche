@@ -136,7 +136,7 @@ async function arricchisciDalWeb() {
     else avviso($("err-mappa"), "Ho aggiunto " + r.aggiunti + (r.aggiunti === 1 ? " nodo" : " nodi") + " dal web: li riconosci dalla scritta «dal web». Toccali per leggerli e aprire la fonte.");
   } catch (e) {
     if (stessoArgomento(corrente, a)) errore($("err-mappa"), e.dati && e.dati.errore === "nessuna_mappa"
-      ? "Prima serve la mappa: tocca Rigenera."
+      ? "Prima serve la mappa: tocca Rifai la mappa."
       : messaggioWeb(e, "Non sono riuscito ad arricchire la mappa. Riprova fra un momento."));
   } finally {
     finisciLavoro(a.id, "arricchisci");

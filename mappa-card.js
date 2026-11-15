@@ -33,7 +33,7 @@ function htmlCardNodo(n, ctx) {
     (ctx.errore ? '<p class="avviso-appunti" role="note">' + NOTA_QUADERNO + esc(ctx.errore) + "</p>" : "") +
     '<p class="occhiello">In breve' + (sotto ? ", su «" + esc(c.titolo) + "»" : "") + "</p>" +
     '<p class="in-breve" data-tipo="' + s.tipo + '" aria-live="polite">' + esc(s.testo) + "</p>" +
-    (ctx.senzaConcetto ? '<p class="legenda">Questo punto non c\'è più nell\'argomento: tocca Rigenera per rifare la mappa.</p>'
+    (ctx.senzaConcetto ? '<p class="legenda">Questo punto non c\'è più nell\'argomento: tocca Rifai la mappa.</p>'
       : '<div class="bottoni card-azioni">' +
         '<button type="button" class="azione" data-azione="prova">Mettiti alla prova' + (sotto ? " su «" + esc(c.titolo) + "»" : "") + "</button>" +
         '<button type="button" class="minore" data-azione="spiega">Spiegamelo meglio</button></div>');
