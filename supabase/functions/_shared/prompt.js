@@ -1,10 +1,12 @@
 import { concettiInOrdine, idBreve } from "./mappa.js";
 import { FORME } from "./generati.js";
-import { etaDaClasse } from "./web.js";
 import { perClasse } from "./compito.js";
+import { contestoClasse, erroriCandidati } from "./classe.js";
 
 // Chi studia, detto con la classe del profilo e senza genere (issue #27): «chi fa la 2ª media».
 const chiStudia = (classe) => { const c = perClasse(classe); return (c.startsWith("scuola") ? "chi va alla " : "chi fa la ") + c; };
+// La classe con il suo modo di scrivere e il programma (issue #28): argomento più vicino, strategie, errori tipici.
+const perLaClasse = (classe, materia, testo) => contestoClasse({ classe, materia, testo: String(testo ?? "").slice(0, 4000) });
 
 // Prompt al modello. La base è copiata parola per parola da prototipo/prova-verifiche.html,
 // dove è stata tarata sul campo; le modifiche successive sono segnate con la loro data.
@@ -13,7 +15,7 @@ const chiStudia = (classe) => { const c = perClasse(classe); return (c.startsWit
 // Trascrizione al primo caricamento (prototipo, leggiMateriale).
 export const PROMPT_TRASCRIZIONE = [
   "Trascrivi fedelmente tutto il testo di queste pagine di quaderno o di libro, grafia a mano inclusa.",
-  "Le foto sono scattate al volo da una ragazza: possono essere storte, ruotate anche di 90 o 180 gradi, inclinate, sfocate, con ombre, riflessi, dita sul bordo, pagine curve o due pagine nello stesso scatto. Raddrizzale mentalmente e leggile lo stesso, pagina per pagina.",
+  "Le foto sono scattate al volo da chi studia: possono essere storte, ruotate anche di 90 o 180 gradi, inclinate, sfocate, con ombre, riflessi, dita sul bordo, pagine curve o due pagine nello stesso scatto. Raddrizzale mentalmente e leggile lo stesso, pagina per pagina.",
   "Leggi anche quello che è scritto a margine, sottolineato, evidenziato o aggiunto a mano sopra il testo stampato: spesso è la parte che conta.",
   "Dove una parola è davvero illeggibile scrivi [?] e vai avanti: trascrivi tutto il resto. Non saltare una pagina perché è venuta male, e non inventare per riempire i buchi.",
   "Se una foto non contiene testo leggibile, scrivila come [pagina illeggibile] e passa alla successiva.",
@@ -41,12 +43,13 @@ export function quantiConcetti(pagine) {
 const SOLO_IL_MATERIALE =
   "Titolo e descrizione devono dire solo quello che è scritto nel materiale. Un'informazione vera ma non scritta (un autore, una data, un'attribuzione, un collegamento che conosci tu) non va aggiunta; se un concetto si regge su un'informazione del genere, scartalo.";
 const VINCE_IL_LIBRO =
-  "Il materiale può mescolare appunti scritti a mano dall'alunna e pagine del libro. Quando appunti e libro si contraddicono su un fatto, vale il libro: scrivi il concetto secondo il libro, prendi l'ancora dal libro e in errore_appunti scrivi in poche parole cosa riportano di sbagliato gli appunti (per esempio: «negli appunti: versi decasillabi invece di endecasillabi»). Se non c'è contraddizione, lascia errore_appunti vuoto.";
+  "Il materiale può mescolare appunti scritti a mano da chi studia e pagine del libro. Quando appunti e libro si contraddicono su un fatto, vale il libro: scrivi il concetto secondo il libro, prendi l'ancora dal libro e in errore_appunti scrivi in poche parole cosa riportano di sbagliato gli appunti (per esempio: «negli appunti: versi decasillabi invece di endecasillabi»). Se non c'è contraddizione, lascia errore_appunti vuoto.";
 
 // Estrazione dei concetti da un argomento nuovo.
-export function promptConcetti(materia, titolo, testo, pagine = 1) {
+export function promptConcetti(materia, titolo, testo, pagine = 1, classe) {
   return [
-    "Sei un insegnante di scuola media italiana. Questo è il materiale di studio di un'alunna.",
+    "Sei un insegnante di scuola media italiana. Questo è il materiale di studio di " + chiStudia(classe) + ".",
+    perLaClasse(classe, materia, titolo + " " + testo),
     "Ricava i concetti distinti che deve sapere: circa " + quantiConcetti(pagine) + ", cioè circa quattro per ogni pagina del materiale, mai meno di " + MIN_CONCETTI + " e mai più di " + MAX_CONCETTI + ". Per ognuno: titolo breve, descrizione in una riga, l'ancora (la frase esatta del materiale da cui il concetto nasce, copiata parola per parola) e un peso da 1 a 3 secondo l'importanza.",
     "Non inventare concetti che nel materiale non ci sono, nemmeno se l'argomento di solito li prevede.",
     SOLO_IL_MATERIALE,
@@ -61,9 +64,11 @@ export function promptConcetti(materia, titolo, testo, pagine = 1) {
 }
 
 // Concetti nuovi da foto aggiunte a un argomento esistente.
-export function promptConcettiNuovi(titoliEsistenti, testo, pagine = 1) {
+export function promptConcettiNuovi(titoliEsistenti, testo, pagine = 1, opzioni = {}) {
+  const { classe, materia } = opzioni;
   return [
     "Sei un insegnante di scuola media italiana. Questo materiale si aggiunge a un argomento già esistente.",
+    perLaClasse(classe, materia, testo),
     "Concetti già presenti (non ripeterli):\n" + JSON.stringify(titoliEsistenti),
     "Ricava SOLO i concetti nuovi che compaiono nel materiale qui sotto, da 0 a " + quantiConcetti(pagine) + ". Per ognuno titolo, descrizione in una riga, ancora (frase esatta del materiale) e peso da 1 a 3.",
     SOLO_IL_MATERIALE,
@@ -111,7 +116,7 @@ const REGOLE_CONCETTO = {
   aperte: "tre domande aperte brevi sullo stesso concetto, da rispondere con parole proprie",
 };
 
-export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante, soloConcetto }) {
+export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante, soloConcetto, classe }) {
   const perLivello = { semplice: 7, medio: 8, difficile: 6 }[livello];
   const taglio = {
     semplice: "Resta sul riconoscimento: definizioni, date, termini, fatti espliciti nel materiale.",
@@ -127,13 +132,14 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
     : tipo === "aperte" ? "tutte aperte, da rispondere con parole proprie"
     : misto) + ". " + taglio;
   const voce = modalita === "orale"
-    ? "È la simulazione di un'interrogazione orale: scrivi le domande come la professoressa le direbbe a voce, rivolte direttamente all'alunna e con un tono diretto (Spiegami..., Raccontami..., Come mai..., Che differenza c'è fra...). Una domanda per volta, senza numerazione né riferimenti a pagine o esercizi. Le risposte saranno dette a voce, quindi valuta il contenuto e non la forma scritta."
+    ? "È la simulazione di un'interrogazione orale: scrivi le domande come la professoressa le direbbe a voce, rivolte direttamente a chi studia (in seconda persona, con forme neutre di genere) e con un tono diretto (Spiegami..., Raccontami..., Come mai..., Che differenza c'è fra...). Una domanda per volta, senza numerazione né riferimenti a pagine o esercizi. Le risposte saranno dette a voce, quindi valuta il contenuto e non la forma scritta."
     : "È la simulazione di una verifica scritta: domande formulate come su un foglio, autonome e precise, che si capiscono senza che nessuno le spieghi a voce.";
   const g = (gia || []).slice(0, 24);
   return [
-    "Sei un insegnante di scuola media italiana. Prepari una prova di livello " + livello + ".",
+    "Sei un insegnante di scuola media italiana. Prepari una prova di livello " + livello + " per " + chiStudia(classe) + ".",
+    perLaClasse(classe, (materiale[0] || {}).materia, materiale.map((a) => a.titolo + " " + (a.trascrizione || "")).join(" ")),
     voce,
-    ripasso ? "È un ripasso di fine quadrimestre: i concetti qui sotto vengono da argomenti diversi e sono quelli su cui l'alunna è andata peggio. Riparti da lì." : "",
+    ripasso ? "È un ripasso di fine quadrimestre: i concetti qui sotto vengono da argomenti diversi e sono quelli su cui chi studia è andat* peggio. Riparti da lì." : "",
     regole,
     "Regola assoluta: ogni domanda deve nascere da un concetto dell'elenco, riportare il suo id in concetto_id e riportare in ancora la frase esatta del materiale che contiene la risposta. Non fare domande su cose che nel materiale non ci sono.",
     "Per le chiuse: quattro opzioni plausibili, una sola corretta. Per le aperte: la risposta attesa e gli elementi che devono comparire.",
@@ -146,11 +152,12 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
 
 // Correzione delle aperte con la rubrica (prototipo, correggi). Testo identico al prototipo.
 // pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }]
-export function promptCorrezione(modalita, pacchetto) {
+export function promptCorrezione(modalita, pacchetto, classe, materia = "") {
   return [
-    "Correggi le risposte aperte di un'alunna di scuola media con questa rubrica, su ogni risposta:",
+    "Correggi le risposte aperte di " + chiStudia(classe) + " con questa rubrica, su ogni risposta:",
+    perLaClasse(classe, materia, pacchetto.map((x) => x.domanda).join(" ")) + "\nLa rubrica non cambia con la classe: cambia solo il modo di scrivere il commento.",
     "completezza da 0 a 4 (quanti elementi attesi ci sono), correttezza da 0 a 4 (errori di fatto), linguaggio da 0 a 2 (termini della materia o parafrasi vaghe).",
-    "Il totale è la somma, da 0 a 10. Aggiungi un commento di una riga, concreto, rivolto all'alunna, che dica cosa manca. Non penalizzare l'ortografia.",
+    "Il totale è la somma, da 0 a 10. Aggiungi un commento di una riga, concreto, rivolto a chi studia (tu, forme neutre di genere), che dica cosa manca. Non penalizzare l'ortografia.",
     modalita === "orale" ? "Le risposte sono state dettate a voce: ignora ripetizioni, esitazioni, frasi lasciate a metà e riprese, e valuta solo il contenuto." : "",
     JSON.stringify(pacchetto),
     'Rispondi solo con JSON: {"valutazioni":[{"id":"d2","completezza":3,"correttezza":4,"linguaggio":1,"totale":8,"commento":""}]}',
@@ -161,12 +168,13 @@ export function promptCorrezione(modalita, pacchetto) {
 // da tarare sulla prova vera. I concetti sono già i rami; il modello aggiunge solo
 // sotto-punti, ognuno con la sua ancora, e il filtro di ancoraggio scarta quelli che non reggono.
 // argomento: { titolo, materia, trascrizione, concetti: [{ titolo, descrizione, ancora, ordine }] }
-export function promptMappa(argomento, sottoPunti) {
+export function promptMappa(argomento, sottoPunti, classe) {
   const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({
     id: idBreve(i), titolo: c.titolo, descrizione: c.descrizione || "", ancora: c.ancora,
   }));
   return [
-    "Sei un insegnante di scuola media italiana. Prepari la mappa concettuale di un argomento per un'alunna che deve ripassarlo dagli appunti.",
+    "Sei un insegnante di scuola media italiana. Prepari la mappa concettuale di un argomento per " + chiStudia(classe) + ", che deve ripassarlo dagli appunti.",
+    perLaClasse(classe, argomento.materia, argomento.titolo + " " + (argomento.trascrizione || "")),
     "I rami principali sono già decisi: sono i concetti qui sotto, ognuno con il suo id. Rispondi con un elemento di nodi per ogni concetto. Per ogni concetto aggiungi da 0 a 4 sotto-punti, e sotto ciascun sotto-punto al massimo 3 dettagli. In tutto non più di " + sottoPunti + " fra sotto-punti e dettagli: meglio pochi e chiari che tanti.",
     "Ogni sotto-punto e ogni dettaglio ha un titolo brevissimo (al massimo sei parole) e un'ancora: la frase esatta del materiale da cui nasce, copiata parola per parola. Se non trovi la frase nel materiale, non scrivere il nodo.",
     "Non inventare niente che nel materiale non ci sia. Un'informazione vera ma non scritta (un autore, una data, un collegamento che conosci tu) non va aggiunta.",
@@ -179,10 +187,11 @@ export function promptMappa(argomento, sottoPunti) {
 }
 
 // «In breve» dei concetti (issue #13): chiamata a parte, dopo la mappa, così la mappa arriva subito.
-export function promptSintesi(argomento) {
+export function promptSintesi(argomento, classe) {
   const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({ id: idBreve(i), titolo: c.titolo, ancora: c.ancora }));
   return [
-    "Sei un insegnante di scuola media italiana. Per ogni concetto qui sotto scrivi «in breve»: una o due frasi corte che lo spiegano a una ragazza di 12-13 anni (seconda o terza media), con parole semplici.",
+    "Sei un insegnante di scuola media italiana. Per ogni concetto qui sotto scrivi «in breve»: una o due frasi corte che lo spiegano a " + chiStudia(classe) + ", con parole semplici.",
+    perLaClasse(classe, argomento.materia, argomento.titolo + " " + (argomento.trascrizione || "")),
     "Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti: il server controlla che ci siano e toglie la sintesi se non le trova.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
@@ -197,7 +206,6 @@ export function promptSintesi(argomento) {
 // poi la composizione in JSON, dove il modello sceglie le fonti per numero.
 // Il web non diventa mai una domanda di verifica.
 const NIENTE_VERIFICA = "Non scrivere domande di verifica: questo serve solo a capire meglio, non a interrogare.";
-const perEta = (classe) => etaDaClasse(classe) + " anni (" + (etaDaClasse(classe) === 13 ? "terza" : "seconda") + " media)";
 const elencoFonti = (fonti) => fonti.length
   ? fonti.map((f, i) => (i + 1) + ". " + f.titolo + " — " + f.url).join("\n")
   : "(nessuna fonte trovata)";
@@ -213,7 +221,8 @@ const descriviConcetto = ({ materia, argomento, concetto }) =>
 // { materia, argomento, classe, concetto: { titolo, descrizione, ancora }, errore? }
 export function promptRicercaSpiegazione(dati) {
   return [
-    "Sei un insegnante di scuola media italiana. Un'alunna di " + perEta(dati.classe) + " non ha capito bene un concetto.",
+    "Sei un insegnante di scuola media italiana. Chi studia (" + perClasse(dati.classe) + ") non ha capito bene un concetto.",
+    perLaClasse(dati.classe, dati.materia, dati.argomento + " " + dati.concetto.titolo + " " + dati.concetto.ancora),
     descriviConcetto(dati),
     testoErrore(dati.errore),
     "Cerca sul web (al massimo tre ricerche) informazioni affidabili che aiutino a spiegarlo meglio: un esempio concreto e un modo semplice per dirlo. Riassumi in poche righe in italiano quello che hai trovato, citando le fonti.",
@@ -224,7 +233,8 @@ export function promptRicercaSpiegazione(dati) {
 // { ...come sopra, ricerca: testo della ricerca, fonti: [{ titolo, url }] }
 export function promptSpiegazione(dati) {
   return [
-    "Sei un insegnante di scuola media italiana. Scrivi per un'alunna di " + perEta(dati.classe) + ", con parole adatte alla sua età.",
+    "Sei un insegnante di scuola media italiana. Scrivi per " + chiStudia(dati.classe) + ", con parole adatte all'età, in seconda persona e con forme neutre di genere.",
+    perLaClasse(dati.classe, dati.materia, dati.argomento + " " + dati.concetto.titolo + " " + dati.concetto.ancora),
     descriviConcetto(dati),
     testoErrore(dati.errore),
     "Parti da quello che c'è negli appunti, poi allarga con quello che è stato trovato sul web. Non sostituire la prof: se il web dice qualcosa di diverso dagli appunti, dillo con delicatezza e consiglia di chiedere alla prof.",
@@ -239,7 +249,8 @@ export function promptSpiegazione(dati) {
 // { materia, argomento, classe, agganci: [{ breve, titolo }] }
 export function promptRicercaArricchisci(dati) {
   return [
-    "Sei un insegnante di scuola media italiana. Un'alunna di " + perEta(dati.classe) + " ripassa con una mappa concettuale fatta dai suoi appunti.",
+    "Sei un insegnante di scuola media italiana. Chi studia (" + perClasse(dati.classe) + ") ripassa con una mappa concettuale fatta dai suoi appunti.",
+    perLaClasse(dati.classe, dati.materia, dati.argomento + " " + dati.agganci.map((a) => a.titolo).join(" ")),
     "Materia: " + dati.materia + ". Argomento: " + dati.argomento + ".\nNodi della mappa:\n" + dati.agganci.map((a) => a.breve + ": " + a.titolo).join("\n"),
     "Cerca sul web (al massimo tre ricerche) esempi, curiosità e collegamenti che aiutano a ricordare questi nodi e che negli appunti non ci sono. Riassumi in poche righe in italiano quello che hai trovato, citando le fonti.",
     NIENTE_VERIFICA,
@@ -249,9 +260,10 @@ export function promptRicercaArricchisci(dati) {
 // { ...come sopra, ricerca, fonti }
 export function promptArricchisci(dati) {
   return [
-    "Sei un insegnante di scuola media italiana. Aggiungi alla mappa concettuale di un'alunna di " + perEta(dati.classe) + " fino a 6 nodi presi dal web.",
+    "Sei un insegnante di scuola media italiana. Aggiungi alla mappa concettuale di " + chiStudia(dati.classe) + " fino a 6 nodi presi dal web.",
+    perLaClasse(dati.classe, dati.materia, dati.argomento + " " + dati.agganci.map((a) => a.titolo).join(" ")),
     "Materia: " + dati.materia + ". Argomento: " + dati.argomento + ".\nNodi della mappa:\n" + dati.agganci.map((a) => a.breve + ": " + a.titolo).join("\n"),
-    "Per ogni nodo nuovo: aggancio = l'id (n1, n2...) del nodo della mappa a cui si collega meglio; titolo brevissimo, al massimo sei parole; testo di 2 o 3 frasi brevi e semplici, una cosa per frase, con il soggetto sempre scritto (una ragazza di " + perEta(dati.classe) + " deve capirle alla prima lettura); fonte = il numero della fonte da cui viene. Solo cose che stanno nelle fonti.",
+    "Per ogni nodo nuovo: aggancio = l'id (n1, n2...) del nodo della mappa a cui si collega meglio; titolo brevissimo, al massimo sei parole; testo di 2 o 3 frasi brevi e semplici, una cosa per frase, con il soggetto sempre scritto (" + chiStudia(dati.classe) + " deve capirle alla prima lettura); fonte = il numero della fonte da cui viene. Solo cose che stanno nelle fonti.",
     "Ogni nodo deve aggiungere qualcosa che nei nodi della mappa non c'è: un esempio, un perché, una curiosità, un collegamento. Se un nodo direbbe con altre parole quello che un nodo della mappa dice già, non scriverlo: meglio meno nodi.",
     NIENTE_VERIFICA,
     "Quello che è stato trovato sul web:\n" + (dati.ricerca || "(niente)"),
@@ -275,6 +287,7 @@ export const PROMPT_TRASCRIZIONE_ESERCIZI = [
 export function promptEserciziTipi(materia, titolo, testo, esistenti = [], classe = null) {
   return [
     "Sei un insegnante di matematica di scuola media italiana. Queste sono pagine di esercizi del libro o del quaderno di " + chiStudia(classe) + ".",
+    perLaClasse(classe, materia || "matematica", titolo + " " + testo),
     "Riconosci i tipi di esercizio presenti, per esempio: espressioni con le frazioni, potenze, proporzioni, percentuali, equazioni di primo grado, perimetro e area di poligoni, teorema di Pitagora, circonferenza e cerchio, volumi. Un tipo è una famiglia di esercizi che si risolvono nello stesso modo.",
     "Per ogni tipo: titolo breve; ancora = il testo di UN esercizio vero di queste pagine, copiato carattere per carattere (numeri e simboli compresi, senza il numero dell'esercizio); difficolta da 1 a 3 per " + chiStudia(classe) + "; figura = true se per risolverlo serve una figura geometrica.",
     "Solo tipi che nelle pagine ci sono davvero, con un esercizio da copiare. Anche i problemi a parole (per esempio con le frazioni di una somma di denaro) sono un tipo: l'ancora è il testo del problema. Niente geometria analitica.",
@@ -293,6 +306,8 @@ export function promptEserciziGenera(dati) {
   const forme = Object.entries(FORME).map(([f, misure]) => "- " + f + ": " + misure.join(", ")).join("\n");
   return [
     "Sei un insegnante di matematica di scuola media italiana. Prepara " + dati.quanti + " esercizi per " + chiStudia(dati.classe) + ", simili a quelli del libro.",
+    perLaClasse(dati.classe, dati.materia || "matematica", dati.tipi.map((t) => t.titolo + " " + t.ancora).join(" ") + " " + (dati.mirati ? dati.mirati.concetto + " " + dati.mirati.testo : "")) +
+      "\nDifficoltà adatta all'anno: dentro gli argomenti di questa classe e dei suoi prerequisiti, mai argomenti degli anni dopo.",
     "Tipi di esercizio confermati, ognuno con un esercizio vero del libro come modello:\n" +
       JSON.stringify(dati.tipi.map((t) => ({ id: t.breve, titolo: t.titolo, esempio: t.ancora, difficolta: t.difficolta, figura: t.figura }))),
     dati.mirati ? "Sono esercizi mirati su «" + dati.mirati.concetto + "», che in un compito ha messo in difficoltà. Mettili in ordine dal più facile al più difficile: il primo quasi uguale a questo passo del compito, «" + dati.mirati.calcolo + "»; il secondo un po' più difficile; dal terzo in poi PROBLEMI A PAROLE (una piccola storia con i dati scritti nel testo, che chiede di usare «" + dati.mirati.concetto + "»), simili a questo compito: «" + dati.mirati.testo + "». Numeri e storie diversi da quelli del compito." : "",
@@ -320,11 +335,14 @@ export function promptEserciziGenera(dati) {
 export function promptCorrezioneEsercizi(dati) {
   return [
     "Sei un insegnante di matematica di scuola media italiana e correggi gli esercizi di " + chiStudia(dati.classe) + ".",
+    perLaClasse(dati.classe, "matematica", dati.pacchetto.map((x) => x.testo).join(" ")),
     "Per ogni esercizio hai la consegna, lo svolgimento corretto, il risultato corretto, la risposta data, i passaggi scritti e l'esito del risultato. L'esito l'ha stabilito un calcolo: non lo decidi tu e non cambiarlo.",
     "Leggi i passaggi scritti e trova il primo passaggio sbagliato: in primo_errore copialo carattere per carattere da quello che è stato scritto (copiato, non riscritto). In tipo_errore scrivi che cosa è successo: calcolo, formula, segno, unita (unità di misura), procedimento (ha sbagliato strada), altro; nessuno se i passaggi sono giusti, e allora primo_errore resta vuoto.",
     "In spiegazione spiega l'errore in 2-4 frasi semplici, con parole adatte a " + chiStudia(dati.classe) + ", parlando in seconda persona (tu) con forme neutre di genere e senza giudicare. In esempio mostra un esempio svolto simile, con numeri diversi, passo per passo. Se i passaggi sono giusti e l'esito è giusto, una frase di conferma e niente esempio.",
+    "Errori tipici del programma (id: nome — come riconoscerlo). In errore_tipico scrivi l'id di quello che corrisponde al primo errore, se corrisponde davvero; altrimenti lascia vuoto. Se c'è, la spiegazione lo chiama per nome («è l'errore più comune con…») e dice perché non funziona:\n" +
+      erroriCandidati({ classe: dati.classe, materia: "matematica", testo: dati.pacchetto.map((x) => x.testo + " " + (x.passaggi || "")).join(" ") }).map((e) => e.id + ": " + e.errore + " — " + e.come_riconoscerlo).join("\n"),
     "Esercizi:\n" + JSON.stringify(dati.pacchetto),
-    'Rispondi solo con JSON: {"analisi":[{"id":"","primo_errore":"","tipo_errore":"calcolo","spiegazione":"","esempio":""}]}',
+    'Rispondi solo con JSON: {"analisi":[{"id":"","primo_errore":"","tipo_errore":"calcolo","errore_tipico":"","spiegazione":"","esempio":""}]}',
   ].join("\n\n");
 }
 
@@ -337,6 +355,7 @@ const REGOLE_CALCOLO = "Ogni campo calcolo è una catena di uguali con soli nume
 export function promptCompito(dati) {
   return [
     "Sei un tutor di scuola media italiana e aiuti " + chiStudia(dati.classe) + " a capire come si fa un esercizio dei compiti, senza farlo al posto suo all'inizio. " + VOCE_TUTOR,
+    perLaClasse(dati.classe, dati.materia || "", dati.testo || dati.esercizio || "") + "\nSe l'esercizio corrisponde a un argomento del programma, la strategia ha il nome di una delle strategie del programma.",
     dati.testo ? "Il testo dell'esercizio, già letto e controllato:\n" + dati.testo
       : "L'esercizio è nella foto (pagina di libro o quaderno, anche storta o sfocata: raddrizzala mentalmente).",
     dati.esercizio ? "Nella pagina ci sono più esercizi: aiuta solo con quello che comincia così: «" + dati.esercizio + "». Lascia vuoto l'elenco esercizi."
@@ -367,6 +386,7 @@ export function promptCompitoDomanda(dati) {
   const c = dati.compito || {};
   return [
     "Sei un tutor di scuola media italiana. Hai appena spiegato un esercizio a " + chiStudia(dati.classe) + " e ora rispondi a una sua domanda. " + VOCE_TUTOR,
+    perLaClasse(dati.classe, c.materia || "matematica", c.testo),
     "Rispondi in breve (al massimo 5 frasi), resta su questo esercizio e riusa i suoi numeri. Se la domanda è su un passo («il punto 5»), parti da quel passo. Se la domanda non c'entra con l'esercizio, dillo con gentilezza e riporta il discorso sul compito.",
     "L'esercizio e la spiegazione già data:\n" + JSON.stringify({
       testo: c.testo, cerca: c.cerca, passi: (c.passi || []).map((p, i) => ({ numero: i + 1, titolo: p.titolo, spiegazione: p.spiegazione, calcolo: p.calcolo })),
@@ -391,6 +411,7 @@ export function promptGemelli(dati) {
     variante: "gemello con una variante: un passo in più o un dato da ricavare, per controllare che la strategia sia capita e non copiata" };
   return [
     "Sei un tutor di scuola media italiana. Prepara problemi gemelli di un compito appena risolto da " + chiStudia(dati.classe) + ": stessa strategia e stessa sequenza di passi, ma storia e numeri diversi, così la strategia si fissa. " + VOCE_TUTOR,
+    perLaClasse(dati.classe, c.materia || "matematica", c.testo),
     "Il compito:\n" + c.testo + (c.strategia && c.strategia.nome ? "\nStrategia: " + c.strategia.nome : "") + "\nPassi con i conti:\n" + passi,
     "Scrivi un gemello per ognuno di questi tipi, in quest'ordine:\n" + dati.tipi.map((t) => "- " + t + ": " + cosa[t]).join("\n"),
     "Regole: gli stessi titoli dei passi del compito (con i numeri nuovi) e lo stesso numero di passi con un conto (il gemello con la variante ne può avere uno in più o in meno); tutti i risultati intermedi interi (o frazioni semplici dove il compito usa le frazioni, o euro con i centesimi): mai numeri come 7,333; scegli i numeri partendo dal risultato e tornando indietro, così ogni divisione torna esatta. Contesti adatti a 10-14 anni e vari (non sempre soldi), con nomi propri di fantasia diversi fra loro e non tutti dello stesso genere. Il testo del problema non contiene la soluzione.",

@@ -226,6 +226,7 @@ function disegnaLibreria() {
   $("frase-oggi").textContent = fraseOggi(argomenti);
   disegnaPrimo(daRipassarePrima(argomenti));
   if (typeof disegnaRipassoOggi === "function") disegnaRipassoOggi(); // compito.js: ripasso 1-3-7 e allenamento di ieri
+  if (typeof disegnaInvalsiOggi === "function") disegnaInvalsiOggi(); // invalsi.js: solo per la terza
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
   if (!argomenti.length) {

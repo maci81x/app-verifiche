@@ -92,6 +92,8 @@ function htmlCorrezione(c, e) {
       (c.spiegazione ? '<p class="spiega-es">' + esc(c.spiegazione) + "</p>" : "") +
       (c.esempio ? '<p class="occhiello">Esempio svolto</p><p class="esempio-es">' + esc(c.esempio) + "</p>" : "") + "</div>";
   }
+  // issue #28: l'errore tipico per nome e, se viene da un anno prima, il mini-ripasso (classe-app.js)
+  if (typeof htmlErroreTipico === "function") h += htmlErroreTipico(c, c.id || "es");
   if (c.punti < 10) h += '<details class="come-si-fa"><summary>Ecco come si fa</summary>' + htmlSoluzione(e) + "</details>";
   return h + "</div>";
 }

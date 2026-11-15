@@ -805,3 +805,29 @@ details.sezione[open]{padding-bottom:16px}
 .prova-riga input{flex:1;min-width:0}
 .prova-riga button{flex:none}
 .prova-esito p{margin:8px 0 0}
+
+/* Issue #28: errore tipico per nome, mini-ripasso del prerequisito, poesia a memoria, INVALSI */
+.errore-tipico{margin-top:12px;border-top:1px solid var(--bordo);padding-top:12px}
+.errore-tipico .spiega-es{margin:8px 0 0}
+.prerequisito{margin-top:12px;border-left:3px solid var(--bordo);padding:2px 0 2px 12px}
+.prerequisito p{margin:0 0 8px}
+.pr-lista .esercizio{margin-top:12px}
+.po-livelli{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.po-livelli [aria-pressed="true"]{background:var(--inchiostro);color:var(--carta);border-color:var(--inchiostro)}
+.poesia{font-size:1.15rem;line-height:1.7;margin:8px 0 6px}
+.poesia .strofa{margin:0 0 18px}
+.poesia .buco{letter-spacing:.08em;color:var(--inchiostro-2);font-variant-numeric:tabular-nums}
+.po-esito{font-weight:700;margin-top:8px}
+.card-invalsi{margin-top:18px;border-top:1px solid var(--bordo);border-bottom:1px solid var(--bordo);padding:14px 0}
+.card-invalsi p{margin:0 0 6px}
+.tempo-inv{position:sticky;top:0;z-index:2;background:var(--carta);padding:10px 0;margin:0;font:700 1.05rem var(--testo);font-variant-numeric:tabular-nums;border-bottom:1px solid var(--bordo)}
+.brano-inv{border-bottom:1px solid var(--bordo);padding:12px 0}
+.brano-inv p{margin:0 0 10px}
+.domanda-inv{border:0;border-bottom:1px solid var(--bordo);margin:0;padding:14px 0;min-width:0}
+.domanda-inv legend{padding:0;width:100%}
+.domanda-inv .consegna{display:block;margin:4px 0 10px}
+.opzione-inv{display:flex;align-items:center;gap:12px;min-height:48px;padding:4px 0;cursor:pointer}
+.opzione-inv input{width:22px;height:22px;flex:none;accent-color:var(--inchiostro)}
+.ambiti-inv{list-style:none;padding:0;margin:8px 0 16px;border-top:1px solid var(--bordo)}
+.ambiti-inv li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:10px 0;border-bottom:1px solid var(--bordo)}
+.ambiti-inv li b{margin-left:auto}

@@ -265,9 +265,9 @@ async function provaRisposta() {
   if (!(compito.risultato && compito.risultato.valore)) { segnaSblocco("risposta"); out.innerHTML = "<p>Fatto. Adesso confrontala con la soluzione.</p>"; return; }
   const c = compito;
   try {
-    const r = await modello({ azione: "prova_tu", atteso: c.risultato, risposta });
+    const r = await modello({ azione: "prova_tu", atteso: c.risultato, risposta, testo: c.testo });
     if (!compito || c.testo !== compito.testo) return;
-    segnaSblocco("risposta", c); out.innerHTML = htmlEsitoTentativo(r, c);
+    segnaSblocco("risposta", c); out.innerHTML = htmlEsitoTentativo(r, c) + (typeof htmlErroreTipico === "function" ? htmlErroreTipico(r, "tentativo") : "");
   } catch (e) { out.innerHTML = "<p>" + esc(messaggioModello(e, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
 function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati, provoIo); }
@@ -342,8 +342,8 @@ async function controllaProvaTu(id) {
   const risposta = campo.value.trim();
   if (!risposta) { out.innerHTML = htmlEsitoProvaTu({ giusto: false, esito: "vuota" }, p); return; }
   try {
-    const r = await modello({ azione: "prova_tu", atteso: p.risultato, risposta });
-    out.innerHTML = htmlEsitoProvaTu(r, p);
+    const r = await modello({ azione: "prova_tu", atteso: p.risultato, risposta, calcolo: p.calcolo, testo: p.testo });
+    out.innerHTML = htmlEsitoProvaTu(r, p) + (typeof htmlErroreTipico === "function" ? htmlErroreTipico(r, id) : "");
     proveFatte.add(id); segnali.push({ tipo: "prova", passo: p.passo, esito: r.giusto ? "giusto" : "sbagliato" });
   } catch (e) { out.innerHTML = "<p>" + esc(messaggioModello(e, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
@@ -396,7 +396,7 @@ const chiaveAllena = (id) => "verifiche-allena-" + id;
 const NOMI_GEMELLI = { vicino: "Gemello vicino", lontano: "Gemello lontano", variante: "Gemello con una variante" };
 
 // Una risposta (numero o frazione) giudicata dal calcolo del server, come il «Prova tu».
-async function giudica(atteso, risposta) { return modello({ azione: "prova_tu", atteso, risposta }); }
+async function giudica(atteso, risposta, testo) { return modello({ azione: "prova_tu", atteso, risposta, testo }); }
 function htmlDomandaConRisposta(id, testoDomanda) {
   return '<label for="' + id + '">' + testoDomanda + "</label>" +
     '<div class="prova-riga"><input type="text" id="' + id + '" inputmode="decimal" autocomplete="off" placeholder="La tua risposta">' +
@@ -453,7 +453,7 @@ async function giudicaMirato(i) {
   const e = mirati.esercizi[i], campo = $("mi-" + i), out = $("mi-" + i + "-esito");
   if (!campo.value.trim()) { out.innerHTML = "<p>Scrivi la tua risposta, poi tocca Controlla.</p>"; return; }
   try {
-    const r = await giudica(e.risultato, campo.value.trim());
+    const r = await giudica(e.risultato, campo.value.trim(), e.testo);
     const prima = mirati.esiti[i] === undefined; // conta il primo tentativo
     if (prima) mirati.esiti[i] = !!r.giusto;
     out.innerHTML = r.giusto ? '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span></p>'

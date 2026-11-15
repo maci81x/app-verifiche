@@ -43,7 +43,7 @@ export function contoTorna(calcolo) {
     : Math.abs(v - esatto) <= 1e-9 * Math.max(1, Math.abs(v))));
 }
 // Valore dell'ultimo pezzo di una catena che torna.
-const finale = (calcolo) => valutaSicuro(senzaUnita(conPer(calcolo)).split("=").pop().trim());
+export const finale = (calcolo) => valutaSicuro(senzaUnita(conPer(calcolo)).split("=").pop().trim());
 
 // Il ricalcolo non dipende solo da quello che dice il modello: un passo con un conto o una
 // materia di numeri bastano a fare i controlli.
