@@ -15,7 +15,7 @@ const MSG_CONTI_DOMANDA = "Su questa domanda i conti non mi tornano. Prova a chi
 // Un indizio alla volta: non si va oltre quelli che ci sono.
 const prossimoIndizio = (mostrati, totale) => Math.min(totale, mostrati + 1);
 
-// Gli indizi già chiesti e cosa si può fare dopo. Il link alla soluzione c'è sempre.
+// Gli indizi già chiesti e cosa si può fare dopo. La soluzione ha il suo bottone, sotto «La tua risposta».
 // provo: «Ho capito, provo io», e allora niente altri indizi in vista.
 function htmlIndizi(c, mostrati, provo = false) {
   const tot = (c.indizi || []).length;
@@ -27,8 +27,19 @@ function htmlIndizi(c, mostrati, provo = false) {
   else azioni = '<button type="button" class="minore" data-azione="provo">Ho capito, provo io</button>' +
     (mostrati < tot ? '<button type="button" class="minore" data-azione="indizio">Un altro indizio</button>' : "");
   return (visti ? '<ol class="indizi">' + visti + "</ol>" : "") +
-    '<div class="bottoni">' + azioni + "</div>" +
-    '<p class="link-riga"><button type="button" class="link" data-azione="soluzione">Fammi vedere tutta la soluzione</button></p>';
+    '<div class="bottoni">' + azioni + "</div>";
+}
+
+// La soluzione completa si sblocca dopo almeno 1 indizio e 1 risposta finale provata (anche sbagliata).
+// Lo stato sta nel compito, così si salva con lui e riaprendolo resta com'era.
+const MSG_BLOCCATA = "Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se non sei sicur*. Poi ti faccio vedere tutto.";
+const soluzioneSbloccata = (c) => !!(c && c.sblocco && c.sblocco.indizio && c.sblocco.risposta);
+const conSblocco = (c, cosa) => ({ ...c, sblocco: { ...(c.sblocco || {}), [cosa]: true } });
+// Esito della risposta provata prima della soluzione: mai il risultato, se è sbagliata.
+function htmlEsitoTentativo(r, c) {
+  if (r.giusto) return '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span>' +
+    (r.esito === "senza_unita" ? " Il numero è giusto, manca l'unità: " + esc(c.risultato.unita) + "." : "") + " Guarda la soluzione per controllare i passaggi.</p>";
+  return '<p><span class="sem" data-s="giallo"><i aria-hidden="true">●</i> Non ancora</span> Puoi chiedere un altro indizio, riprovare o guardare la soluzione.</p>';
 }
 
 // Il calcolo come lo scrive il server («1/6 + 2/9 = 7/18») in LaTeX per formule.js.
@@ -229,11 +240,31 @@ function mostraAiuto() {
   $("cp-cerchi").textContent = compito.cerca || "";
   $("cp-blocco-sai").hidden = !(compito.dati || []).length && !compito.cerca;
   disegnaIndizi();
+  $("cp-mia-risposta").value = ""; $("cp-tentativo-esito").innerHTML = ""; $("cp-bloccata").textContent = "";
+  $("btn-cp-soluzione").setAttribute("aria-disabled", String(!soluzioneSbloccata(compito)));
   $("cp-soluzione").hidden = true; $("cp-soluzione").innerHTML = "";
   disegnaChat();
   $("btn-cp-simile").hidden = !compito.matematica; $("btn-cp-gemelli").hidden = true; // compare dopo la soluzione $("cp-allenati").hidden = true; $("cp-simile").innerHTML = ""; $("btn-cp-simile").textContent = "Fammi un esercizio simile"; simili = [];
-  if (profilo) salvaLocale(chiaveCompiti(profilo.id), salvaCompito(leggiLocale(chiaveCompiti(profilo.id), []), compito, new Date().toISOString()));
+  salvaQuesto();
   window.scrollTo(0, 0);
+}
+function salvaQuesto() { if (profilo) salvaLocale(chiaveCompiti(profilo.id), salvaCompito(leggiLocale(chiaveCompiti(profilo.id), []), compito, new Date().toISOString())); }
+function segnaSblocco(cosa) {
+  if (compito.sblocco && compito.sblocco[cosa]) return;
+  compito = conSblocco(compito, cosa); salvaQuesto();
+  const ok = soluzioneSbloccata(compito);
+  $("btn-cp-soluzione").setAttribute("aria-disabled", String(!ok));
+  if (ok) $("cp-bloccata").textContent = "";
+}
+// «La tua risposta» sotto gli indizi: la giudica il calcolo del server (anche sbagliata, conta come tentativo).
+async function provaRisposta() {
+  const risposta = $("cp-mia-risposta").value.trim(), out = $("cp-tentativo-esito");
+  if (!risposta) { out.innerHTML = "<p>Scrivi la tua risposta, anche se non sei sicur*.</p>"; return; }
+  if (!(compito.risultato && compito.risultato.valore)) { segnaSblocco("risposta"); out.innerHTML = "<p>Fatto. Adesso confrontala con la soluzione.</p>"; return; }
+  try {
+    const r = await modello({ azione: "prova_tu", atteso: compito.risultato, risposta });
+    segnaSblocco("risposta"); out.innerHTML = htmlEsitoTentativo(r, compito);
+  } catch (e) { out.innerHTML = "<p>" + esc(messaggioModello(e, "Non riesco a controllare adesso. Riprova fra un momento.")) + "</p>"; }
 }
 function disegnaIndizi() { $("cp-indizi").innerHTML = htmlIndizi(compito, indiziMostrati, provoIo); }
 function mostraSoluzione() {
@@ -259,7 +290,7 @@ async function chiediSulCompito(domanda, passoNoto = 0) {
   $("cp-domanda").value = ""; $("btn-cp-chiedi").disabled = true;
   attesa($("stato-chat"), ["Ci penso", "Rifaccio i conti"]);
   try {
-    const r = await conRiprovaEsercizi(() => modello({ azione: "compito_domanda", compito, cronologia, domanda }));
+    const r = await conRiprovaEsercizi(() => modello({ azione: "compito_domanda", compito, cronologia, domanda, sbloccata: soluzioneSbloccata(compito) }));
     chatCompito.push({ chi: "app", testo: r.risposta, risposta: r });
     segnali.push({ tipo: "domanda", passo: passoNoto || r.passo || 0 });
   } catch (e) {
@@ -328,16 +359,18 @@ function collegaCompito() {
   $("cp-indizi").addEventListener("click", (e) => {
     const b = e.target.closest("[data-azione]"); if (!b) return;
     if (b.dataset.azione === "indizio") {
-      indiziMostrati = prossimoIndizio(indiziMostrati, compito.indizi.length); disegnaIndizi();
+      indiziMostrati = prossimoIndizio(indiziMostrati, compito.indizi.length); disegnaIndizi(); segnaSblocco("indizio");
       // gli indizi seguono i passi: l'indizio N è un segnale sul passo N (al più l'ultimo)
       segnali.push({ tipo: "indizio", passo: Math.min(indiziMostrati, (compito.passi || []).length) });
     }
     if (b.dataset.azione === "provo") { provoIo = true; disegnaIndizi(); $("cp-domanda").focus(); }
-    if (b.dataset.azione === "soluzione") mostraSoluzione();
   });
   $("cp-soluzione").addEventListener("click", (e) => { const p = e.target.closest(".passo-tocca"); if (p) chiediSulCompito("Spiegami il passo " + p.dataset.passo, Number(p.dataset.passo)); });
   $("cp-pronte").addEventListener("click", (e) => { const b = e.target.closest("[data-domanda]"); if (b) chiediSulCompito(b.dataset.domanda); });
   $("btn-cp-chiedi").addEventListener("click", () => chiediSulCompito($("cp-domanda").value));
+  $("btn-cp-provo").addEventListener("click", provaRisposta);
+  $("cp-mia-risposta").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); provaRisposta(); } });
+  $("btn-cp-soluzione").addEventListener("click", () => { if (soluzioneSbloccata(compito)) mostraSoluzione(); else $("cp-bloccata").textContent = MSG_BLOCCATA; });
   $("cp-domanda").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); chiediSulCompito($("cp-domanda").value); } });
   $("btn-cp-simile").addEventListener("click", esercizioSimile);
   $("btn-cp-fine").addEventListener("click", finisciCompito);

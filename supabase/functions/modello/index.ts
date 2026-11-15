@@ -35,7 +35,8 @@
 //      se non torna si chiede una seconda volta, poi { errore: "conti_non_tornano" }. Se il risultato non è
 //      quello del libro, dopo il secondo tentativo la scheda arriva con libro_diverso: true.
 //      Nelle altre materie, se ci sono appunti della stessa materia, si usano come fonte e le ancore si controllano.
-// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda } → { risposta, calcoli, figura, prova_tu }
+// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda, sbloccata } → { risposta, calcoli, figura, prova_tu }
+//      Senza sbloccata: true la risposta non deve contenere il risultato finale; se lo contiene si rigenera.
 // POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
 // POST { azione: "prova_tu", atteso: { valore, unita }, risposta } → { esito, giusto, punti, letto }: solo un calcolo (correzione.js).
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
@@ -69,7 +70,8 @@ import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } fr
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
-  correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI } from "../_shared/compito.js";
+  correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
+  rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
@@ -609,13 +611,16 @@ Deno.serve(async (req) => {
       let riuscito = false;
       try {
       const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
-      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda });
-      let r = pulisciRisposta(await chiedi(prompt, SCHEMA_RISPOSTA_COMPITO));
+      // Finché l'app non dice sbloccata (almeno 1 indizio e 1 risposta provata) il risultato non si dice.
+      const bloccata = b.sbloccata !== true;
+      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda, bloccata });
+      const genera = async (extra = "") => pulisciRisposta(await chiedi(prompt + extra, SCHEMA_RISPOSTA_COMPITO));
+      let r = bloccata ? await rispondiSenzaRisultato(genera, compito) : await genera();
       if (!r) return json({ errore: "lettura non riuscita" }, 502);
       // I conti della risposta si ricalcolano come quelli della soluzione: una seconda volta, poi niente.
       if (calcoliCheNonTornano(r).length) {
-        const di_nuovo = pulisciRisposta(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno.", SCHEMA_RISPOSTA_COMPITO));
-        if (di_nuovo) r = di_nuovo;
+        const di_nuovo = await genera("\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno." + (bloccata ? AVVISO_BLOCCATA : ""));
+        if (di_nuovo && !(bloccata && rispostaColRisultato(di_nuovo, compito))) r = di_nuovo;
         if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
       }
       riuscito = true;

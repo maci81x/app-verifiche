@@ -373,6 +373,7 @@ export function promptCompitoDomanda(dati) {
       strategia: c.strategia, risultato: c.risultato, verifica: c.verifica, trucco: c.trucco,
     }),
     (dati.cronologia || []).length ? "Messaggi di prima (io = chi studia, app = tu):\n" + dati.cronologia.map((m) => m.chi + ": " + m.testo).join("\n") : "",
+    dati.bloccata ? "La soluzione completa non è ancora sbloccata: chi studia non ha ancora provato a rispondere. Non scrivere il risultato finale (" + ((c.risultato || {}).valore || "") + ") in nessun campo, né un conto che ci arriva: aiuta con un indizio sul passo che serve." : "",
     "Domanda: " + dati.domanda,
     "In passo scrivi il numero del passo della soluzione su cui è la domanda (0 se non riguarda un passo preciso).",
     "Campi: risposta (il testo, con un esempio concreto); calcoli: i conti che mostri, ognuno come catena di uguali (" + REGOLE_CALCOLO + "), vuoto se non servono; figura: se aiuta un disegno delle frazioni, tipo «barra_frazioni» con parti (quante fette in tutto, al massimo 24), colorate (quante evidenziare) ed etichetta (per esempio «11/18»), altrimenti tipo «nessuna» con parti e colorate a 0; prova_tu: una mini-domanda di controllo con gli stessi numeri (per esempio «Se 11 fette valgono 770 €, quanto vale 1 fetta?»), con risultato (valore e unità) che risponde esattamente alla domanda (se chiede quante fette, il risultato è il numero di fette, non una frazione), il calcolo che ci arriva, passo = il numero del passo della soluzione a cui si collega, spiegazione = come si fa in 1-2 frasi; tutto vuoto se non serve.",

@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 <div class="wrap">
@@ -166,6 +166,13 @@
       <p><b>Cerchi:</b> <span id="cp-cerchi"></span></p>
     </div>
     <div id="cp-indizi"></div>
+    <div class="prova-tu-box" id="cp-tentativo">
+      <label for="cp-mia-risposta"><b>La tua risposta</b></label>
+      <div class="prova-riga"><input type="text" id="cp-mia-risposta" inputmode="decimal" autocomplete="off" placeholder="Il risultato che trovi"><button type="button" class="minore" id="btn-cp-provo">Controlla</button></div>
+      <div class="prova-esito" id="cp-tentativo-esito" aria-live="polite"></div>
+    </div>
+    <p class="link-riga"><button type="button" class="link" id="btn-cp-soluzione" aria-disabled="true">Fammi vedere tutta la soluzione</button></p>
+    <p class="aiuto" id="cp-bloccata" aria-live="polite"></p>
     <div id="cp-soluzione" hidden></div>
     <h3 class="sez-titolo">Fai una domanda</h3>
     <div class="pronte" id="cp-pronte"></div>
@@ -521,16 +528,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=18"></script>
-<script src="app.js?v=18"></script>
-<script src="libreria.js?v=18"></script>
-<script src="stampa.js?v=18"></script>
-<script src="aiuto.js?v=18"></script>
-<script src="mappa-card.js?v=18"></script>
-<script src="figure.js?v=18"></script>
-<script src="formule.js?v=18"></script>
-<script src="esercizi.js?v=18"></script>
-<script src="prova-esercizi.js?v=18"></script>
-<script src="compito.js?v=18"></script>
+<script src="semaforo.js?v=19"></script>
+<script src="app.js?v=19"></script>
+<script src="libreria.js?v=19"></script>
+<script src="stampa.js?v=19"></script>
+<script src="aiuto.js?v=19"></script>
+<script src="mappa-card.js?v=19"></script>
+<script src="figure.js?v=19"></script>
+<script src="formule.js?v=19"></script>
+<script src="esercizi.js?v=19"></script>
+<script src="prova-esercizi.js?v=19"></script>
+<script src="compito.js?v=19"></script>
 </body>
 </html>

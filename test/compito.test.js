@@ -391,3 +391,55 @@ test("revisione: il risultato del gemello si verifica sul suo testo", () => {
   assert.equal(motivoGemello({ ...copia(GIULIA), verifica: { spiegazione: "", controlli: [] } }, PAOLO), "verifica");
   assert.equal(motivoGemello(GIULIA, PAOLO), null);
 });
+
+/* ---- soluzione bloccata finché non si prova (decisione di Roby sulla #27) ---- */
+import { rispostaColRisultato, rispondiSenzaRisultato } from "../supabase/functions/_shared/compito.js";
+
+const BLOCCO = { testo: "Paolo spende 1/6 dello stipendio per gli anelli, 2/9 per il vestito, 465 € al ristorante e gli restano 305 €. Quanto guadagna?",
+  indizi: ["Somma le frazioni spese.", "Gli euro valgono 1260 in tutto."], risultato: { valore: "1260", unita: "€" } };
+const R = (x) => ({ risposta: "Somma 1/6 e 2/9 con lo stesso denominatore.", calcoli: [], figura: null, prova_tu: null, passo: 1, ...x });
+
+test("risposta col risultato: nel testo, nei conti, nell'etichetta o nel Prova tu; anche scritto 1.260", () => {
+  assert.equal(rispostaColRisultato(R({}), BLOCCO), false);
+  assert.equal(rispostaColRisultato(R({ risposta: "Alla fine lo stipendio è 1.260 €." }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ calcoli: ["770 : 11 × 18 = 1260"] }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ figura: { tipo: "barra_frazioni", parti: 18, colorate: 18, etichetta: "1260 €" } }), BLOCCO), true);
+  assert.equal(rispostaColRisultato(R({ prova_tu: { testo: "Quanto guadagna?", risultato: { valore: "1260", unita: "€" }, calcolo: "70 × 18 = 1260", passo: 6, spiegazione: "" } }), BLOCCO), true);
+  // risultato a frazione: «5/12» scritto conta, «5» e «12» separati no
+  const fr = { testo: "Anna mangia 1/4 della torta e Marco 1/6. Quanta ne mangiano?", risultato: { valore: "5/12", unita: "" } };
+  assert.equal(rispostaColRisultato(R({ risposta: "In tutto 5/12 della torta." }), fr), true);
+  assert.equal(rispostaColRisultato(R({ risposta: "Porta tutto in dodicesimi: 12 è il denominatore comune, 1/4 diventa 3/12." }), fr), false);
+  // se il risultato è già un numero del testo non c'è niente da nascondere
+  assert.equal(rispostaColRisultato(R({ risposta: "Restano 305 €." }), { ...BLOCCO, risultato: { valore: "305", unita: "€" } }), false);
+});
+
+test("domanda con soluzione bloccata: se la risposta contiene il risultato si rigenera chiedendo un indizio senza", async () => {
+  const chieste = [];
+  const genera = (risposte) => async (extra = "") => { chieste.push(extra); return risposte.shift(); };
+  // prima col risultato, poi senza: si tiene la seconda
+  let r = await rispondiSenzaRisultato(genera([R({ risposta: "Fa 1260 €." }), R({ risposta: "Pensa a quante parti restano." })]), BLOCCO);
+  assert.equal(r.risposta, "Pensa a quante parti restano.");
+  assert.equal(chieste.length, 2);
+  assert.equal(chieste[0], "");
+  assert.match(chieste[1], /non.*risultato/i);
+  assert.match(chieste[1], /indizio/i);
+  // senza risultato al primo colpo: una sola chiamata
+  chieste.length = 0;
+  r = await rispondiSenzaRisultato(genera([R({})]), BLOCCO);
+  assert.equal(chieste.length, 1);
+  // due volte col risultato: risposta di riserva con un indizio che non lo contiene
+  r = await rispondiSenzaRisultato(genera([R({ risposta: "1260" }), R({ calcoli: ["70 × 18 = 1260"] })]), BLOCCO);
+  assert.equal(rispostaColRisultato(r, BLOCCO), false);
+  assert.match(r.risposta, /Somma le frazioni spese/);
+  assert.doesNotMatch(r.risposta, /1260/);
+  assert.deepEqual(r.calcoli, []);
+  assert.equal(r.prova_tu, null);
+  assert.equal(await rispondiSenzaRisultato(genera([null]), BLOCCO), null);
+});
+
+test("prompt della domanda: con la soluzione bloccata chiede di non dire il risultato", () => {
+  const base = { classe: "2", compito: BLOCCO, cronologia: [], domanda: "Quanto guadagna?" };
+  assert.doesNotMatch(promptCompitoDomanda(base), /non è ancora sbloccata/);
+  assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /non è ancora sbloccata/);
+  assert.match(promptCompitoDomanda({ ...base, bloccata: true }), /1260/); // dice al modello quale numero non scrivere
+});
