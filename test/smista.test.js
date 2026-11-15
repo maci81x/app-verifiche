@@ -1,0 +1,134 @@
+// Smistamento delle foto del giorno e date del diario (issue #19).   node --test test/
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { risolviData, lettaDavvero, smistamento, oggiValido } from "../supabase/functions/_shared/smista.js";
+
+// Domenica 15 novembre 2026.
+const OGGI = "2026-11-15";
+// Mercoledì 18 novembre 2026: «venerdì» e «venerdì prossimo» sono giorni diversi.
+const MERCOLEDI = "2026-11-18";
+
+test("oggi deve essere una data vera", () => {
+  assert.ok(oggiValido(OGGI));
+  assert.equal(oggiValido("2026-02-30"), null);
+  assert.equal(oggiValido("15/11/2026"), null);
+});
+
+test("giorno della settimana: il prossimo dopo oggi", () => {
+  assert.equal(risolviData("Verifica di matematica giovedì", OGGI), "2026-11-19");
+  assert.equal(risolviData("interrogazione lunedi", OGGI), "2026-11-16"); // senza accento
+  assert.equal(risolviData("verifica venerdì", MERCOLEDI), "2026-11-20");
+  // Oggi è mercoledì: «mercoledì» è quello della settimana dopo, non oggi.
+  assert.equal(risolviData("verifica mercoledì", MERCOLEDI), "2026-11-25");
+});
+
+test("«prossimo»: il giorno della settimana dopo", () => {
+  assert.equal(risolviData("verifica venerdì prossimo", MERCOLEDI), "2026-11-27");
+  assert.equal(risolviData("la prossima settimana interrogazione martedì", MERCOLEDI), "2026-11-24");
+  // Di domenica la settimana dopo comincia domani.
+  assert.equal(risolviData("lunedì prossimo verifica", OGGI), "2026-11-16");
+});
+
+test("giorno e numero: «giovedì 19» deve cadere davvero di giovedì", () => {
+  assert.equal(risolviData("Verifica di matematica giovedì 19", OGGI), "2026-11-19");
+  assert.equal(risolviData("verifica giovedì 3", OGGI), "2026-12-03"); // il 3 di questo mese è passato
+  assert.equal(risolviData("verifica venerdì 19", OGGI), null);      // il 19 è giovedì: letta male
+});
+
+test("date scritte: giorno/mese, giorno e nome del mese, anno che viene", () => {
+  assert.equal(risolviData("compito in classe il 24/11", OGGI), "2026-11-24");
+  assert.equal(risolviData("verifica 3.12.2026", OGGI), "2026-12-03");
+  assert.equal(risolviData("interrogazione 9 dicembre", OGGI), "2026-12-09");
+  assert.equal(risolviData("verifica 12 gen.", OGGI), "2027-01-12");
+  assert.equal(risolviData("verifica 31/02", OGGI), null);
+});
+
+test("domani e dopodomani", () => {
+  assert.equal(risolviData("domani interrogazione di storia", OGGI), "2026-11-16");
+  assert.equal(risolviData("dopodomani verifica", OGGI), "2026-11-17");
+});
+
+test("niente data, o data ambigua o passata: null", () => {
+  assert.equal(risolviData("verifica di storia la settimana prossima", OGGI), null);
+  assert.equal(risolviData("studiare pag. 4-5 per la verifica", OGGI), null); // pagine, non il 4 maggio
+  assert.equal(risolviData("verifica giovedì ore 10.30", OGGI), "2026-11-19"); // l'orario non è una data
+  assert.equal(risolviData("verifica giovedì o venerdì", OGGI), null);
+  assert.equal(risolviData("verifica 3/11/2026", OGGI), null); // già passata
+});
+
+test("la frase letta deve stare nella trascrizione, a parole intere", () => {
+  const tr = ["Diario. Mat: Verifica di matematica giovedì 19! Storia: studiare pag. 40"];
+  assert.equal(lettaDavvero("verifica di matematica Giovedì 19", tr), true);
+  assert.equal(lettaDavvero("Verifica di matematica giovedì 20", tr), false);
+  assert.equal(lettaDavvero("Verifica di matematica giovedì 1", tr), false); // «19» non regge «1»
+  assert.equal(lettaDavvero("", tr), false);
+});
+
+const ARGOMENTI = [
+  { id: "a0000000-0000-4000-8000-000000000001", materia: "Storia", titolo: "La Rivoluzione francese" },
+  { id: "a0000000-0000-4000-8000-000000000002", materia: "Matematica", titolo: "Le frazioni" },
+];
+const TRASCRIZIONI = [
+  "La presa della Bastiglia avvenne il 14 luglio 1789.",
+  "Il cuore ha quattro cavità: due atri e due ventricoli.",
+  "Diario 16-20 novembre. Verifica di matematica giovedì 19. Interrogazione di storia lunedì prossimo.",
+];
+
+test("smistamento: una riga per foto, id brevi tradotti, materie come in libreria", () => {
+  const r = smistamento({
+    foto: [
+      { foto: 1, materia: "storia", argomento: "a1", nuovo_titolo: "", confidenza: 0.934 },
+      { foto: 2, materia: "scienze", argomento: "nuovo", nuovo_titolo: " Il cuore ", confidenza: 1.4 },
+      { foto: 3, materia: "", argomento: "nessuno", nuovo_titolo: "", confidenza: 0.8 },
+    ],
+    scadenze: [],
+  }, TRASCRIZIONI, ARGOMENTI, OGGI);
+  assert.deepEqual(r.foto, [
+    { materia: "Storia", argomento_id: ARGOMENTI[0].id, nuovo_titolo: null, confidenza: 0.93 },
+    { materia: "scienze", argomento_id: null, nuovo_titolo: "Il cuore", confidenza: 1 },
+    { materia: "", argomento_id: null, nuovo_titolo: null, confidenza: 0.8 },
+  ]);
+});
+
+test("smistamento: id inventato, foto mancante o ripetuta non passano", () => {
+  const r = smistamento({
+    foto: [
+      { foto: 1, materia: "Storia", argomento: "a9", nuovo_titolo: "", confidenza: 0.9 },
+      { foto: 1, materia: "Storia", argomento: "a1", nuovo_titolo: "", confidenza: 0.9 },
+      { foto: 7, materia: "Storia", argomento: "a1", nuovo_titolo: "", confidenza: 0.9 },
+      { foto: 2, materia: "matematica", argomento: "nuovo", nuovo_titolo: "", confidenza: 0.5 },
+    ],
+    scadenze: [],
+  }, TRASCRIZIONI, ARGOMENTI, OGGI);
+  const vuota = { materia: "", argomento_id: null, nuovo_titolo: null, confidenza: 0 };
+  assert.deepEqual(r.foto, [{ ...vuota, confidenza: 0.9 }, { ...vuota, confidenza: 0.5 }, vuota]);
+});
+
+test("scadenze: date lette davvero tenute, inventate scartate", () => {
+  const r = smistamento({
+    foto: [],
+    scadenze: [
+      { foto: 3, materia: "matematica", tipo: "scritta", testo_letto: "Verifica di matematica giovedì 19" },
+      { foto: 3, materia: "Storia", tipo: "orale", testo_letto: "Interrogazione di storia lunedì prossimo" },
+      // La stessa, ripetuta: una sola.
+      { foto: 3, materia: "Matematica", tipo: "scritta", testo_letto: "Verifica di matematica giovedì 19" },
+      // Data non scritta così sul diario.
+      { foto: 3, materia: "Matematica", tipo: "scritta", testo_letto: "Verifica di matematica venerdì 20" },
+      // Frase vera ma senza giorno.
+      { foto: 1, materia: "Storia", tipo: "scritta", testo_letto: "La presa della Bastiglia" },
+      // Tipo non ammesso.
+      { foto: 3, materia: "Matematica", tipo: "pratica", testo_letto: "Verifica di matematica giovedì 19" },
+    ],
+  }, TRASCRIZIONI, ARGOMENTI, OGGI);
+  assert.deepEqual(r.scadenze, [
+    { materia: "Matematica", tipo: "scritta", data: "2026-11-19", testo_letto: "Verifica di matematica giovedì 19" },
+    { materia: "Storia", tipo: "orale", data: "2026-11-16", testo_letto: "Interrogazione di storia lunedì prossimo" },
+  ]);
+  assert.equal(r.scartate, 4);
+});
+
+test("risposta vuota o rotta del modello: righe vuote, nessuna scadenza", () => {
+  const r = smistamento(null, TRASCRIZIONI, ARGOMENTI, OGGI);
+  assert.equal(r.foto.length, 3);
+  assert.deepEqual(r.scadenze, []);
+});
