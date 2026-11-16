@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
 <div class="wrap">
@@ -287,6 +287,13 @@
   </div>
 </section>
 
+<!-- Strumenti per materia (issue #24): il contenuto lo disegna strumenti.js -->
+<section id="v-strumento" hidden>
+  <div id="str-corpo"></div>
+  <div id="err-strumento"></div>
+  <div id="stato-strumento"></div>
+</section>
+
 <section id="v-esame" hidden>
   <h2>Il colloquio dell'esame</h2>
   <p class="aiuto">Parti da un tuo argomento e collegalo alle altre materie. I collegamenti sono idee per legare gli argomenti: controllali con la prof.</p>
@@ -478,6 +485,8 @@
   <h3 class="cosa-facciamo">Cosa facciamo adesso?</h3>
   <p class="consiglio" id="consiglio-scheda" hidden></p>
   <div class="scelte" id="scelte-scheda"></div>
+  <!-- Strumento della materia (issue #24): linea del tempo, vocaboli, schema da completare -->
+  <button type="button" class="scelta" id="btn-strumento" hidden></button>
   <button class="azione" id="btn-esercizi" hidden>Preparami degli esercizi</button>
   <p class="link-riga"><button type="button" class="link" id="btn-lezione">Spiegamelo a schede</button><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
   <div class="altro-modo" id="altro-modo">
@@ -754,28 +763,29 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=28"></script>
-<script src="app.js?v=28"></script>
-<script src="libreria.js?v=28"></script>
-<script src="stampa.js?v=28"></script>
-<script src="aiuto.js?v=28"></script>
-<script src="mappa-card.js?v=28"></script>
-<script src="figure.js?v=28"></script>
-<script src="formule.js?v=28"></script>
-<script src="esercizi.js?v=28"></script>
-<script src="prova-esercizi.js?v=28"></script>
-<script src="compito.js?v=28"></script>
-<script src="classe-app.js?v=28"></script>
-<script src="poesia.js?v=28"></script>
-<script src="invalsi.js?v=28"></script>
-<script src="esempi.js?v=28"></script>
-<script src="esame.js?v=28"></script>
-<script src="italia-mappa.js?v=28"></script>
-<script src="geografia.js?v=28"></script>
-<script src="lezione.js?v=28"></script>
-<script src="diario.js?v=28"></script>
-<script src="piano.js?v=28"></script>
-<script src="ripasso.js?v=28"></script>
-<script src="studio.js?v=28"></script>
+<script src="semaforo.js?v=29"></script>
+<script src="app.js?v=29"></script>
+<script src="libreria.js?v=29"></script>
+<script src="stampa.js?v=29"></script>
+<script src="aiuto.js?v=29"></script>
+<script src="mappa-card.js?v=29"></script>
+<script src="figure.js?v=29"></script>
+<script src="formule.js?v=29"></script>
+<script src="esercizi.js?v=29"></script>
+<script src="prova-esercizi.js?v=29"></script>
+<script src="compito.js?v=29"></script>
+<script src="classe-app.js?v=29"></script>
+<script src="poesia.js?v=29"></script>
+<script src="invalsi.js?v=29"></script>
+<script src="esempi.js?v=29"></script>
+<script src="esame.js?v=29"></script>
+<script src="italia-mappa.js?v=29"></script>
+<script src="geografia.js?v=29"></script>
+<script src="lezione.js?v=29"></script>
+<script src="diario.js?v=29"></script>
+<script src="piano.js?v=29"></script>
+<script src="ripasso.js?v=29"></script>
+<script src="studio.js?v=29"></script>
+<script src="strumenti.js?v=29"></script>
 </body>
 </html>

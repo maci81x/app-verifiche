@@ -74,6 +74,13 @@
 //      nuovo_titolo entrambi null = pagina di solo diario. La data di una scadenza la ricava _shared/smista.js
 //      dalla frase letta (date relative rispetto a oggi), e la frase deve stare nella trascrizione: se no, si scarta.
 //
+// POST { azione: "strumento", tipo: date|vocaboli|schema, argomento_id } (issue #24)
+//      date → { eventi: [{ data, evento, ancora, anno }], scartati }: la linea del tempo di storia.
+//      vocaboli → { lingua, vocaboli: [{ parola, traduzione }], frasi, scartati }: lingue straniere (422 nessuna_lingua).
+//      schema → { titolo, forma: ciclo|strati|parti, etichette: [{ termine, ancora }], scartati }: geografia e scienze.
+//      Dalla trascrizione letta con i permessi della studentessa; tutto quello che non è scritto lì si scarta
+//      (_shared/strumenti.js). 422 niente_da_mostrare se non resta niente. Conta come un aiuto (restituito se non riesce).
+//
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
 // anche alla prova delle foto da riga di comando, che non salva niente.
@@ -105,6 +112,7 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
+import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -433,6 +441,18 @@ const SCHEMA_INVALSI = {
     }, required: ["ambito", "formato", "testo", "opzioni", "corretta", "risposta", "calcolo", "spiegazione"], additionalProperties: false } },
   },
   required: ["brano", "domande"], additionalProperties: false,
+} as const;
+
+// Strumenti per materia (issue #24).
+const SCHEMI_STRUMENTO = {
+  date: { type: "object", properties: { eventi: { type: "array", items: { type: "object", properties: { data: STRINGA, evento: STRINGA, ancora: STRINGA },
+    required: ["data", "evento", "ancora"], additionalProperties: false } } }, required: ["eventi"], additionalProperties: false },
+  vocaboli: { type: "object", properties: { lingua: { type: "string", enum: [...LINGUE, "altra"] },
+    vocaboli: { type: "array", items: { type: "object", properties: { parola: STRINGA, traduzione: STRINGA }, required: ["parola", "traduzione"], additionalProperties: false } },
+    frasi: { type: "array", items: STRINGA } }, required: ["lingua", "vocaboli", "frasi"], additionalProperties: false },
+  schema: { type: "object", properties: { titolo: STRINGA, forma: { type: "string", enum: FORME_SCHEMA },
+    etichette: { type: "array", items: { type: "object", properties: { termine: STRINGA, ancora: STRINGA }, required: ["termine", "ancora"], additionalProperties: false } } },
+    required: ["titolo", "forma", "etichette"], additionalProperties: false },
 } as const;
 
 const SCHEMA_ESAME = {
@@ -879,6 +899,38 @@ Deno.serve(async (req) => {
       const tipico = domanda && !esito.giusto ? erroreTipicoDi({ classe: null, testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) : null;
       if (!tipico) return json(esito);
       return json({ ...esito, ...erroreTipicoDi({ classe: await classeDi(req, io.sub), testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) });
+    }
+
+    if (b.azione === "strumento") {
+      if (!TIPI_STRUMENTO.includes(b.tipo) || typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id))
+        return json({ errore: "richiesta non valida" }, 400);
+      const { data: a, error } = await comeUtente(req).from("argomenti")
+        .select("id, titolo, materia, trascrizione, concetti(ancora)")
+        .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle();
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!String(a.trascrizione || "").trim()) return json({ errore: "nessun testo da leggere" }, 422);
+      const tipo = b.tipo as "date" | "vocaboli" | "schema";
+      // Conta come un aiuto; se non resta niente da mostrare (422) o qualcosa va storto, l'aiuto si restituisce.
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const r = await chiedi(promptStrumento(tipo, a), SCHEMI_STRUMENTO[tipo], [], "low");
+        if (tipo === "date") {
+          const d = dateAncorate(r, a);
+          if (d.eventi.length < 2) return json({ errore: "niente_da_mostrare", scartati: d.scartati }, 422);
+          riuscito = true; return json(d);
+        }
+        if (tipo === "vocaboli") {
+          const v = vocaboliAncorati(r, a);
+          if (!v.lingua) return json({ errore: "nessuna_lingua" }, 422);
+          if (!v.vocaboli.length && !v.frasi.length) return json({ errore: "niente_da_mostrare", scartati: v.scartati }, 422);
+          riuscito = true; return json(v);
+        }
+        const sc = schemaAncorato(r, a);
+        if (!sc.etichette.length) return json({ errore: "niente_da_mostrare", scartati: sc.scartati }, 422);
+        riuscito = true; return json(sc);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
     if (b.azione === "domande") {

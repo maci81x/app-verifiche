@@ -20,13 +20,14 @@ const MATERIE = [
   ["matematica", ["matemat", "geometr", "algebr", "aritmet"], 196, 72, 40],
   ["storia", ["storia", "storic", "civilt", "medioev"], 24, 78, 46],
   ["geografia", ["geograf"], 168, 62, 36],
+  // motoria prima di scienze: «educazione fisica» contiene «fisica» (issue #24)
+  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 56, 34],
   ["scienze", ["scienz", "biolog", "chimic", "fisica"], 280, 52, 48],
   ["inglese", ["ingles", "english"], 320, 56, 44],
   ["spagnolo", ["spagnol", "frances", "tedesc"], 42, 80, 42],
   ["arte", ["arte", "immagin", "disegn"], 350, 64, 46],
   ["tecnologia", ["tecnolog", "informat"], 150, 56, 34],
   ["musica", ["music"], 262, 58, 50],
-  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 56, 34],
   ["italiano", ["italian", "grammat", "letterat", "epic", "antolog"], 224, 70, 46],
 ];
 function slugMateria(nome) {
@@ -367,11 +368,11 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], lezione: ["Spiegamelo a schede", 0], diario: ["Il diario di oggi", 0], smistato: ["Il diario di oggi", 0], settimana: ["Settimana", 0], guidato: ["Ripassa con me", 0], cinque: ["Le 5 cose da sapere", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], lezione: ["Spiegamelo a schede", 0], diario: ["Il diario di oggi", 0], smistato: ["Il diario di oggi", 0], settimana: ["Settimana", 0], guidato: ["Ripassa con me", 0], cinque: ["Le 5 cose da sapere", 0], strumento: ["Strumento", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito", "settimana"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
-const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", lezione: "scheda", smistato: "diario", cinque: "scheda" };
+const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", lezione: "scheda", smistato: "diario", cinque: "scheda", strumento: "scheda" };
 function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
@@ -380,6 +381,7 @@ function vai(v, materia, titolo) {
   if (v !== "poesia" && typeof fermaPoesia === "function") fermaPoesia();
   if (v !== "lezione" && typeof fermaLezione === "function") fermaLezione(); // uscendo dalle schede la voce si ferma
   if (v !== "mappa" && typeof fermaRacconto === "function") fermaRacconto();
+  if (v !== "strumento" && typeof fermaStrumento === "function") fermaStrumento();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
@@ -944,6 +946,7 @@ function apriScheda(a) {
   errore($("err-scheda"), "");
   ["scelte-scheda", "consiglio-scheda", "altro-modo", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica", "btn-cinque", "btn-menu-cinque"].forEach((id) => { $(id).hidden = false; });
   adattaSchedaEsercizi(a);
+  if (typeof adattaStrumento === "function") adattaStrumento(a);
   vai("scheda", a.materia, a.titolo);
 }
 
@@ -1660,7 +1663,9 @@ let voceAttiva = false, ascoltatore = null, orologio = null;
 // ("no-mic", "muto"). Serve a dire alla ragazza cosa fare invece di un errore generico.
 let erroreVoce = "", micProvato = false;
 
-function messaggioVoce(codice) {
+// lingua: per gli strumenti di lingua straniera (issue #24); senza, l'italiano dell'interrogazione.
+const NOMI_LINGUA = { "it-IT": "l'italiano", "en-GB": "l'inglese", "es-ES": "lo spagnolo", "fr-FR": "il francese", "de-DE": "il tedesco" };
+function messaggioVoce(codice, lingua) {
   const ios = typeof navigator !== "undefined" && /iPhone|iPad|iPod/.test(navigator.userAgent || "");
   const m = {
     "not-allowed": ios
@@ -1672,7 +1677,7 @@ function messaggioVoce(codice) {
     "audio-capture": "Il microfono non manda audio. Sul Mac: Impostazioni di Sistema › Privacy e sicurezza › Microfono, attiva il browser, poi chiudilo e riaprilo.",
     "no-mic": "Non trovo nessun microfono collegato. Collegane uno, oppure rispondi scrivendo.",
     "network": "Il riconoscimento vocale non risponde. Serve internet, e funziona solo in Chrome, Edge e Safari (non in Firefox, Brave, Arc o Opera). Oppure rispondi scrivendo.",
-    "language-not-supported": "Questo browser non capisce l'italiano a voce. Rispondi scrivendo.",
+    "language-not-supported": "Questo browser non capisce " + (NOMI_LINGUA[lingua] || NOMI_LINGUA["it-IT"]) + " a voce. Rispondi scrivendo.",
     "muto": "Il microfono non ha sentito niente. Controlla che sia acceso e non silenziato, poi tocca Riprendi.",
   };
   return m[codice] || ("Il microfono non ha funzionato" + (codice ? " (" + codice + ")" : "") + ". Rispondi scrivendo.");
@@ -2081,6 +2086,7 @@ function collega() {
   collegaFoto();
   if (typeof collegaPiano === "function") collegaPiano();
   if (typeof collegaRipasso === "function") collegaRipasso();
+  if (typeof collegaStrumento === "function") collegaStrumento();
 }
 
 // Nuovo materiale da fotografare (gli appunti): il flusso di sempre.
