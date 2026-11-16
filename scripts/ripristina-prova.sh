@@ -55,6 +55,7 @@ while IFS=$'\t' read -r nome dimensione; do
 done < "$COPIA/foto.tsv"
 echo "foto: $foto_ok uguali all'elenco dello storage, $foto_no diverse o mancanti"
 # Una prova sui dati ripristinati: ogni foto nel database ha il suo file nella copia.
-$PG/psql -XAtc "select name from storage.objects where bucket_id = 'fonti'" | while read -r nome; do [[ -f "$COPIA/foto/$nome" ]] || echo "NO  manca il file di $nome"; done
+mancano=$($PG/psql -XAtc "select name from storage.objects where bucket_id = 'fonti'" | while read -r nome; do [[ -f "$COPIA/foto/$nome" ]] || echo "$nome"; done | wc -l | tr -d ' ')
+[[ "$mancano" == "0" ]] || { echo "NO  $mancano foto del database senza file nella copia"; foto_no=$((foto_no + mancano)); }
 
 if [[ $diversi -eq 0 && $foto_no -eq 0 ]]; then echo "RIPRISTINO RIUSCITO"; else echo "RIPRISTINO CON DIFFERENZE: $diversi tabelle, $foto_no foto"; exit 1; fi

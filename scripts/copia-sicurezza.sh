@@ -11,7 +11,7 @@
 #   FORZA=1 bash copia-sicurezza.sh   fa la copia anche se quella della settimana c'è già
 set -euo pipefail
 REF="nnzkmjpylwtinplepxgz"
-DEST="${DEST:-$HOME/Backup/app-verifiche}"
+DEST="${COPIA_DEST:-$HOME/Backup/app-verifiche}" # COPIA_DEST solo per le prove: un nome generico come DEST esportato nella shell farebbe danni
 TIENI=4
 export PATH="/opt/homebrew/bin:/opt/homebrew/opt/libpq/bin:/usr/local/bin:/usr/bin:/bin"
 # Nella shell ci sono variabili di un altro progetto: la CLI deve usare solo il suo login.
