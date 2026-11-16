@@ -29,6 +29,9 @@ create table public.scadenze (
 create index scadenze_studente_data on public.scadenze (studente_id, data);
 -- Fk composta verso argomenti.
 create index scadenze_argomento on public.scadenze (argomento_id, studente_id);
+-- La stessa scadenza (materia senza maiuscole, tipo, data) una volta sola: l'app la segna dal
+-- diario e a mano, e un doppio tocco non deve farne due.
+create unique index scadenze_unica on public.scadenze (studente_id, lower(materia), tipo, data);
 
 create table public.giorni_diario (
   studente_id uuid not null default auth.uid() references public.studenti (id) on delete cascade,

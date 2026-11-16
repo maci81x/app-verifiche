@@ -40,13 +40,18 @@ const fraseSerie = (n) => (n >= 2 ? n + " giorni di fila con le foto della scuol
 
 const nomeScadenza = (s) => (s.tipo === "orale" ? "Interrogazione" : "Verifica") + " di " + s.materia;
 const prossimeScadenze = (lista, oggi) => (lista || []).filter((s) => s.data >= oggi).sort((a, b) => a.data.localeCompare(b.data));
+// La stessa scadenza: materia senza maiuscole, tipo e data (come l'indice unico della tabella).
+const chiaveScadenza = (s) => [String(s.materia || "").trim().toLowerCase(), s.tipo, s.data].join("|");
+const giaSegnata = (s, lista) => (lista || []).some((x) => chiaveScadenza(x) === chiaveScadenza(s));
 const scadenzaValida = (s, oggi) => !!s && !!String(s.materia || "").trim() && TIPI_SCADENZA.includes(s.tipo) && dataVeraIso(s.data) && s.data >= oggi;
 
-// Dove va una foto, detto in una riga.
-function rigaFoto(r) {
+// Dove va una foto, detto in una riga. testo = la sua trascrizione: se è vuota la foto non si è letta.
+function rigaFoto(r, testo) {
   const a = r.argomento_id ? argomenti.find((x) => x.id === r.argomento_id) : null;
   if (a) return { materia: a.materia, testo: "Aggiunta a «" + a.titolo + "»" };
   if (r.nuovo_titolo) return { materia: r.materia, testo: "Nuovo argomento: " + r.nuovo_titolo };
+  if (testo !== undefined && (!String(testo).trim() || testo === GRUPPO_ILLEGGIBILE))
+    return { materia: "", testo: "Non riesco a leggere questa foto: rifotografala o scegli tu dove va" };
   return { materia: "", testo: "Solo diario: qui non c'è niente da studiare" };
 }
 
@@ -67,6 +72,8 @@ function gruppiDaSalvare(righe) {
 
 // La card gialla chiara di una data letta sul diario. La frase è quella vera della trascrizione.
 function htmlDataLetta(s, i) {
+  if (giaSegnata(s, diario.scadenze))
+    return '<div class="card-data" id="dl-' + i + '"><p>Già segnata: ' + esc(nomeScadenza(s)) + ", " + esc(dataLunga(s.data)) + ".</p></div>";
   return '<div class="card-data" id="dl-' + i + '"><p>Sul diario ho letto una data: «' + evidenzia(s.testo_letto) + "». La segno?</p>" +
     '<p class="aiuto">' + esc(nomeScadenza(s)) + ", " + esc(dataLunga(s.data)) + ".</p>" +
     '<div class="bottoni"><button type="button" class="minore" data-segna="' + i + '">Sì, segnala</button>' +
@@ -87,8 +94,11 @@ async function caricaDiario(oggi = oggiLocale()) {
 
 async function salvaScadenza(s, fonte, oggi = oggiLocale()) {
   if (!scadenzaValida(s, oggi)) throw new Error("scadenza non valida");
+  const gia = diario.scadenze.find((x) => chiaveScadenza(x) === chiaveScadenza(s));
+  if (gia) return gia; // già segnata: non si scrive di nuovo
   const riga = { materia: String(s.materia).trim(), tipo: s.tipo, data: s.data, fonte };
   const { data, error } = await sb.from("scadenze").insert(riga).select("id, materia, tipo, data, fonte").single();
+  if (error && error.code === "23505") return null; // l'indice unico l'ha già: va bene così
   if (error) throw error;
   diario.scadenze = prossimeScadenze(diario.scadenze.concat(data), oggi);
   return data;
@@ -214,7 +224,7 @@ function mostraSmistate() {
   box.querySelectorAll("[data-segna]").forEach((b) => { b.onclick = () => segnaDataLetta(+b.dataset.segna); });
   box.querySelectorAll("[data-non-segna]").forEach((b) => { b.onclick = () => { $("dl-" + b.dataset.nonSegna).remove(); }; });
   errore($("err-smistato"), ""); attesa($("stato-smistato"), null);
-  $("btn-dg-salva").disabled = false;
+  $("btn-dg-salva").disabled = false; $("btn-dg-salva").textContent = "Va bene così";
   vai("smistato");
 }
 
@@ -222,8 +232,9 @@ async function segnaDataLetta(i) {
   const card = $("dl-" + i), s = smistate.scadenze[i];
   card.querySelectorAll("button").forEach((b) => { b.disabled = true; });
   try {
+    const gia = giaSegnata(s, diario.scadenze);
     await salvaScadenza(s, "diario");
-    card.innerHTML = "<p>Segnata: " + esc(nomeScadenza(s)) + ", " + esc(dataLunga(s.data)) + ".</p>";
+    card.innerHTML = "<p>" + (gia ? "Già segnata: " : "Segnata: ") + esc(nomeScadenza(s)) + ", " + esc(dataLunga(s.data)) + ".</p>";
   } catch (e) {
     card.querySelectorAll("button").forEach((b) => { b.disabled = false; });
     card.insertAdjacentHTML("beforeend", '<div class="errore">Non sono riuscito a segnarla. Riprova fra un momento.</div>');
@@ -233,7 +244,7 @@ async function segnaDataLetta(i) {
 function disegnaRigheSmistate() {
   const ul = $("dg-righe"); ul.innerHTML = "";
   smistate.righe.forEach((r, i) => {
-    const d = rigaFoto(r);
+    const d = rigaFoto(r, smistate.testi[i]);
     const li = document.createElement("li"); li.className = "riga-smista";
     const b = document.createElement("button"); b.type = "button"; b.className = "riga-smista-btn";
     b.setAttribute("aria-expanded", "false");
@@ -289,39 +300,76 @@ function apriCambio(li, i, btn) {
   sel.focus();
 }
 
-// «Va bene così»: ogni gruppo di foto con il percorso di sempre (aggiungi foto o nuovo argomento).
+// Mette via le foto smistate, gruppo per gruppo, con i percorsi di sempre (conservaFoto, aggiungiTesto).
+// Si può ripetere dopo un errore: smistate ricorda le foto già salvate, gli argomenti già creati
+// e i testi già aggiunti, così il nuovo tentativo fa solo quello che manca.
+async function mettiVia(onPasso) {
+  const st = smistate;
+  st.salvate = st.salvate || {}; st.creati = st.creati || {}; st.testoFatto = st.testoFatto || {};
+  const gruppi = gruppiDaSalvare(st.righe);
+  const e = { salvate: 0, nuoviArgomenti: 0, punti: 0, fotoFallite: 0, testoFallito: 0, gruppiFalliti: 0 };
+  for (const g of gruppi) {
+    const chiave = g.argomento_id || (g.materia + "|" + g.titolo).toLowerCase();
+    let a = g.argomento_id ? argomenti.find((x) => x.id === g.argomento_id) : st.creati[chiave];
+    try {
+      if (!a) {
+        const { data, error } = await sb.from("argomenti").insert({ materia: g.materia, titolo: g.titolo, origine: "foto" }).select("*").single();
+        if (error) throw error;
+        a = st.creati[chiave] = { ...data, concetti: [], foto: [] }; e.nuoviArgomenti++;
+      }
+    } catch (err) {
+      if (err instanceof Definitivo) throw err;
+      e.gruppiFalliti++; continue;
+    }
+    // Una foto per volta: si sa quale è andata e quale no.
+    for (const i of g.indici) {
+      if (st.salvate[i]) continue;
+      if ((await conservaFoto(a, [st.blobs[i]], onPasso)).length) { st.salvate[i] = true; e.salvate++; }
+      else e.fotoFallite++;
+    }
+    // Il testo quando tutte le foto del gruppo sono a posto, una volta sola.
+    if (g.indici.some((i) => !st.salvate[i]) || st.testoFatto[chiave]) continue;
+    const testo = g.indici.map((i) => st.testi[i]).filter((t) => t && t !== GRUPPO_ILLEGGIBILE).join("\n\n");
+    try {
+      if (testo.trim()) e.punti += (await aggiungiTesto(a, testo, g.indici.length, onPasso)).length;
+      st.testoFatto[chiave] = true;
+    } catch (err) {
+      if (err instanceof Definitivo) throw err;
+      e.testoFallito++;
+    }
+  }
+  return e;
+}
+
+const fallita = (e) => e.fotoFallite || e.testoFallito || e.gruppiFalliti;
+function messaggioMessaVia(e) {
+  if (fallita(e)) {
+    const parti = [];
+    if (e.fotoFallite) parti.push(e.fotoFallite === 1 ? "1 foto non è stata salvata." : e.fotoFallite + " foto non sono state salvate.");
+    if (e.gruppiFalliti) parti.push(e.gruppiFalliti === 1 ? "Non sono riuscito a creare 1 argomento nuovo." : "Non sono riuscito a creare " + e.gruppiFalliti + " argomenti nuovi.");
+    if (e.testoFallito) parti.push("Le foto sono salvate, ma non sono riuscito a leggere i punti di " + (e.testoFallito === 1 ? "1 argomento" : e.testoFallito + " argomenti") + ". Non ricaricare le foto.");
+    return parti.join(" ") + " Tocca «Riprova»: faccio solo quello che manca.";
+  }
+  if (!e.salvate) return "Fatto: oggi solo diario.";
+  return "Foto messe via" + (e.nuoviArgomenti ? ", " + e.nuoviArgomenti + (e.nuoviArgomenti === 1 ? " argomento nuovo" : " argomenti nuovi") : "") +
+    (e.punti ? ", " + e.punti + (e.punti === 1 ? " punto nuovo da studiare." : " punti nuovi da studiare.") : ".");
+}
+
+// «Va bene così» (e «Riprova»): se qualcosa manca si resta qui, se no si torna a Oggi.
 async function salvaSmistate() {
   const btn = $("btn-dg-salva"), st = $("stato-smistato");
   btn.disabled = true; errore($("err-smistato"), "");
   attesa(st, ["Metto via le foto"]);
-  const gruppi = gruppiDaSalvare(smistate.righe);
-  let salvate = 0, nuoviArgomenti = 0, punti = 0, falliti = 0;
-  for (const g of gruppi) {
-    try {
-      let a = g.argomento_id ? argomenti.find((x) => x.id === g.argomento_id) : null;
-      if (!a) {
-        const { data, error } = await sb.from("argomenti").insert({ materia: g.materia, titolo: g.titolo, origine: "foto" }).select("*").single();
-        if (error) throw error;
-        a = { ...data, concetti: [], foto: [] }; nuoviArgomenti++;
-      }
-      const blobs = g.indici.map((i) => smistate.blobs[i]);
-      const testo = g.indici.map((i) => smistate.testi[i]).filter((t) => t && t !== GRUPPO_ILLEGGIBILE).join("\n\n");
-      salvate += (await conservaFoto(a, blobs, (t) => passoAttesa(st, t))).length;
-      if (testo.trim()) punti += (await aggiungiTesto(a, testo, blobs.length, (t) => passoAttesa(st, t))).length;
-    } catch (e) {
-      if (e instanceof Definitivo) { attesa(st, null); btn.disabled = false; errore($("err-smistato"), messaggioModello(e, "")); return; }
-      falliti++;
-    }
-  }
-  // Le pagine di solo diario non si archiviano, ma contano per la serie.
-  await segnaGiorno(smistate.righe.filter((r, i) => !gruppi.some((g) => g.indici.includes(i))).length);
+  let e;
+  try { e = await mettiVia((t) => passoAttesa(st, t)); }
+  catch (err) { attesa(st, null); btn.disabled = false; errore($("err-smistato"), messaggioModello(err, "Non sono riuscito a mettere via le foto. Riprova.")); return; }
   attesa(st, null);
-  diario.messaggio = falliti
-    ? "Non sono riuscito a mettere via tutte le foto: " + falliti + (falliti === 1 ? " argomento è rimasto indietro." : " argomenti sono rimasti indietro.") + " Riprova con quelle foto."
-    : salvate ? "Foto messe via" + (nuoviArgomenti ? ", " + nuoviArgomenti + (nuoviArgomenti === 1 ? " argomento nuovo" : " argomenti nuovi") : "") +
-      (punti ? ", " + punti + (punti === 1 ? " punto nuovo da studiare." : " punti nuovi da studiare.") : ".")
-    : "Fatto: oggi solo diario.";
-  fotoDiario = []; smistate = null;
+  if (fallita(e)) { errore($("err-smistato"), messaggioMessaVia(e)); btn.textContent = "Riprova"; btn.disabled = false; return; }
+  // Le pagine di solo diario non si archiviano, ma contano per la serie.
+  const gruppi = gruppiDaSalvare(smistate.righe);
+  await segnaGiorno(smistate.righe.filter((r, i) => !gruppi.some((g) => g.indici.includes(i))).length);
+  diario.messaggio = messaggioMessaVia(e);
+  fotoDiario = []; smistate = null; btn.textContent = "Va bene così";
   await caricaLibreria();
   vai("libreria");
 }
@@ -337,8 +385,9 @@ async function segnaAMano() {
   if (!scadenzaValida(s, oggi)) { errore($("err-diario"), !s.materia ? "Scrivi la materia." : "Scegli un giorno da oggi in poi."); return; }
   errore($("err-diario"), "");
   try {
+    const gia = giaSegnata(s, diario.scadenze);
     await salvaScadenza(s, "manuale", oggi);
-    avviso($("err-diario"), "Segnata: " + nomeScadenza(s) + ", " + dataLunga(s.data) + ".");
+    avviso($("err-diario"), (gia ? "Era già segnata: " : "Segnata: ") + nomeScadenza(s) + ", " + dataLunga(s.data) + ".");
     $("dg-materia").value = ""; $("dg-data").value = "";
   } catch (e) {
     errore($("err-diario"), "Non sono riuscito a segnare la data. Controlla la connessione e riprova.");

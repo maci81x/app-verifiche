@@ -1,7 +1,7 @@
 // Smistamento delle foto del giorno e date del diario (issue #19).   node --test test/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { risolviData, lettaDavvero, smistamento, oggiValido } from "../supabase/functions/_shared/smista.js";
+import { risolviData, lettaDavvero, smistamento, oggiValido, tipoDaFrase } from "../supabase/functions/_shared/smista.js";
 
 // Domenica 15 novembre 2026.
 const OGGI = "2026-11-15";
@@ -35,11 +35,11 @@ test("giorno e numero: «giovedì 19» deve cadere davvero di giovedì", () => {
   assert.equal(risolviData("verifica venerdì 19", OGGI), null);      // il 19 è giovedì: letta male
 });
 
-test("date scritte: giorno/mese, giorno e nome del mese, anno che viene", () => {
+test("date scritte: giorno/mese, giorno e nome del mese", () => {
   assert.equal(risolviData("compito in classe il 24/11", OGGI), "2026-11-24");
   assert.equal(risolviData("verifica 3.12.2026", OGGI), "2026-12-03");
   assert.equal(risolviData("interrogazione 9 dicembre", OGGI), "2026-12-09");
-  assert.equal(risolviData("verifica 12 gen.", OGGI), "2027-01-12");
+  assert.equal(risolviData("verifica 12 gen.", "2026-12-20"), "2027-01-12"); // da dicembre, gennaio è l'anno dopo
   assert.equal(risolviData("verifica 31/02", OGGI), null);
 });
 
@@ -168,4 +168,58 @@ test("testo_letto: la frase copiata deve essere una sottostringa vera, non una p
   const r = smistamento({ foto: [], scadenze: [{ foto: 1, materia: "Storia", tipo: "orale", testo_letto: "Interrogazione di storia giovedì 19" }] }, tr, [], OGGI);
   assert.deepEqual(r.scadenze, []);
   assert.equal(r.scartate, 1);
+});
+
+/* ---------------------------------------------------------------- revisione #19 */
+const LUNEDI = "2026-11-16";
+
+test("«prossimo/a» conta solo vicino al giorno o alla settimana", () => {
+  assert.equal(risolviData("Prossima verifica di storia giovedì", LUNEDI), "2026-11-19");
+  assert.equal(risolviData("prossimo compito in classe venerdì", LUNEDI), "2026-11-20");
+  assert.equal(risolviData("verifica giovedì prossimo", LUNEDI), "2026-11-26");
+  assert.equal(risolviData("prossimo giovedì verifica", LUNEDI), "2026-11-26");
+  assert.equal(risolviData("la prossima settimana interrogazione martedì", LUNEDI), "2026-11-24");
+});
+
+test("il mese solo dalla parola intera o dall'abbreviazione", () => {
+  assert.equal(risolviData("verifica fra 2 settimane", LUNEDI), null);
+  assert.equal(risolviData("interrogazione 3 martedì", LUNEDI), "2026-11-17"); // il giorno, non marzo
+  assert.equal(risolviData("verifica: 1 genitore deve firmare", LUNEDI), null);
+  assert.equal(risolviData("verifica 5 ottimo", LUNEDI), null);
+  assert.equal(risolviData("verifica 3 dic", LUNEDI), "2026-12-03");
+  assert.equal(risolviData("verifica 3 dicembre", LUNEDI), "2026-12-03");
+  assert.equal(risolviData("verifica 9 nov.", "2026-11-01"), "2026-11-09");
+});
+
+test("data senza anno già passata: scartata, tranne gennaio e febbraio visti da dicembre", () => {
+  assert.equal(risolviData("verifica 12 gen.", OGGI), null);           // novembre: gennaio è passato
+  assert.equal(risolviData("verifica il 10/11", LUNEDI), null);
+  assert.equal(risolviData("verifica 12 gen.", "2026-12-10"), "2027-01-12");
+  assert.equal(risolviData("verifica 3/2", "2026-12-10"), "2027-02-03");
+  assert.equal(risolviData("verifica 3/3", "2026-12-10"), null);
+});
+
+test("la frase letta deve dire verifica o interrogazione, non solo il giorno", () => {
+  const tr = ["Giovedì 19. Domani. Oggi. Verifica di storia giovedì 19. Test di inglese venerdì. Orale di geografia lunedì."];
+  assert.equal(lettaDavvero("Giovedì 19", tr), false);
+  assert.equal(lettaDavvero("Domani", tr), false);
+  assert.equal(lettaDavvero("Oggi", tr), false);
+  assert.equal(lettaDavvero("Verifica di storia giovedì 19", tr), true);
+  assert.equal(tipoDaFrase("Verifica di storia giovedì 19"), "scritta");
+  assert.equal(tipoDaFrase("compito in classe di matematica"), "scritta");
+  assert.equal(tipoDaFrase("Test di inglese venerdì"), "scritta");
+  assert.equal(tipoDaFrase("Interrogazione di storia"), "orale");
+  assert.equal(tipoDaFrase("Orale di geografia lunedì"), "orale");
+  assert.equal(tipoDaFrase("Giovedì 19"), null);
+});
+
+test("il tipo deve essere coerente con la parola della frase", () => {
+  const tr = ["Interrogazione di storia giovedì 19. Verifica di matematica venerdì 20."];
+  const r = smistamento({ foto: [], scadenze: [
+    { foto: 1, materia: "Storia", tipo: "scritta", testo_letto: "Interrogazione di storia giovedì 19" },
+    { foto: 1, materia: "Matematica", tipo: "orale", testo_letto: "Verifica di matematica venerdì 20" },
+    { foto: 1, materia: "Storia", tipo: "orale", testo_letto: "Interrogazione di storia giovedì 19" },
+  ] }, tr, [], LUNEDI);
+  assert.deepEqual(r.scadenze, [{ materia: "Storia", tipo: "orale", data: "2026-11-19", testo_letto: "Interrogazione di storia giovedì 19" }]);
+  assert.equal(r.scartate, 2);
 });
