@@ -375,3 +375,62 @@ prova('prove di esercizi: colonne nuove con le policy di sempre', `
   ${come(null)}
   ${vieta(`perform * from sessioni`, 'insufficient_privilege', "l'anonimo legge le prove")}
 `);
+
+// ---------------------------------------------------------------- diario di ogni giorno (issue #19)
+const SCAD = `'Matematica', 'scritta', '2026-11-19'`;
+
+prova('scadenze: la ragazza legge e scrive le sue, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into scadenze (materia, tipo, data, fonte) values (${SCAD}, 'diario');
+  insert into scadenze (argomento_id, materia, tipo, data) values ('${ARG}', 'storia', 'orale', '2026-11-23');
+  ${verifica(`(select bool_and(studente_id = '${ANNA}') and count(*) = 2 from scadenze)`, 'le scadenze non nascono di Anna')}
+  ${verifica(`(select fonte = 'manuale' from scadenze where tipo = 'orale')`, "la fonte di default non è 'manuale'")}
+  ${vieta(`insert into scadenze (materia, tipo, data) values ('Storia', 'pratica', '2026-11-19')`, 'check_violation', 'tipo sconosciuto')}
+  ${vieta(`insert into scadenze (materia, tipo, data, fonte) values (${SCAD}, 'web')`, 'check_violation', 'fonte sconosciuta')}
+  ${vieta(`insert into scadenze (materia, tipo, data) values ('  ', 'scritta', '2026-11-19')`, 'check_violation', 'materia vuota')}
+  ${vieta(`insert into scadenze (materia, tipo, data) values ('matematica', 'scritta', '2026-11-19')`, 'unique_violation', 'la stessa scadenza segnata due volte')}
+  insert into scadenze (materia, tipo, data) values ('matematica', 'orale', '2026-11-19');
+  delete from scadenze where tipo = 'orale' and materia = 'matematica';
+  ${come(BEA)}
+  ${verifica(`${conta('scadenze')} = 0`, 'Bea vede le scadenze di Anna')}
+  ${vieta(`insert into scadenze (argomento_id, materia, tipo, data) values ('${ARG}', ${SCAD})`,
+    'foreign_key_violation', "Bea crea una scadenza sull'argomento di Anna")}
+  ${vieta(`insert into scadenze (studente_id, materia, tipo, data) values ('${ANNA}', ${SCAD})`,
+    'insufficient_privilege', 'Bea crea una scadenza a nome di Anna')}
+  ${nessunaRiga(`update scadenze set data = '2026-12-01'`, 'Bea sposta le scadenze di Anna')}
+  ${nessunaRiga(`delete from scadenze`, 'Bea cancella le scadenze di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('scadenze')} = 2`, 'il genitore non legge le scadenze della figlia')}
+  ${nessunaRiga(`update scadenze set data = '2026-12-01'`, 'il genitore sposta le scadenze')}
+  ${nessunaRiga(`delete from scadenze`, 'il genitore cancella le scadenze')}
+  ${come(null)}
+  ${vieta(`perform * from scadenze`, 'insufficient_privilege', "l'anonimo legge le scadenze")}
+  ${come(ANNA)}
+  delete from argomenti where id = '${ARG}';
+  ${verifica(`(select count(*) = 2 and count(argomento_id) = 0 from scadenze)`, "la scadenza non resta senza argomento quando l'argomento si cancella")}
+  select svuota_memoria();
+  ${verifica(`${conta('scadenze')} = 0`, 'svuota_memoria lascia le scadenze')}
+`);
+
+prova('giorni_diario: un giorno per data, la ragazza scrive i suoi, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into giorni_diario (data, n_foto) values ('2026-11-16', 3);
+  insert into giorni_diario (data, n_foto) values ('2026-11-16', 5)
+    on conflict (studente_id, data) do update set n_foto = excluded.n_foto;
+  ${verifica(`(select count(*) = 1 and min(n_foto) = 5 and bool_and(studente_id = '${ANNA}') from giorni_diario)`, "l'upsert del giorno non sovrascrive")}
+  ${vieta(`insert into giorni_diario (data, n_foto) values ('2026-11-17', 0)`, 'check_violation', 'giorno senza foto')}
+  ${come(BEA)}
+  ${verifica(`${conta('giorni_diario')} = 0`, 'Bea vede i giorni di Anna')}
+  ${vieta(`insert into giorni_diario (studente_id, data, n_foto) values ('${ANNA}', '2026-11-17', 1)`,
+    'insufficient_privilege', 'Bea segna un giorno a nome di Anna')}
+  ${nessunaRiga(`update giorni_diario set n_foto = 9`, 'Bea modifica i giorni di Anna')}
+  ${nessunaRiga(`delete from giorni_diario`, 'Bea cancella i giorni di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('giorni_diario')} = 1`, 'il genitore non legge i giorni della figlia')}
+  ${nessunaRiga(`update giorni_diario set n_foto = 9`, 'il genitore modifica i giorni')}
+  ${come(null)}
+  ${vieta(`perform * from giorni_diario`, 'insufficient_privilege', "l'anonimo legge i giorni")}
+  ${come(ANNA)}
+  select svuota_memoria();
+  ${verifica(`${conta('giorni_diario')} = 0`, 'svuota_memoria lascia i giorni')}
+`);

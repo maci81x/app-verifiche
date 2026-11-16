@@ -229,6 +229,7 @@ function disegnaLibreria() {
   if (typeof disegnaInvalsiOggi === "function") disegnaInvalsiOggi(); // invalsi.js: solo per la terza
   if (typeof disegnaEsameOggi === "function") disegnaEsameOggi(); // esame.js: solo per la terza
   if (typeof disegnaGeografiaOggi === "function") disegnaGeografiaOggi(); // geografia.js: solo per la prima
+  if (typeof disegnaDiarioOggi === "function") disegnaDiarioOggi(); // diario.js: foto della giornata, date, giorni di fila
   lista.innerHTML = "";
   $("occhiello-lib").hidden = !argomenti.length;
   if (!argomenti.length) {

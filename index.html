@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <div class="wrap">
@@ -108,6 +108,7 @@
   <h1 id="ciao">Ciao.</h1>
   <p class="sotto" id="frase-oggi"></p>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
+  <div id="diario-oggi"></div>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
   <div id="ripasso-oggi"></div>
   <div id="invalsi-oggi"></div>
@@ -280,6 +281,43 @@
   <div id="stato-esame"></div>
   <div id="err-esame"></div>
   <div id="esame-scaletta"></div>
+</section>
+
+<!-- ============ IL DIARIO DI OGNI GIORNO (issue #19) ============ -->
+<section id="v-diario" hidden>
+  <h2>Cosa avete fatto oggi?</h2>
+  <p class="aiuto">Fotografa quello che avete fatto: quaderno, lavagna, libro, diario. Non c'è niente da compilare.</p>
+  <label class="scatto" for="foto-diario">
+    <span class="ico" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.2-2h8.2l1.2 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg></span>
+    <span><b>Aggiungi foto</b><small id="dg-conta-foto">Quaderno, lavagna, libro, diario.</small></span>
+    <input type="file" id="foto-diario" accept="image/*" multiple>
+  </label>
+  <div class="miniature griglia" id="dg-miniature"></div>
+  <p class="legenda"><button type="button" class="link link-in-riga" id="link-a-mano">Segna una verifica o un'interrogazione</button>, oppure fotografa il diario: la data la trovo io.</p>
+  <div id="dg-a-mano" hidden>
+    <label class="etichetta" for="dg-materia">Materia</label>
+    <input type="text" id="dg-materia" list="elenco-materie" autocomplete="off" placeholder="matematica">
+    <div class="livelli" role="radiogroup" aria-label="Che cosa">
+      <label><input type="radio" name="dg-tipo" value="scritta" checked><b>Verifica</b><small>Scritta, in classe</small></label>
+      <label><input type="radio" name="dg-tipo" value="orale"><b>Interrogazione</b><small>A voce</small></label>
+    </div>
+    <label class="etichetta" for="dg-data">Giorno</label>
+    <input type="date" id="dg-data">
+    <div class="bottoni"><button type="button" class="minore" id="btn-segna">Segna la data</button></div>
+  </div>
+  <div id="err-diario"></div>
+  <div class="bottoni"><button class="azione" id="btn-smista" disabled>Fatto, smista le foto</button></div>
+  <div id="stato-diario"></div>
+</section>
+
+<section id="v-smistato" hidden>
+  <h2>Messo tutto al suo posto</h2>
+  <p class="aiuto">Controlla dove va ogni foto. Se una è al posto sbagliato, toccala e cambia materia o argomento.</p>
+  <ul class="righe-smista" id="dg-righe"></ul>
+  <div id="dg-date"></div>
+  <div id="err-smistato"></div>
+  <div class="bottoni"><button class="azione" id="btn-dg-salva">Va bene così</button></div>
+  <div id="stato-smistato"></div>
 </section>
 
 <section id="v-invalsi" hidden>
@@ -652,24 +690,25 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=24"></script>
-<script src="app.js?v=24"></script>
-<script src="libreria.js?v=24"></script>
-<script src="stampa.js?v=24"></script>
-<script src="aiuto.js?v=24"></script>
-<script src="mappa-card.js?v=24"></script>
-<script src="figure.js?v=24"></script>
-<script src="formule.js?v=24"></script>
-<script src="esercizi.js?v=24"></script>
-<script src="prova-esercizi.js?v=24"></script>
-<script src="compito.js?v=24"></script>
-<script src="classe-app.js?v=24"></script>
-<script src="poesia.js?v=24"></script>
-<script src="invalsi.js?v=24"></script>
-<script src="esempi.js?v=24"></script>
-<script src="esame.js?v=24"></script>
-<script src="italia-mappa.js?v=24"></script>
-<script src="geografia.js?v=24"></script>
-<script src="lezione.js?v=24"></script>
+<script src="semaforo.js?v=25"></script>
+<script src="app.js?v=25"></script>
+<script src="libreria.js?v=25"></script>
+<script src="stampa.js?v=25"></script>
+<script src="aiuto.js?v=25"></script>
+<script src="mappa-card.js?v=25"></script>
+<script src="figure.js?v=25"></script>
+<script src="formule.js?v=25"></script>
+<script src="esercizi.js?v=25"></script>
+<script src="prova-esercizi.js?v=25"></script>
+<script src="compito.js?v=25"></script>
+<script src="classe-app.js?v=25"></script>
+<script src="poesia.js?v=25"></script>
+<script src="invalsi.js?v=25"></script>
+<script src="esempi.js?v=25"></script>
+<script src="esame.js?v=25"></script>
+<script src="italia-mappa.js?v=25"></script>
+<script src="geografia.js?v=25"></script>
+<script src="lezione.js?v=25"></script>
+<script src="diario.js?v=25"></script>
 </body>
 </html>
