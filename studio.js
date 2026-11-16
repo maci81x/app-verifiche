@@ -78,6 +78,8 @@ function blocchiMappa(trascrizione, nodi, nFoto) {
   // Il modo più fine che dà almeno due blocchi: paragrafi, pagine, foto.
   const perTitolo = (x) => { const t = titoli.filter((y) => y.i <= x.riga).pop(); return t ? "t" + t.i : "t-"; };
   const perPagina = (x) => "p" + paginaDi(x.riga);
+  // La trascrizione non segna dove finisce una foto (si legge a gruppi di quattro): le parti sono
+  // tante quante le foto e di lunghezza uguale, ma si chiamano «Parte N», non «Foto N», perché è una stima.
   const perFoto = (x) => "f" + Math.min(nFoto, 1 + Math.floor(x.pos / Math.max(1, piano.length) * nFoto));
   const quanti = (chiave) => new Set(posti.map(chiave)).size;
   const chiave = titoli.length && quanti(perTitolo) > 1 ? perTitolo : (segni.length && quanti(perPagina) > 1 ? perPagina : (nFoto > 1 ? perFoto : null));
@@ -88,7 +90,7 @@ function blocchiMappa(trascrizione, nodi, nFoto) {
     let b = blocchi.find((y) => y.k === k);
     if (!b) {
       const t = chiave === perTitolo ? titoli.find((y) => "t" + y.i === k) : null;
-      b = { k, titolo: t ? t.t : (chiave === perFoto ? "Foto " + k.slice(1) : ""), pagine: null, ids: [] };
+      b = { k, titolo: t ? t.t : (chiave === perFoto ? "Parte " + k.slice(1) : ""), pagine: null, ids: [] };
       blocchi.push(b);
     }
     b.ids.push(x.id);
@@ -306,11 +308,14 @@ function htmlEsitoRacconto(r, concetti) {
   return '<p class="rc-titolo">' + esc(titolo) + "</p>" + (saltati ? '<p class="aiuto">' + esc(saltati) + "</p>" : "") + righe;
 }
 
-let ascoltoRacconto = null; // { stop } mentre ascolta
+let ascoltoRacconto = null; // { stop } mentre ascolta, o mentre aspetta il permesso del microfono
+let argomentoRacconto = null; // id dell'argomento del testo nel riquadro
 let raccontoInCorso = false;
 
 function apriRacconto(a) {
   fermaRacconto();
+  // Il racconto scritto resta solo se si riapre lo stesso argomento.
+  if (argomentoRacconto !== a.id) { $("rc-testo").value = ""; argomentoRacconto = a.id; }
   $("rc-esito").innerHTML = ""; errore($("err-rc"), ""); $("rc-ascolto").textContent = ""; $("rc-tempo").textContent = "";
   if (!a.concetti.length) { $("rc-scaletta").innerHTML = '<li class="legenda">' + esc(MSG_SENZA_PUNTI) + "</li>"; return; }
   const nodi = mappa && mappa.argomento_id === a.id ? mappa.albero.nodi : a.concetti;
@@ -322,10 +327,17 @@ function apriRacconto(a) {
 function fermaRacconto() { if (ascoltoRacconto) ascoltoRacconto.stop(true); }
 
 async function raccontaAVoce() {
-  if (ascoltoRacconto) { ascoltoRacconto.stop(); return; }
+  if (ascoltoRacconto) { if (!ascoltoRacconto.inAttesa) ascoltoRacconto.stop(); return; } // durante l'attesa del permesso il tocco non conta
   errore($("err-rc"), "");
   if (!Riconoscimento) { errore($("err-rc"), "Questo browser non ha il riconoscimento vocale: usa Chrome o Safari, oppure scrivi il racconto qui sotto."); return; }
-  if (!(await provaMicrofono())) { errore($("err-rc"), messaggioVoce(erroreVoce)); return; }
+  // Segnaposto durante l'attesa del permesso: un secondo tocco o l'uscita dalla vista lo annullano,
+  // e il riconoscimento parte solo se nessuno l'ha annullato (mai due microfoni, mai uno lasciato acceso).
+  const segnaposto = { inAttesa: true, annullato: false, stop() { this.annullato = true; if (ascoltoRacconto === this) ascoltoRacconto = null; } };
+  ascoltoRacconto = segnaposto;
+  const permesso = await provaMicrofono();
+  if (segnaposto.annullato) return;
+  ascoltoRacconto = null;
+  if (!permesso) { errore($("err-rc"), messaggioVoce(erroreVoce)); return; }
   const r = new Riconoscimento(); r.lang = "it-IT"; r.continuous = true; r.interimResults = true;
   const btn = $("btn-rc-parla"), ta = $("rc-testo"), prima = ta.value.trim();
   let finale = "", parziale = "", ultimo = Date.now(), finito = false;

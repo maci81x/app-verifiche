@@ -59,7 +59,8 @@ test("mappa per paragrafi: il numero di pagina stampato in fondo vale per il tes
 test("mappa per paragrafi: senza titoli né pagine si divide per foto; una frase non trovata segue il punto prima", () => {
   const testo = NODI[0].ancora + ". " + "x ".repeat(80) + "\n" + NODI[1].ancora + ".\n" + "y ".repeat(80) + NODI[2].ancora + ".";
   const b = blocchi(testo, [...NODI.slice(0, 3), { id: "c9", ancora: "una frase che negli appunti non c'è proprio" }], 2);
-  assert.deepEqual(b.map((x) => [x.titolo, x.ids]), [["Foto 1", ["c1", "c2"]], ["Foto 2", ["c3", "c9"]]]);
+  // «Foto N» sarebbe una stima: la trascrizione non dice dove finisce una foto, quindi «Parte N»
+  assert.deepEqual(b.map((x) => [x.titolo, x.ids]), [["Parte 1", ["c1", "c2"]], ["Parte 2", ["c3", "c9"]]]);
   // una foto sola e niente segni: un blocco solo (la mappa resta com'era)
   assert.equal(blocchi(testo, NODI.slice(0, 3), 1).length, 1);
 });

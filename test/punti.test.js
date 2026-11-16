@@ -115,3 +115,23 @@ test("prompt del racconto: i punti con la frase del quaderno e il racconto, igno
   assert.match(p, /detto.*impreciso.*saltato/s);
   assert.match(p, /riconoscimento vocale/);
 });
+
+test("revisione: chiavi, ancore e frasi dette oltre 400 caratteri si scartano (ancoraRegge guarda solo i primi 400)", () => {
+  const lunga = ARGOMENTO.concetti[0].ancora + " " + "parola ".repeat(60);
+  assert.ok(lunga.length > 400);
+  assert.equal(puntiChiaveDaRisposta(ARGOMENTO, { punti: [punto("c1", "Quando", lunga)] }).punti.length, 0);
+  assert.deepEqual(puntiChiaveDaRisposta(ARGOMENTO, { catena: [{ testo: "", ancora: lunga }, { testo: "", ancora: ARGOMENTO.concetti[2].ancora }] }).catena, []);
+  assert.equal(puntiChiaveDaRisposta(ARGOMENTO, { domanda: { concetto_id: "c1", testo: "Perché?", ancora: lunga } }).domanda, null);
+  const detto = "nel 1347 delle navi genovesi portarono la peste a messina " + "e poi ".repeat(80);
+  const r = esitiRacconto(ARGOMENTO, { esiti: [{ concetto_id: "c1", esito: "detto", frase_detta: detto.trim() }] }, detto);
+  assert.equal(r.esiti[0].esito, "saltato");
+});
+
+test("revisione: la frase detta ha almeno 3 parole e non è la stessa di un altro concetto", () => {
+  const r = esitiRacconto(ARGOMENTO, { esiti: [
+    { concetto_id: "c1", esito: "detto", frase_detta: "nel 1347" },
+    { concetto_id: "c2", esito: "detto", frase_detta: "morì un terzo della popolazione europea" },
+    { concetto_id: "c3", esito: "detto", frase_detta: "morì un terzo della popolazione europea" },
+  ] }, RACCONTO);
+  assert.deepEqual(r.esiti.map((e) => e.esito), ["saltato", "saltato", "saltato", "saltato"]);
+});
