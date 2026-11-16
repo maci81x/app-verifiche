@@ -361,17 +361,18 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], lezione: ["Spiegamelo a schede", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
-const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
+const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", lezione: "scheda" };
 function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
   if (v !== "verifica") fermaVoce();
   if (v !== "invalsi" && typeof fermaInvalsi === "function") fermaInvalsi(); // uscendo, la prova a tempo si ferma
   if (v !== "poesia" && typeof fermaPoesia === "function") fermaPoesia();
+  if (v !== "lezione" && typeof fermaLezione === "function") fermaLezione(); // uscendo dalle schede la voce si ferma
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
@@ -406,6 +407,8 @@ function vai(v, materia, titolo) {
 // schermata, e l'ultimo profilo usato.
 
 const CHIAVE_PROFILI = "verifiche-profili", CHIAVE_ULTIMO = "verifiche-ultimo";
+// Il genitore spegne i video delle mini-lezioni (issue #23) dalle Impostazioni: per quel profilo, su questo telefono.
+const chiaveVideoSpenti = (id) => "verifiche-video-spenti-" + id;
 const MSG_RETE_PROFILI = "Non riesco a caricare i profili: controlla la connessione.";
 // errore_appunti arriva come «negli appunti: …» o «Negli appunti c'è scritto …»: il prefisso
 // non si ripete e il resto comincia minuscolo dopo i due punti.
@@ -620,7 +623,12 @@ async function disegnaImpostazioni() {
     const el = document.createElement("button"); el.type = "button"; el.className = "minore pericolo"; el.textContent = "Elimina profilo";
     el.setAttribute("aria-label", "Elimina il profilo di " + s.nome);
     el.onclick = () => doppioTocco(el, "Tocca ancora: cancella anche tutti i suoi argomenti e prove", () => eliminaProfilo(s, el));
-    d.appendChild(campo); d.appendChild(cc); d.appendChild(el); box.appendChild(d);
+    // Video delle mini-lezioni (issue #23): spenti per quel profilo su questo telefono (nessuna colonna nel database).
+    const lv = document.createElement("label"); lv.className = "check-video";
+    const cv = document.createElement("input"); cv.type = "checkbox"; cv.checked = leggiLocale(chiaveVideoSpenti(s.id), false) !== true;
+    cv.onchange = () => salvaLocale(chiaveVideoSpenti(s.id), !cv.checked);
+    lv.appendChild(cv); lv.appendChild(document.createTextNode(" Video nelle schede, su questo telefono"));
+    d.appendChild(campo); d.appendChild(cc); d.appendChild(el); d.appendChild(lv); box.appendChild(d);
   });
 }
 async function creaProfilo() {

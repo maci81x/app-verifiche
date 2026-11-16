@@ -45,6 +45,13 @@
 //      (422 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
 // POST { azione: "esame" } → { titolo, partenza, tappe, domande, consigli, scartate }: scaletta del colloquio dell'esame
 //      dagli argomenti salvati (solo 3ª, 422 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
+// POST { azione: "lezione", argomento_id } → { schede: [{ tipo, titolo, testo, ancora, calcoli, figura, fonte: "appunti" }], scartate }
+//      Mini-lezione a schede dagli appunti (issue #23, _shared/lezione.js): ancore filtrate, conti ricalcolati,
+//      anni della linea del tempo presi dagli appunti. Servono 5 schede e una regola con la frase del quaderno:
+//      altrimenti si chiede una seconda volta, poi 422 nessuna_lezione. Conta come un aiuto (restituito se non riesce).
+// POST { azione: "video", argomento_id } → { video: [{ titolo, url, sito, embed, anteprima, durata, canale }] }
+//      Due video brevi cercati solo su YouTube e Rai Scuola (DOMINI_VIDEO); durata e canale solo se la ricerca li dice.
+//      Conta come un aiuto; restituito se non arriva nessun video.
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
 //      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
@@ -72,7 +79,8 @@ import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
 import { eserciziVerificati, FORME, GRANDEZZE, QUANTI, PER_CHIAMATA, quantiDaChiedere } from "../_shared/generati.js";
 import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRisposta } from "../_shared/mappa.js";
-import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
+import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta, DOMINI_CONSENTITI, DOMINI_VIDEO, promptRicercaVideo, promptVideo, videoScelti } from "../_shared/web.js";
+import { promptLezione, pulisciLezione, FIGURE_LEZIONE, TIPI_SCHEDA } from "../_shared/lezione.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
@@ -375,6 +383,29 @@ const SCHEMA_ESAME = {
   required: ["titolo", "partenza", "tappe", "domande", "consigli"], additionalProperties: false,
 } as const;
 
+// Mini-lezione (issue #23): un solo oggetto figura, si compilano solo i campi del suo tipo.
+const SCHEMA_LEZIONE = {
+  type: "object",
+  properties: {
+    schede: { type: "array", items: { type: "object", properties: {
+      tipo: { type: "string", enum: TIPI_SCHEDA }, titolo: STRINGA, testo: STRINGA, ancora: STRINGA, calcoli: { type: "array", items: STRINGA },
+      figura: { type: "object", properties: {
+        tipo: { type: "string", enum: FIGURE_LEZIONE }, forma: { type: "string", enum: [...Object.keys(FORME), "nessuna"] },
+        misure: { type: "array", items: { type: "object", properties: { nome: STRINGA, valore: STRINGA }, required: ["nome", "valore"], additionalProperties: false } },
+        eventi: { type: "array", items: { type: "object", properties: { anno: { type: "integer" }, etichetta: STRINGA }, required: ["anno", "etichetta"], additionalProperties: false } },
+        passi: { type: "array", items: STRINGA },
+        gruppi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, voci: { type: "array", items: STRINGA } }, required: ["titolo", "voci"], additionalProperties: false } },
+      }, required: ["tipo", "forma", "misure", "eventi", "passi", "gruppi"], additionalProperties: false },
+    }, required: ["tipo", "titolo", "testo", "ancora", "calcoli", "figura"], additionalProperties: false } },
+  },
+  required: ["schede"], additionalProperties: false,
+} as const;
+const SCHEMA_VIDEO = {
+  type: "object",
+  properties: { video: { type: "array", items: { type: "object", properties: { fonte: { type: "integer" }, durata: STRINGA, canale: STRINGA }, required: ["fonte", "durata", "canale"], additionalProperties: false } } },
+  required: ["video"], additionalProperties: false,
+} as const;
+
 const SCHEMA_GEMELLI = {
   type: "object",
   properties: {
@@ -458,7 +489,7 @@ const testo = (v: unknown) => (typeof v === "string" ? v : "");
 // risposte JSON, per questo la composizione è una seconda chiamata). Se l'API mette in
 // pausa un turno lungo (pause_turn) si rimanda il messaggio così com'è, al massimo 3 volte.
 const GIRI_RICERCA = 3;
-async function cercaSulWeb(prompt: string) {
+async function cercaSulWeb(prompt: string, domini: string[] = DOMINI_CONSENTITI) {
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Definitivo("not_granted");
   client ??= new Anthropic({ maxRetries: 0 });
   let contenuto: Anthropic.ContentBlock[] = [];
@@ -468,7 +499,7 @@ async function cercaSulWeb(prompt: string) {
       if (contenuto.length) messages.push({ role: "assistant", content: contenuto as Anthropic.ContentBlockParam[] });
       const r = await client.messages.create({
         model: MODELLO, max_tokens: 8000, messages,
-        tools: [strumentoRicerca() as Anthropic.WebSearchTool20260209],
+        tools: [strumentoRicerca(domini) as Anthropic.WebSearchTool20260209],
       });
       contenuto = [...contenuto, ...r.content];
       if (r.stop_reason !== "pause_turn") break;
@@ -481,7 +512,7 @@ async function cercaSulWeb(prompt: string) {
     if (e instanceof Anthropic.BadRequestError) { console.error("ricerca web:", e); throw new Definitivo("web_non_disponibile"); }
     throw e;
   }
-  return { fonti: fontiCitate(contenuto), ricerca: testoRicerca(contenuto) };
+  return { fonti: fontiCitate(contenuto, domini), ricerca: testoRicerca(contenuto) };
 }
 
 Deno.serve(async (req) => {
@@ -900,6 +931,53 @@ Deno.serve(async (req) => {
       if (!fonti.length) return json({ albero: m.albero, aggiunti: 0, scartati: 0 });
       const r = await chiedi(promptArricchisci({ ...dati, ricerca, fonti }), SCHEMA_ARRICCHISCI);
       return json(arricchisciMappa(m.albero, r, fonti));
+    }
+
+    // Mini-lezione a schede (issue #23): dagli appunti dell'argomento, letti con i permessi di chi studia.
+    if (b.azione === "lezione") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      const { data: a, error } = await comeUtente(req).from("argomenti")
+        .select("titolo, materia, trascrizione, concetti(titolo, ancora, ordine), esercizi_tipi(ancora)")
+        .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle();
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!testo(a.trascrizione).trim()) return json({ errore: "nessun_testo" }, 422);
+      const concetti = [...(a.concetti || [])].sort((x: any, y: any) => x.ordine - y.ordine);
+      // Le ancore dei concetti e dei tipi di esercizio sono già state controllate sugli appunti: valgono come fonte.
+      const fonte = { trascrizione: a.trascrizione, concetti: [...concetti, ...(a.esercizi_tipi || [])] };
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const prompt = promptLezione({ classe: await classeDi(req, io.sub), materia: a.materia, titolo: a.titolo, trascrizione: a.trascrizione, concetti });
+        let l = pulisciLezione(await chiedi(prompt, SCHEMA_LEZIONE), fonte);
+        if (!l) l = pulisciLezione(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente troppe schede non andavano, o mancava la scheda regola con la frase copiata dagli appunti. Copia le frasi dagli appunti, metti i conti solo in calcoli e rifalli uno per uno.", SCHEMA_LEZIONE), fonte);
+        if (!l) return json({ errore: "nessuna_lezione" }, 422);
+        riuscito = true;
+        return json(l);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    if (b.azione === "video") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      const db = comeUtente(req);
+      const [{ data: a, error }, classe] = await Promise.all([
+        db.from("argomenti").select("titolo, materia, concetti(titolo)").eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle(),
+        classeDi(req, io.sub),
+      ]);
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const dati = { materia: a.materia, argomento: a.titolo, classe, concetti: (a.concetti || []).map((c: any) => c.titolo).slice(0, 12) };
+        const { fonti, ricerca } = await cercaSulWeb(promptRicercaVideo(dati), DOMINI_VIDEO);
+        // Una ricerca andata a vuoto non consuma l'aiuto.
+        if (!fonti.length) return json({ video: [] });
+        const r = await chiedi(promptVideo({ ...dati, ricerca, fonti }), SCHEMA_VIDEO);
+        const video = videoScelti(r, fonti, ricerca);
+        riuscito = video.length > 0;
+        return json({ video });
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
     return json({ errore: "azione sconosciuta" }, 400);

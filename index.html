@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 <div class="wrap">
@@ -418,7 +418,7 @@
   </div>
   <div class="scelte" id="scelte-scheda"></div>
   <button class="azione" id="btn-esercizi" hidden>Preparami degli esercizi</button>
-  <p class="link-riga"><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
+  <p class="link-riga"><button type="button" class="link" id="btn-lezione">Spiegamelo a schede</button><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
   <details class="sezione" id="sez-punti"><summary id="sum-punti">I punti</summary><div id="stato-concetti-scheda"></div></details>
   <details class="sezione"><summary>Le foto</summary>
     <div class="miniature" id="foto-scheda"></div>
@@ -575,6 +575,33 @@
   </div>
 </section>
 
+<!-- ============ MINI-LEZIONE A SCHEDE (issue #23) ============ -->
+<!-- Le schede vengono dagli appunti; i video dal web, solo YouTube e Rai Scuola, e si caricano solo toccandoli. -->
+<section id="v-lezione" hidden>
+  <div id="stato-lezione"></div>
+  <div id="err-lezione"></div>
+  <div id="lz-corpo" hidden>
+    <div class="lz-barra" id="lz-barra" role="progressbar" aria-label="Schede viste" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1"><i id="lz-avanzamento"></i></div>
+    <div class="lz-riga"><p class="aiuto" id="lz-conta"></p><button type="button" class="minore" id="btn-lz-ascolta" aria-pressed="false">Ascolta</button></div>
+    <article class="lz-scheda" id="lz-scheda" aria-live="polite"></article>
+    <div id="lz-fine" hidden>
+      <div class="bottoni"><button type="button" class="azione" id="btn-lz-prova">Mettiti alla prova</button></div>
+      <div id="lz-video" hidden>
+        <h3 class="sez-titolo">Due video per capire meglio</h3>
+        <p class="aiuto">Scelti sul web, su YouTube e Rai Scuola. Se dicono qualcosa di diverso dai tuoi appunti, chiedi alla prof.</p>
+        <div id="stato-lz-video"></div>
+        <div id="err-lz-video"></div>
+        <ul class="lz-video-lista" id="lz-video-lista"></ul>
+      </div>
+      <p class="link-riga"><button type="button" class="link" id="btn-lz-rifai">Rifai le schede da capo</button></p>
+    </div>
+    <div class="fondo-fisso lz-comandi">
+      <button type="button" class="minore" id="btn-lz-indietro">Indietro</button>
+      <button type="button" class="azione" id="btn-lz-avanti">Avanti</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ SPIEGAMELO MEGLIO ============ -->
 <!-- Il web aiuta a capire: non diventa mai una domanda di verifica. -->
 <section id="v-spiega" hidden>
@@ -625,23 +652,24 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=23"></script>
-<script src="app.js?v=23"></script>
-<script src="libreria.js?v=23"></script>
-<script src="stampa.js?v=23"></script>
-<script src="aiuto.js?v=23"></script>
-<script src="mappa-card.js?v=23"></script>
-<script src="figure.js?v=23"></script>
-<script src="formule.js?v=23"></script>
-<script src="esercizi.js?v=23"></script>
-<script src="prova-esercizi.js?v=23"></script>
-<script src="compito.js?v=23"></script>
-<script src="classe-app.js?v=23"></script>
-<script src="poesia.js?v=23"></script>
-<script src="invalsi.js?v=23"></script>
-<script src="esempi.js?v=23"></script>
-<script src="esame.js?v=23"></script>
-<script src="italia-mappa.js?v=23"></script>
-<script src="geografia.js?v=23"></script>
+<script src="semaforo.js?v=24"></script>
+<script src="app.js?v=24"></script>
+<script src="libreria.js?v=24"></script>
+<script src="stampa.js?v=24"></script>
+<script src="aiuto.js?v=24"></script>
+<script src="mappa-card.js?v=24"></script>
+<script src="figure.js?v=24"></script>
+<script src="formule.js?v=24"></script>
+<script src="esercizi.js?v=24"></script>
+<script src="prova-esercizi.js?v=24"></script>
+<script src="compito.js?v=24"></script>
+<script src="classe-app.js?v=24"></script>
+<script src="poesia.js?v=24"></script>
+<script src="invalsi.js?v=24"></script>
+<script src="esempi.js?v=24"></script>
+<script src="esame.js?v=24"></script>
+<script src="italia-mappa.js?v=24"></script>
+<script src="geografia.js?v=24"></script>
+<script src="lezione.js?v=24"></script>
 </body>
 </html>
