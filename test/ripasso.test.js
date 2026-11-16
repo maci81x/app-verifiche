@@ -167,3 +167,10 @@ test("salvataggio che si rompe a metà: la sessione creata si cancella (domande 
   assert.equal(await run(`salvaRipassoGuidato(${J(s)}, ${J(r)})`), false);
   assert.deepEqual(fatte.filter((x) => x[0] !== "insert"), [["delete", "sessioni"], ["eq", "sessioni", "id", "S1"]]);
 });
+
+test("parole tue: una risposta copiata dal quaderno non vale «Ci sei»", () => {
+  const q = "Il processo di perfezionamento morale si verifica però solo se nel cuore dell'innamorato c'è «gentilezza», cioè nobiltà d'animo.";
+  assert.equal(vm.runInContext(`copiataDalQuaderno(${JSON.stringify("Allora: il processo di perfezionamento morale si verifica però solo se nel cuore c'è")}, ${JSON.stringify(q)})`, ctx), true);
+  assert.equal(vm.runInContext(`copiataDalQuaderno("L'amore ti rende migliore solo se hai già un animo nobile e leale.", ${JSON.stringify(q)})`, ctx), false);
+  assert.equal(vm.runInContext(`copiataDalQuaderno("", ${JSON.stringify(q)})`, ctx), false);
+});

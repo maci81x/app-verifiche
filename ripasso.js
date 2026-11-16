@@ -86,6 +86,14 @@ function esitoRipasso(punti) {
 }
 const barraRipasso = (i, coda) => i + 1 + " di " + coda.length;
 
+// «Parole tue»: copiata se almeno 8 parole di fila della risposta stanno, nello stesso ordine, nella frase del quaderno.
+function copiataDalQuaderno(testo, ancora) {
+  const p = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  const r = p(testo), q = " " + p(ancora).join(" ") + " ";
+  for (let i = 0; i + 8 <= r.length; i++) if (q.includes(" " + r.slice(i, i + 8).join(" ") + " ")) return true;
+  return false;
+}
+
 const elencoTitoli = (t) => (t.length < 2 ? t.join("") : t.slice(0, -1).join(", ") + " e " + t.at(-1));
 
 // Fine sessione. fatti: [{ concetto_id, tipo, punti, sicurezza }]; prima: { id: stato }; titoli: { id: titolo };
@@ -242,6 +250,8 @@ async function correggiPasso(p, testo) {
     }
     attesa($("stato-rg"), null);
   }
+  if (p.tipo === "parole" && copiataDalQuaderno(testo, c.ancora || d.risposta_attesa))
+    es = { ...es, punti: Math.min(es.punti, RG_BUONO - 1), commento: "Hai copiato la frase del quaderno: qui serve dirla con parole tue. Prova a spiegarla come a un'amica o un amico." };
   const f = { concetto_id: p.concetto_id, tipo: p.tipo, punti: es.punti, sicurezza: p.tipo === "prova" ? rg.sicurezza : null,
     domanda: d, testo, commento: es.commento, rubrica: es.rubrica || null, secondi };
   rg.fatti.push(f);
