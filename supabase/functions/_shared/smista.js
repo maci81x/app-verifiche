@@ -4,7 +4,7 @@
 // Il modello sceglie materia e argomento per ogni foto e copia le frasi del diario che
 // parlano di una verifica o di un'interrogazione. La data NON la calcola il modello: si
 // ricava qui dalla frase copiata, e la frase deve stare davvero nella trascrizione.
-// Così una data che sul diario non c'è non può arrivare alla ragazza.
+// Così una data che sul diario non c'è non può arrivare a chi studia.
 import { normalizza } from "./ancoraggio.js";
 
 export const MAX_FOTO = 12;

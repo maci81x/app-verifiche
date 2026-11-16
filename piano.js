@@ -295,5 +295,5 @@ function disegnaSettimana() {
 
 function collegaPiano() {
   $("link-settimana").addEventListener("click", () => { disegnaSettimana(); vai("settimana"); });
-  $("btn-altri-appunti").addEventListener("click", () => $("btn-nuovo").click()); // il diario (#19) quando ci sarà
+  $("btn-altri-appunti").addEventListener("click", () => (typeof apriDiario === "function" ? apriDiario() : $("btn-nuovo").click())); // il diario (#19)
 }
