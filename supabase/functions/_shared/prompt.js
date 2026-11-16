@@ -201,6 +201,41 @@ export function promptSintesi(argomento, classe) {
   ].join("\n\n");
 }
 
+// «Le 5 cose da sapere» (issue #22). Nuovo, da tarare sulla prova vera. Ogni chiave, ancora e
+// parola si controlla sul materiale (_shared/punti.js): quelle che non reggono si tolgono.
+export function promptPuntiChiave(argomento, classe) {
+  const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({
+    id: idBreve(i), titolo: c.titolo, descrizione: c.descrizione || "", ancora: c.ancora, peso: c.peso || 2,
+  }));
+  return [
+    "Sei un insegnante di scuola media italiana. Prepari «Le 5 cose da sapere» di un argomento per " + chiStudia(classe) + ": la pagina da rileggere prima della verifica, per ragionare e non solo ricordare.",
+    perLaClasse(classe, argomento.materia, argomento.titolo + " " + (argomento.trascrizione || "")),
+    "Punti: i 5 punti più importanti, in ordine di importanza (il primo è quello che non si può non sapere). Ognuno ha un'etichetta fra «Chi», «Quando», «Che cosa» e «Perché conta»; un testo di al massimo quindici parole che lo dice con parole semplici; la chiave, cioè la frase esatta del materiale che lo contiene, copiata parola per parola; e l'id del concetto da cui nasce.",
+    "Catena: se il materiale spiega una catena di cause e conseguenze, scrivila in 2-4 anelli in ordine, dove ogni anello porta al successivo. Ogni anello ha un testo breve e la sua ancora, la frase esatta del materiale. Se nel materiale non c'è una catena causale, lascia catena vuota: non costruirla tu.",
+    "Parole: da 4 a 6 termini tecnici della materia, scritti nel materiale proprio così, da usare all'interrogazione per fare bella figura.",
+    "Domanda: una domanda di ragionamento che la prof potrebbe fare su questo argomento (perché, cosa succede se, che differenza c'è), in seconda persona e con forme neutre di genere, con l'id del concetto e l'ancora: la frase esatta del materiale che serve per rispondere.",
+    "Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Il server controlla ogni chiave, ogni ancora e ogni parola sul materiale e toglie quelle che non trova.",
+    "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
+    "Concetti:\n" + JSON.stringify(concetti),
+    "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE),
+    'Rispondi solo con JSON: {"punti":[{"concetto_id":"c1","etichetta":"Che cosa","testo":"","chiave":""}],"catena":[{"testo":"","ancora":""}],"parole":[""],"domanda":{"concetto_id":"c1","testo":"","ancora":""}}',
+  ].join("\n\n");
+}
+
+// «Raccontalo in 2 minuti» (issue #22): il racconto detto a voce confrontato con i punti.
+export function promptRacconto(argomento, racconto, classe) {
+  const punti = concettiInOrdine(argomento.concetti).map((c, i) => ({ id: idBreve(i), titolo: c.titolo, ancora: c.ancora }));
+  return [
+    "Sei un insegnante di scuola media italiana. Chi studia (" + perClasse(classe) + ") ha raccontato a voce l'argomento «" + argomento.titolo + "», come all'interrogazione.",
+    "Il racconto viene dal riconoscimento vocale: ignora ripetizioni, esitazioni, frasi lasciate a metà e parole capite male quando si capisce cosa volevano dire.",
+    "Per ogni punto dell'elenco decidi l'esito: detto (ne ha parlato e quello che ha detto è giusto, anche con parole sue), impreciso (ne ha parlato ma con un errore o in modo confuso), saltato (non ne ha parlato). Non basta nominare una parola: per detto serve il contenuto.",
+    "Per detto e impreciso copia in frase_detta il pezzo del racconto in cui ne parla, parola per parola. Per saltato lascia frase_detta vuota.",
+    "Punti, con la frase del quaderno:\n" + JSON.stringify(punti),
+    "Racconto:\n" + String(racconto || ""),
+    'Rispondi solo con JSON: {"esiti":[{"concetto_id":"c1","esito":"detto","frase_detta":""}]}',
+  ].join("\n\n");
+}
+
 // ------------------------------------------------------------------ web come aiuto (issue #4)
 // Nuovi, non dal prototipo: da tarare sulla prova vera. Due passi per ogni azione:
 // prima una ricerca con lo strumento web_search (testo libero con citazioni),

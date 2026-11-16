@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const leggi = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8");
-const JS = ["semaforo.js", "app.js", "libreria.js", "stampa.js", "aiuto.js", "mappa-card.js", "figure.js", "formule.js", "esercizi.js", "prova-esercizi.js", "compito.js"];
+const JS = ["semaforo.js", "app.js", "libreria.js", "stampa.js", "aiuto.js", "mappa-card.js", "studio.js", "figure.js", "formule.js", "esercizi.js", "prova-esercizi.js", "compito.js"];
 const html = leggi("index.html");
 const css = leggi("style.css");
 

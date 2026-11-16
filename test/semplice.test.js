@@ -84,7 +84,7 @@ test("mappa a filetti: un pulsante per riquadro, figli rientrati, semaforo a des
       { id: "web-1", titolo: "Caffa", testo: "t", url: "https://x.it", fonte: "web", figli: [] }] },
     { id: "c2", titolo: "Senza frase", ancora: "", fonte: "appunti", figli: [] }] };
   const html = run(`htmlAlberoMappa(${JSON.stringify(albero)}, { c1: "rosso" })`);
-  assert.match(html, /<button type="button" class="m-nodo" data-id="c1" data-l="1" data-s="rosso" aria-pressed="false"[^>]*>/);
+  assert.match(html, /<button type="button" class="m-nodo" data-id="c1" data-l="1" data-s="rosso" aria-expanded="false"[^>]*>/);
   assert.doesNotMatch(html, /role="button"/); // è già un pulsante
   assert.match(html, /Arrivo &lt;1347&gt;/);
   assert.match(html, /data-id="c1-1" data-l="2" data-s="rosso"/);

@@ -280,18 +280,24 @@ function layoutMappa(albero, larghezza, carattere = MAPPA.carattere, stati = {})
 }
 
 // Mappa a schermo (issue #26): un elenco a filetti, figli rientrati con una linea grigia, semaforo a
-// destra. I riquadri con la frase o il link sono pulsanti e aprono la card. La stampa usa svgMappa.
-function htmlAlberoMappa(albero, stati) {
+// destra. I riquadri con la frase sono pulsanti e si aprono sotto (issue #22); quelli del web aprono
+// la card con il link. La stampa usa svgMappa.
+// blocchi (issue #22, studio.js): con almeno due, i concetti stanno sotto il titolo del loro paragrafo.
+function htmlAlberoMappa(albero, stati, blocchi) {
   const perNodo = statiNodi(albero, stati);
   const riga = (n, livello) => {
-    const s = perNodo[n.id] || "mai", toccabile = !!(n.ancora || n.url), tag = toccabile ? "button" : "div";
+    const s = perNodo[n.id] || "mai", toccabile = !!(n.ancora || n.url), tag = toccabile ? "button" : "div", web = n.fonte === FONTE_WEB;
     const segno = s === "web" ? '<span class="etichetta-web">dal web</span>' : htmlStato(s);
     return '<li><' + tag + (toccabile ? ' type="button"' : "") + ' class="m-nodo" data-id="' + esc(n.id) + '" data-l="' + livello + '" data-s="' + s + '"' +
-      (n.fonte === FONTE_WEB ? ' data-fonte="web"' : "") + (toccabile ? ' aria-pressed="false" aria-haspopup="dialog"' : "") + ">" +
+      (web ? ' data-fonte="web"' : "") + (toccabile ? (web ? ' aria-pressed="false" aria-haspopup="dialog"' : ' aria-expanded="false"') : "") + ">" +
       '<span class="m-titolo">' + esc(n.titolo) + "</span>" + segno + "</" + tag + ">" +
       ((n.figli || []).length ? '<ul class="m-figli">' + n.figli.map((f) => riga(f, livello + 1)).join("") + "</ul>" : "") + "</li>";
   };
-  return '<ul class="m-albero" aria-label="Mappa dell’argomento">' + (albero.nodi || []).map((n) => riga(n, 1)).join("") + "</ul>";
+  if (!blocchi || blocchi.length < 2) return '<ul class="m-albero" aria-label="Mappa dell’argomento">' + (albero.nodi || []).map((n) => riga(n, 1)).join("") + "</ul>";
+  const perId = Object.fromEntries((albero.nodi || []).map((n) => [n.id, n]));
+  return '<ol class="m-blocchi" aria-label="Mappa dell’argomento, per paragrafi">' + blocchi.map((b) => '<li class="m-blocco"><h3 class="m-blocco-tit">' +
+    '<span class="m-blocco-n" aria-hidden="true">' + b.n + "</span> " + esc(etichettaBlocco(b)) + '</h3><ul class="m-albero">' +
+    b.ids.map((id) => perId[id]).filter(Boolean).map((n) => riga(n, 1)).join("") + "</ul></li>").join("") + "</ol>";
 }
 
 // Nodi con lo stato del semaforo (data-s) e, se toccabili, pulsanti con aria-pressed.
@@ -361,17 +367,18 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], cinque: ["Le 5 cose da sapere", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
-const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
+const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", cinque: "scheda" };
 function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
   if (v !== "verifica") fermaVoce();
   if (v !== "invalsi" && typeof fermaInvalsi === "function") fermaInvalsi(); // uscendo, la prova a tempo si ferma
   if (v !== "poesia" && typeof fermaPoesia === "function") fermaPoesia();
+  if (v !== "mappa" && typeof fermaRacconto === "function") fermaRacconto();
   Object.keys(VISTE).forEach((k) => { $("v-" + k).hidden = (k !== v); });
   document.body.dataset.vista = v; // in stampa il CSS nasconde tutto tranne il documento
   const info = VISTE[v];
@@ -924,7 +931,7 @@ function apriScheda(a) {
   $("btn-rivedi").hidden = !a.ultima;
   $("btn-rileggi-concetti").hidden = !!a.concetti.length || !a.trascrizione;
   errore($("err-scheda"), "");
-  ["scelte-scheda", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
+  ["scelte-scheda", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica", "btn-cinque", "btn-menu-cinque"].forEach((id) => { $(id).hidden = false; });
   adattaSchedaEsercizi(a);
   vai("scheda", a.materia, a.titolo);
 }
@@ -1313,12 +1320,11 @@ function apriMappa(a, pannello) {
   mostraPannello(pannello);
 }
 
+// Linguette Mappa, Racconto (issue #22, studio.js) e Cosa studiare.
 function mostraPannello(p) {
-  const suMappa = p === "mappa";
-  $("pannello-mappa").hidden = !suMappa; $("pannello-studiare").hidden = suMappa;
-  $("tab-mappa").setAttribute("aria-selected", String(suMappa));
-  $("tab-studiare").setAttribute("aria-selected", String(!suMappa));
-  if (suMappa) caricaMappa(corrente); else caricaStudiare(corrente);
+  ["mappa", "racconto", "studiare"].forEach((k) => { $("pannello-" + k).hidden = k !== p; $("tab-" + k).setAttribute("aria-selected", String(k === p)); });
+  if (p !== "racconto") fermaRacconto();
+  if (p === "mappa") caricaMappa(corrente); else if (p === "racconto") apriRacconto(corrente); else caricaStudiare(corrente);
 }
 
 async function caricaMappa(a) {
@@ -1395,13 +1401,14 @@ function disegnaAdattando(el, componi) {
 
 function disegnaMappa() {
   if (!mappa || $("v-mappa").hidden || $("pannello-mappa").hidden) return;
-  chiudiCardNodo(false); // il disegno nuovo sostituisce il nodo a cui era agganciata la card
+  chiudiCardNodo(false); chiudiPunto(); // il disegno nuovo sostituisce il nodo a cui erano agganciati card e punto aperto
   const box = $("disegno-mappa");
-  box.innerHTML = htmlAlberoMappa(mappa.albero, statiDellaMappa(corrente)); // a schermo i filetti; la stampa resta in SVG
+  // a schermo i filetti, a blocchi per paragrafo (issue #22); la stampa resta in SVG
+  box.innerHTML = htmlAlberoMappa(mappa.albero, statiDellaMappa(corrente), blocchiDi(corrente, mappa.albero));
   const n = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte !== FONTE_WEB), web = contaNodiMappa(mappa.albero.nodi, (x) => x.fonte === FONTE_WEB);
   $("meta-mappa").textContent = n + (n === 1 ? " riquadro preso" : " riquadri presi") + " dagli appunti" + (web ? " e " + web + " dal web" : "") + ", mappa fatta il " + dataIt(mappa.generata) + "." +
     (mappa.scartati ? " Ho tolto " + mappa.scartati + (mappa.scartati === 1 ? " riquadro che negli appunti non c'era." : " riquadri che negli appunti non c'erano.") : "") +
-    " Tocca un riquadro: trovi la frase del quaderno, un riassunto e una prova veloce.";
+    " Tocca un punto: sotto trovi la frase del quaderno e una prova veloce.";
   if (mappa.provvisoria) $("meta-mappa").textContent = "Ecco i punti. Ora aggiungo i dettagli presi dagli appunti.";
   aggiornaBottoniMappa();
 }
@@ -2082,8 +2089,14 @@ function collegaFoto() {
   $("btn-rigenera").addEventListener("click", () => { if (corrente) generaMappa(corrente); });
   $("btn-torna-scheda").addEventListener("click", () => apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente));
   const disegno = $("disegno-mappa");
-  // I riquadri sono <button>: clic, Invio e spazio arrivano tutti come click.
-  disegno.addEventListener("click", (e) => { const g = e.target.closest("button.m-nodo"); if (g) apriCardNodo(g); });
+  // I riquadri sono <button>: clic, Invio e spazio arrivano tutti come click. Il punto si apre
+  // sotto (issue #22), il nodo del web apre la card con il link.
+  disegno.addEventListener("click", (e) => {
+    const az = e.target.closest(".m-aperto [data-azione]");
+    if (az) { azionePunto(az); return; }
+    const g = e.target.closest("button.m-nodo");
+    if (g) { if (g.dataset.fonte === FONTE_WEB) apriCardNodo(g); else apriPunto(g); }
+  });
   $("btn-elimina").addEventListener("click", function () { doppioTocco(this, "Tocca di nuovo per eliminare, foto comprese", () => eliminaArgomento(corrente)); });
   $("foto-piu").addEventListener("change", (e) => {
     const nuove = Array.prototype.slice.call(e.target.files).filter((f) => f.type.indexOf("image/") === 0);

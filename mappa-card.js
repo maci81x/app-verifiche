@@ -104,13 +104,17 @@ function azioneCardNodo(e) {
   }
   if (b.dataset.azione === "prova") {
     if (!dalDb || lampoInCorso) return;
-    const argomento = corrente;
     chiudiCardNodo(false);
-    modo = "argomento"; lampoInCorso = true;
-    // Un pulsante tutto suo: preparaVerifica lo spegne e lo riaccende, Rigenera resta com'è.
-    preparaVerifica([argomento], document.createElement("button"), $("stato-mappa"), $("err-mappa"), { concetto: dalDb })
-      .finally(() => { lampoInCorso = false; });
+    provaLampo(dalDb);
   }
+}
+// Prova lampo di 3 domande su un concetto dell'argomento aperto: dalla card e dal punto aperto (issue #22).
+function provaLampo(c) {
+  if (!c || lampoInCorso) return;
+  modo = "argomento"; lampoInCorso = true;
+  // Un pulsante tutto suo: preparaVerifica lo spegne e lo riaccende, Rigenera resta com'è.
+  preparaVerifica([corrente], document.createElement("button"), $("stato-mappa"), $("err-mappa"), { concetto: c })
+    .finally(() => { lampoInCorso = false; });
 }
 
 function collegaCardNodo() {

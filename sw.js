@@ -12,6 +12,7 @@ const ASSETS = [
   '/app-verifiche/stampa.js?v=22',
   '/app-verifiche/aiuto.js?v=22',
   '/app-verifiche/mappa-card.js?v=22',
+  '/app-verifiche/studio.js?v=22',
   '/app-verifiche/figure.js?v=22',
   '/app-verifiche/formule.js?v=22',
   '/app-verifiche/esercizi.js?v=22',
