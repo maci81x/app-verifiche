@@ -89,7 +89,7 @@ test("prompt della lezione: appunti, struttura fissa, frase copiata, niente pers
 /* ------------------------------------------------------------------ video */
 
 test("video: ricerca solo su YouTube e Rai; le altre ricerche restano sui siti di sempre", () => {
-  assert.deepEqual(DOMINI_VIDEO, ["youtube.com", "raiplay.it", "raiscuola.rai.it"]);
+  assert.deepEqual(DOMINI_VIDEO, ["youtube.com", "raiscuola.rai.it"]);
   assert.deepEqual(strumentoRicerca(DOMINI_VIDEO).allowed_domains, DOMINI_VIDEO);
   assert.deepEqual(strumentoRicerca().allowed_domains, DOMINI_CONSENTITI);
   assert.ok(!DOMINI_CONSENTITI.includes("youtube.com"));

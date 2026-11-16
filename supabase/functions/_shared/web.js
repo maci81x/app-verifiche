@@ -114,7 +114,7 @@ export function spiegazioneDaRisposta(grezza, fonti, classe) {
 // ------------------------------------------------------------------ video scelti (issue #23)
 // Due video brevi per argomento, cercati solo su YouTube e Rai. Questi domini non entrano in
 // DOMINI_CONSENTITI: le altre ricerche (spiega, arricchisci) restano sui siti di sempre.
-export const DOMINI_VIDEO = ["youtube.com", "raiplay.it", "raiscuola.rai.it"];
+export const DOMINI_VIDEO = ["youtube.com", "raiscuola.rai.it"]; // raiplay.it non è raggiungibile dalla ricerca web di Anthropic (400, prova del 16/11/2026)
 export const MAX_VIDEO = 2, MAX_MINUTI_VIDEO = 10;
 
 // L'id di un video YouTube (11 caratteri) da watch?v=, shorts/, embed/; null per tutto il resto.
