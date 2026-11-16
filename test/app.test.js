@@ -651,3 +651,7 @@ test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la map
   const senza = run(`htmlPrimo(${JSON.stringify(a)}, null)`);
   assert.match(senza, /class="azione" data-azione="mappa">Apri la mappa</);
 });
+
+test("passaggi dell'esercizio: la casella ha un nome per il lettore di schermo", () => {
+  assert.match(run("htmlRispostaEsercizio(2)"), /<textarea id="pas-es-2" aria-label="I tuoi passaggi"/);
+});

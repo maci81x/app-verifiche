@@ -98,7 +98,7 @@ details.extra summary{cursor:pointer;font-weight:700;font-size:1rem;list-style:n
 details.extra summary::-webkit-details-marker{display:none}
 details.extra summary::before{content:"+";color:var(--inchiostro);font-size:1.2rem;font-weight:700}
 details.extra[open] summary::before{content:"−"}
-textarea,input[type=text]{width:100%;border:1.5px solid var(--bordo);border-radius:14px;padding:13px 14px;font:inherit;background:var(--carta);color:var(--inchiostro);box-sizing:border-box;min-height:48px}
+textarea,input[type=text],input[type=password]{width:100%;border:1.5px solid var(--bordo);border-radius:14px;padding:13px 14px;font:inherit;background:var(--carta);color:var(--inchiostro);box-sizing:border-box;min-height:48px}
 textarea{min-height:96px;resize:vertical}
 .etichetta{display:block;font-size:.95rem;color:var(--inchiostro);margin:14px 0 6px;font-weight:700}
 .riga-campi{display:flex;gap:12px;flex-wrap:wrap}
@@ -259,6 +259,7 @@ button.link{background:none;border:0;color:var(--inchiostro);font:700 .95rem var
 .riga-profilo b{flex:1 1 120px;font-weight:700}
 .riga-profilo button{min-height:44px;padding:8px 14px;font-size:.92rem}
 .riga-profilo .codice-nuovo{width:8.5em;min-height:44px;padding:8px 10px;margin:0;letter-spacing:.2em}
+.riga-profilo .codice-nuovo::placeholder{letter-spacing:normal}
 .iniziale.grande{width:56px;height:56px;flex:none;border-radius:50%;background:hsl(var(--h-profilo,224) var(--s-profilo,60%) 34%);color:#fff;display:grid;place-items:center;font:800 1.5rem var(--display)}
 /* Mappa concettuale e Cosa studiare (issue #2). Rami del primo livello nella tinta della materia. */
 .linguette{display:flex;gap:4px;margin:14px 0 4px;border-bottom:1px solid var(--bordo)}
