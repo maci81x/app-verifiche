@@ -613,6 +613,14 @@ function disegnaSvuota() {
   $("imp-svuota-aiuto").textContent = "Cancella argomenti, foto e prove di " + profilo.nome + ". I profili restano.";
   $("btn-svuota").hidden = !argomenti.length && !sessioni.length;
 }
+// Consumo di oggi di un profilo (branch ottimizzazione), dalla funzione profili: richieste al modello,
+// token (letti, scritti e dalla cache) e costo stimato con i prezzi di platform.claude.com.
+function testoConsumo(c, tetto) {
+  if (!c || !c.chiamate) return "Oggi: nessuna richiesta (massimo " + tetto + ")";
+  const token = (c.input || 0) + (c.output || 0) + (c.cache_scritti || 0) + (c.cache_letti || 0);
+  return "Oggi: " + c.chiamate + " richieste su " + tetto + " · " + token.toLocaleString("it-IT") + " token · circa " +
+    (c.costo || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
+}
 let figlie = [];
 async function disegnaImpostazioni() {
   disegnaSvuota();
@@ -621,6 +629,8 @@ async function disegnaImpostazioni() {
   if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Controlla la connessione e riprova."); return; }
   figlie = data || [];
   if (!figlie.length) box.innerHTML = '<p class="legenda">Ancora nessun profilo. Crealo qui sotto.</p>';
+  // Il consumo non blocca il pannello: se non arriva, la riga non c'è.
+  const consumo = figlie.length ? await funzioneProfili({ azione: "consumo" }).catch((e) => { console.warn("consumo:", e); return null; }) : null;
   figlie.forEach((s) => {
     const d = document.createElement("div"); d.className = "riga-profilo";
     const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " (" + s.classe + ")" : ""); d.appendChild(b);
@@ -637,7 +647,10 @@ async function disegnaImpostazioni() {
     const cv = document.createElement("input"); cv.type = "checkbox"; cv.checked = leggiLocale(chiaveVideoSpenti(s.id), false) !== true;
     cv.onchange = () => salvaLocale(chiaveVideoSpenti(s.id), !cv.checked);
     lv.appendChild(cv); lv.appendChild(document.createTextNode(" Video nelle schede, su questo telefono"));
-    d.appendChild(campo); d.appendChild(cc); d.appendChild(el); d.appendChild(lv); box.appendChild(d);
+    d.appendChild(campo); d.appendChild(cc); d.appendChild(el); d.appendChild(lv);
+    const c = consumo && (consumo.profili || []).find((x) => x.studente_id === s.id);
+    if (c) { const p = document.createElement("p"); p.className = "aiuto consumo"; p.textContent = testoConsumo(c, consumo.tetto); d.appendChild(p); }
+    box.appendChild(d);
   });
 }
 async function creaProfilo() {
@@ -718,7 +731,7 @@ async function modello(corpo) {
     body: JSON.stringify(corpo),
   });
   const json = await r.json().catch(() => ({}));
-  if (r.status === 429) throw new Definitivo(json.errore === "limite_giornaliero" ? "limite_giornaliero" : "rate_limited");
+  if (r.status === 429) throw new Definitivo(json.errore === "limite_giornaliero" || json.errore === "tetto_giornaliero" ? json.errore : "rate_limited");
   if (r.status === 401 || r.status === 403) throw new Definitivo("not_granted");
   if (!r.ok) { const e = new Error(json.errore || ("errore " + r.status)); e.dati = json; throw e; }
   return json;
@@ -733,6 +746,7 @@ async function conRiprova(f) {
 }
 function messaggioModello(e, predefinito) {
   if (e instanceof Definitivo && e.message === "limite_giornaliero") return "Per oggi hai usato tutti gli aiuti: riprova domani.";
+  if (e instanceof Definitivo && e.message === "tetto_giornaliero") return "Per oggi l'app ha già risposto a 150 richieste, il massimo di un giorno. Si riparte domani.";
   if (e instanceof Definitivo && e.message === "rate_limited") return "Troppe richieste in poco tempo. Aspetta un minuto e riprova.";
   if (e instanceof Definitivo) return "Non riesco a collegarmi. Esci, rientra nel tuo profilo e riprova.";
   return predefinito;

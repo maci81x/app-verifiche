@@ -13,8 +13,13 @@
 //      Ordine: dati, foto, account (vedi elimina). Cancellare subito l'account dava «Database
 //      error deleting user».
 //
+// POST { azione: "consumo" }                     → { tetto, profili: [{ studente_id, giorno, chiamate, input, output, cache_scritti, cache_letti, costo }] }
+//      Le chiamate al modello e i token di oggi (ora di Roma) per ogni profilo collegato a chi chiama.
+//
 // Chi chiama deve avere app_metadata.ruolo = "genitore" (lo imposta Roby, una volta).
 import { admin, CODICE, json, CORS } from "../_shared/http.ts";
+import { consumoDelGiorno, TETTO_CHIAMATE } from "../_shared/modelli.js";
+import { giornoRoma } from "../_shared/compito.js";
 
 // La piattaforma (verify_jwt) ha già verificato la firma del token.
 function claims(req: Request): { role?: string; sub?: string; email?: string; app_metadata?: { ruolo?: string } } {
@@ -179,6 +184,17 @@ Deno.serve(async (req) => {
       const id = String(b.studente_id || "");
       if (!UUID.test(id)) return json({ errore: "richiesta non valida" }, 400);
       return await elimina(db, io.sub, id);
+    }
+
+    if (b.azione === "consumo") {
+      const { data: link, error } = await db.from("genitori_studenti").select("studente_id").eq("genitore_id", io.sub);
+      if (error) throw error;
+      const giorno = giornoRoma();
+      const profili = await Promise.all((link ?? []).map(async ({ studente_id }) => {
+        const { data } = await db.auth.admin.getUserById(studente_id);
+        return { studente_id, ...consumoDelGiorno(data?.user?.app_metadata, giorno) };
+      }));
+      return json({ tetto: TETTO_CHIAMATE, profili });
     }
 
     return json({ errore: "azione sconosciuta" }, 400);

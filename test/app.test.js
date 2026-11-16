@@ -655,3 +655,15 @@ test("card «Da ripassare prima»: un solo pulsante pieno Ripassa questo, la map
 test("passaggi dell'esercizio: la casella ha un nome per il lettore di schermo", () => {
   assert.match(run("htmlRispostaEsercizio(2)"), /<textarea id="pas-es-2" aria-label="I tuoi passaggi"/);
 });
+
+test("ottimizzazione: tetto giornaliero delle richieste con un messaggio chiaro", () => {
+  assert.match(run(`messaggioModello(new Definitivo("tetto_giornaliero"), "x")`), /150 richieste.*domani/);
+  assert.match(readFileSync(new URL("../app.js", import.meta.url), "utf8"), /json\.errore === "tetto_giornaliero"/);
+});
+
+test("ottimizzazione: consumo di oggi per il genitore, token e costo con al massimo 2 decimali", () => {
+  assert.equal(run(`testoConsumo({ chiamate: 23, input: 60000, output: 25000, cache_scritti: 0, cache_letti: 4000, costo: 0.7412 }, 150)`),
+    "Oggi: 23 richieste su 150 · 89.000 token · circa 0,74 $");
+  assert.equal(run(`testoConsumo({ chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0 }, 150)`),
+    "Oggi: nessuna richiesta (massimo 150)");
+});

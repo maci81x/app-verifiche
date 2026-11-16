@@ -85,6 +85,7 @@
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
 // anche alla prova delle foto da riga di comando, che non salva niente.
 import Anthropic from "npm:@anthropic-ai/sdk@1.3.0";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { jsonSchemaOutputFormat } from "npm:@anthropic-ai/sdk@1.3.0/helpers/json-schema";
 import {
@@ -112,9 +113,28 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
+import { modelloPer, costoUsd, tettoRaggiunto, consumoAggiornato, TETTO_CHIAMATE } from "../_shared/modelli.js";
+import { FINE_PARTE_FISSA } from "../_shared/prompt.js";
 import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
-const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
+// Contesto di una richiesta (AsyncLocalStorage: le richieste in parallelo non si mescolano): quale azione,
+// se l'account è di prova (può chiedere un modello per il confronto) e quanto ha consumato finora.
+type Consumo = { azione: string; prova: boolean; richiesto: string; chiamate: number; input: number; output: number;
+  cache_scritti: number; cache_letti: number; costo: number; modelli: string[] };
+const richiesta = new AsyncLocalStorage<Consumo>();
+function modelloDellaRichiesta() {
+  const c = richiesta.getStore();
+  return modelloPer(c?.azione ?? "", { prova: c?.prova, richiesto: c?.richiesto });
+}
+function registra(modello: string, u: Anthropic.Usage | undefined) {
+  const c = richiesta.getStore();
+  if (!c) return;
+  c.chiamate++;
+  c.input += u?.input_tokens ?? 0; c.output += u?.output_tokens ?? 0;
+  c.cache_scritti += u?.cache_creation_input_tokens ?? 0; c.cache_letti += u?.cache_read_input_tokens ?? 0;
+  c.costo += costoUsd(modello, u ?? {});
+  if (!c.modelli.includes(modello)) c.modelli.push(modello);
+}
 const MAX_IMMAGINI = 4;
 const MAX_BASE64 = 6_000_000; // ~4,5 MB per foto: a 2000 px ne bastano molti meno
 
@@ -542,8 +562,14 @@ async function chiedi(prompt: string, schema: { type: "object" }, immagini: stri
   if (!Deno.env.get("ANTHROPIC_API_KEY")) throw new Definitivo("not_granted");
   client ??= new Anthropic({ maxRetries: 0 });
   try {
+    const model = modelloDellaRichiesta();
+    // Prompt caching: la parte prima di FINE_PARTE_FISSA (il materiale, l'esercizio già spiegato) è uguale da
+    // una chiamata all'altra e si legge dalla cache per 5 minuti; il resto (domanda, risposta) cambia.
+    const [fisso, resto] = prompt.split(FINE_PARTE_FISSA);
+    const testi = resto === undefined ? [{ type: "text" as const, text: fisso }]
+      : [{ type: "text" as const, text: fisso, cache_control: { type: "ephemeral" as const } }, { type: "text" as const, text: resto }];
     const r = await client.messages.parse({
-      model: MODELLO,
+      model,
       max_tokens: 16000,
       messages: [{
         role: "user",
@@ -552,11 +578,12 @@ async function chiedi(prompt: string, schema: { type: "object" }, immagini: stri
             type: "image" as const,
             source: { type: "base64" as const, media_type: "image/jpeg" as const, data },
           })),
-          { type: "text" as const, text: prompt },
+          ...testi,
         ],
       }],
       output_config: { format: jsonSchemaOutputFormat(schema), ...(effort ? { effort } : {}) },
     });
+    registra(model, r.usage);
     if (r.parsed_output == null) throw new Error(`risposta non valida (stop: ${r.stop_reason})`);
     return r.parsed_output as Record<string, unknown>;
   } catch (e) {
@@ -581,10 +608,12 @@ async function cercaSulWeb(prompt: string, domini: string[] = DOMINI_CONSENTITI)
     for (let giro = 0; giro < GIRI_RICERCA; giro++) {
       const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
       if (contenuto.length) messages.push({ role: "assistant", content: contenuto as Anthropic.ContentBlockParam[] });
+      const model = modelloDellaRichiesta();
       const r = await client.messages.create({
-        model: MODELLO, max_tokens: 8000, messages,
+        model, max_tokens: 8000, messages,
         tools: [strumentoRicerca(domini) as Anthropic.WebSearchTool20260209],
       });
+      registra(model, r.usage);
       contenuto = [...contenuto, ...r.content];
       if (r.stop_reason !== "pause_turn") break;
     }
@@ -599,7 +628,7 @@ async function cercaSulWeb(prompt: string, domini: string[] = DOMINI_CONSENTITI)
   return { fonti: fontiCitate(contenuto, domini), ricerca: testoRicerca(contenuto) };
 }
 
-Deno.serve(async (req) => {
+async function gestisci(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ errore: "solo POST" }, 405);
   const io = claims(req);
@@ -1141,4 +1170,36 @@ Deno.serve(async (req) => {
     console.error(e);
     return json({ errore: "lettura non riuscita" }, 502);
   }
+}
+
+// Ogni richiesta: tetto giornaliero su tutte le chiamate al modello del profilo, poi il consumo (chiamate, token,
+// costo stimato) sommato nei metadati dell'account, che il genitore vede nelle Impostazioni (funzione profili).
+// Come per gli aiuti, senza tabella il conteggio non è atomico: due richieste nello stesso istante possono
+// perdere una somma. ponytail: tabella con upsert atomico se servisse un conto esatto.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+Deno.serve(async (req) => {
+  const io = req.method === "POST" ? claims(req) : {};
+  if (io.role !== "authenticated" || !io.sub || io.app_metadata?.ruolo !== "studente") return gestisci(req);
+  const db = amministratore();
+  const { data, error } = await db.auth.admin.getUserById(io.sub);
+  if (error || !data?.user) return json({ errore: "non autenticato" }, 401);
+  const am = data.user.app_metadata ?? {};
+  if (tettoRaggiunto(am, giornoRoma())) return json({ errore: "tetto_giornaliero", tetto: TETTO_CHIAMATE }, 429);
+  const corpo = await req.clone().json().catch(() => null);
+  const c: Consumo = { azione: String(corpo?.azione ?? ""), prova: am.prova === true, richiesto: String(corpo?.modello_prova ?? ""),
+    chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0, modelli: [] };
+  const risposta = await richiesta.run(c, () => gestisci(req));
+  if (!c.chiamate) return risposta;
+  const salva = (async () => {
+    try {
+      const { data: fresco } = await db.auth.admin.getUserById(io.sub!);
+      const m = fresco?.user?.app_metadata ?? {};
+      await db.auth.admin.updateUserById(io.sub!, { app_metadata: { ...m, consumo: consumoAggiornato(m, giornoRoma(), c) } });
+    } catch (e) { console.error("consumo:", e); }
+  })();
+  if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(salva); else await salva;
+  // Per il confronto dei modelli: agli account di prova si dice quale modello ha risposto e quanto è costato.
+  if (c.prova) risposta.headers.set("x-consumo", JSON.stringify({ modelli: c.modelli, chiamate: c.chiamate, input: c.input,
+    output: c.output, cache_scritti: c.cache_scritti, cache_letti: c.cache_letti, costo: c.costo }));
+  return risposta;
 });
