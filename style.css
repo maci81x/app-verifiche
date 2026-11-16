@@ -831,3 +831,28 @@ details.sezione[open]{padding-bottom:16px}
 .ambiti-inv{list-style:none;padding:0;margin:8px 0 16px;border-top:1px solid var(--bordo)}
 .ambiti-inv li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:10px 0;border-bottom:1px solid var(--bordo)}
 .ambiti-inv li b{margin-left:auto}
+
+/* Issue #28 (resto): esempi che si ritirano, scaletta dell'esame */
+.passo-nascosto{color:var(--inchiostro-2);border-bottom:1.5px dashed var(--bordo);padding-bottom:4px}
+.scaletta-esame{list-style:none;padding:0;margin:12px 0;border-left:3px solid var(--bordo)}
+.tappa-esame{padding:4px 0 14px 16px;position:relative}
+.tappa-esame::before{content:"";position:absolute;left:-8px;top:10px;width:13px;height:13px;border-radius:50%;background:var(--carta);border:3px solid var(--inchiostro)}
+.tappa-esame p{margin:0 0 4px}
+.etichetta-tappa{display:inline-block;font:700 .85rem var(--testo);background:var(--superficie);border-radius:999px;padding:2px 10px;margin-right:4px}
+.domande-esame{padding-left:20px;margin:6px 0 14px}
+.domande-esame li{margin-bottom:6px}
+
+/* Issue #28 (resto): quiz di geografia d'Italia */
+#geo-domanda{margin:4px 0 10px}
+.cartina{display:block;width:100%;max-width:340px;margin:0 auto;height:auto;touch-action:manipulation}
+.cartina path{fill:var(--superficie);stroke:var(--inchiostro-2);stroke-width:.8;cursor:pointer;transition:fill .15s}
+.cartina path:hover{fill:var(--bordo)}
+.cartina path[data-s="verde"]{fill:var(--verde-bg);stroke:var(--verde);stroke-width:1.6}
+.cartina path[data-s="rosso"]{fill:var(--rosso-bg);stroke:var(--rosso);stroke-width:1.6}
+@media (prefers-reduced-motion:reduce){.cartina path{transition:none}}
+.scelte-geo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.scelta-geo{min-height:52px;border:1.5px solid var(--bordo);background:var(--carta);color:var(--inchiostro);border-radius:16px;font:700 1rem var(--testo);padding:8px 10px;cursor:pointer}
+.scelta-geo[data-s="verde"]{background:var(--verde-bg);color:var(--verde);border-color:var(--verde)}
+.scelta-geo[data-s="rosso"]{background:var(--rosso-bg);color:var(--rosso);border-color:var(--rosso)}
+.scelta-geo:disabled{cursor:default;opacity:1}
+.fonte-geo{font-size:.85rem;color:var(--inchiostro-2);margin-top:14px}

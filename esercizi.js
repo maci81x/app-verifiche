@@ -247,8 +247,9 @@ async function generaEsercizi() {
   attesa(st, ["Preparo gli esercizi", "Controllo i conti uno per uno", "Disegno le figure"]);
   try {
     const r = await conRiprovaEsercizi(() => modello({ azione: "esercizi_genera", argomento_id: a.id, quanti, tipi }));
-    eserciziMostrati = r.esercizi; scartatiMostrati = r.scartati || 0;
-    $("lista-es").innerHTML = r.esercizi.map(htmlEsercizio).join("");
+    // esercizi mescolati (issue #28): mai due dello stesso tipo di fila, se si può
+    eserciziMostrati = typeof mescolaPerTipo === "function" ? mescolaPerTipo(r.esercizi, (e) => e.tipo_id) : r.esercizi; scartatiMostrati = r.scartati || 0;
+    $("lista-es").innerHTML = eserciziMostrati.map(htmlEsercizio).join("");
     preparaSvolgimento();
     $("nota-scartati-es").textContent = notaScartatiEsercizi(r.scartati);
     $("prep-esercizi").hidden = true; $("btn-altri-es").hidden = false;

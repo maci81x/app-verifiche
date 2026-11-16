@@ -1151,7 +1151,7 @@ export const PROGRAMMA = {
         titolo: "La Seconda guerra mondiale, la Shoah e la Resistenza",
         prerequisiti: ["st3-totalitarismi"],
         strategie: [
-          { nome: "Linea del tempo", quando: "Quando ordini le fasi della Seconda guerra mondiale.", passi: ["Segna 1939 invasione della Polonia, 1940 entrata dell'Italia.", "Segna 1941 Pearl Harbor e invasione dell'URSS.", "Segna 8 settembre 1943, 25 aprile 1945, agosto 1945 la fine."] },
+          { nome: "Linea del tempo", quando: "Quando ordini le fasi della Seconda guerra mondiale.", passi: ["Segna 1939 invasione della Polonia, 1940 entrata dell'Italia.", "Segna 1941 Pearl Harbor e invasione dell'URSS.", "Segna 8 settembre 1943, 25 aprile 1945, 8 maggio 1945 la fine in Europa e 2 settembre 1945 la resa del Giappone."] },
           { nome: "Causa → fatto → conseguenza", quando: "Quando studi un evento della guerra.", passi: ["Scrivi il fatto.", "Scrivi le cause.", "Scrivi le conseguenze per l'Italia e per il mondo."] },
         ],
         errori_tipici: [
@@ -1184,7 +1184,7 @@ export const PROGRAMMA = {
         ],
         errori_tipici: [
           { id: "carta-mercatore", errore: "Giudicare la grandezza dei continenti dalla carta di Mercatore", esempio: "La Groenlandia è grande come l'Africa.", come_riconoscerlo: "Le dimensioni sono stimate da un planisfero, senza dati.", spiegazione: "La carta di Mercatore ingrandisce le terre vicine ai poli. L'Africa è circa 14 volte più grande della Groenlandia." },
-          { id: "africa-paese", errore: "Trattare l'Africa come un unico Paese", esempio: "In Africa si parla africano e fa sempre caldo.", come_riconoscerlo: "Un continente è descritto come uno Stato con una lingua e un clima.", spiegazione: "L'Africa ha 54 Stati, migliaia di lingue e climi diversi, dal deserto alla foresta pluviale. Sull'Atlante marocchino nevica." },
+          { id: "africa-paese", errore: "Trattare l'Africa come un unico Paese", esempio: "In Africa si parla africano e fa sempre caldo.", come_riconoscerlo: "Un continente è descritto come uno Stato con una lingua e un clima.", spiegazione: "L'Africa ha 54 Stati, più di mille lingue e climi diversi, dal deserto alla foresta pluviale. Sull'Atlante marocchino nevica." },
         ],
         parole_chiave: ["continenti", "africa", "asia", "america", "oceania", "antartide", "planisfero", "fusi orari"],
       },
@@ -1196,7 +1196,7 @@ export const PROGRAMMA = {
           { nome: "Causa → fatto → conseguenza", quando: "Quando spieghi una migrazione.", passi: ["Fattori di spinta: guerre, povertà, clima.", "Fattori di attrazione: lavoro, sicurezza, famiglia.", "Conseguenze per il Paese di partenza e quello di arrivo."] },
         ],
         errori_tipici: [
-          { id: "popolazione-densita-totale", errore: "Confondere popolazione totale e densità", esempio: "Il Canada è molto popolato perché è grande.", come_riconoscerlo: "La grandezza del territorio è usata per dire quante persone ci vivono.", spiegazione: "Il Canada è enorme ma ha circa 40 milioni di abitanti, circa 4 per km². Il Bangladesh è piccolo e ne ha oltre 1000 per km²." },
+          { id: "popolazione-densita-totale", errore: "Confondere popolazione totale e densità", esempio: "Il Canada è molto popolato perché è grande.", come_riconoscerlo: "La grandezza del territorio è usata per dire quante persone ci vivono.", spiegazione: "Il Canada è enorme ma ha oltre 40 milioni di abitanti, circa 4 per km². Il Bangladesh è piccolo e ne ha oltre 1000 per km²." },
         ],
         parole_chiave: ["popolazione mondiale", "migrazioni", "urbanizzazione", "megalopoli", "natalità", "speranza di vita"],
       },

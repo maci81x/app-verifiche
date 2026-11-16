@@ -7,7 +7,8 @@ supabase/.branches/
 # clone di terzi capitato qui, non fa parte dell'app
 gods-eye-view/
 # restano solo in locale: specifica e prototipo non vanno nel repo pubblico
-docs/
+docs/*
+!docs/da-verificare.md
 prototipo/
 # grafo graphify, si rigenera in locale
 graphify-out/
