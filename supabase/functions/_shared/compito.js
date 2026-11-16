@@ -62,6 +62,19 @@ export function stessoRisultato(libro, risultato) {
 }
 
 // { ok: true } oppure { ok: false, motivo: "passo" (con il numero del passo) | "risultato" | "verifica" | "libro" }.
+// Parole che valgono un numero del testo. Confini di parola con le lettere accentate (\b non vede la «à» di «metà»).
+// «Terzo» e «quarto» contano solo come frazioni («un terzo», «tre quarti»), non come ordinali («il terzo giorno»).
+const PAROLE_NUMERO = [[/(?<!\p{L})(doppi[oa]|metà)(?!\p{L})/iu, 2], [/(?<!\p{L})(tripl[oa]|(?:un|una|due)\s+terz[oi]|(?:la|una)\s+terza\s+parte)(?!\p{L})/iu, 3],
+  [/(?<!\p{L})(quadrupl[oa]|(?:un|una|tre)\s+quart[oi]|(?:la|una)\s+quarta\s+parte)(?!\p{L})/iu, 4]];
+// Numeri scritti a parole («tre amici», «2 dozzine»): si possono usare nella verifica, ma non contano fra i dati da usare.
+// «Uno/una» no (articoli), «sei» no (verbo).
+const CARDINALI = [];
+for (const [parola, n] of [["due", 2], ["tre", 3], ["quattro", 4], ["cinque", 5], ["sette", 7], ["otto", 8], ["nove", 9], ["dieci", 10], ["undici", 11],
+  ["dodici", 12], ["venti", 20], ["trenta", 30], ["cento", 100], ["decin[ae]", 10], ["dozzin[ae]", 12], ["centinai[oa]", 100]])
+  CARDINALI.push([new RegExp("(?<!\\p{L})" + parola + "(?!\\p{L})", "iu"), n]);
+// Frazioni scritte a parole, per le parti e i complementi («la terza parte»: 1/3, resta 2/3).
+const FRAZIONI_PAROLA = [[/(?<!\p{L})metà(?!\p{L})/iu, "1/2"], [/(?<!\p{L})((?:un|una)\s+terz[oa]|(?:la|una)\s+terza\s+parte)(?!\p{L})/iu, "1/3"],
+  [/(?<!\p{L})((?:un|una)\s+quart[oa]|(?:la|una)\s+quarta\s+parte)(?!\p{L})/iu, "1/4"], [/(?<!\p{L})due\s+terzi(?!\p{L})/iu, "2/3"], [/(?<!\p{L})tre\s+quarti(?!\p{L})/iu, "3/4"]];
 export function controllaCompito(c) {
   const conConto = c.passi.map((p, i) => ({ p, n: i + 1 })).filter((x) => x.p.calcolo);
   if (!conConto.length) return { ok: false, motivo: "passo", passo: 1 };
@@ -75,15 +88,25 @@ export function controllaCompito(c) {
   //    (48 − (48 : 4 + 4) = 32 … 32 − (32 : 4 + 4) = 20).
   // In tutte e due rientrano almeno due dati veri del testo (o tutti, se sono meno), senza contare
   // le cifre delle frazioni, 0, 1 e il risultato. Se il testo ha solo frazioni, ne serve una.
-  const controlli = controlliDi(c.verifica).map((x) => x.calcolo);
+  let controlli = controlliDi(c.verifica).map((x) => x.calcolo);
   if (!controlli.length || controlli.some((x) => !contoTorna(x))) return { ok: false, motivo: "verifica" };
-  const sinistre = controlli.map((x) => senzaUnita(conPer(x)).split("=").slice(0, -1).join(" "));
+  let sinistre = controlli.map((x) => senzaUnita(conPer(x)).split("=").slice(0, -1).join(" "));
   const consegna = String(c.testo).replace(/\[[^\]]*\]/g, " ");
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
   // Anche le parole-numero sono dati: «il triplo dell'altezza» è un 3 da rispettare.
-  // Confini di parola con le lettere accentate: \b non vede la «à» di «metà» (16 novembre 2026).
-  for (const [re, n] of [[/(?<!\p{L})(doppi[oa]|metà)(?!\p{L})/iu, 2], [/(?<!\p{L})(tripl[oa]|terz[oa])(?!\p{L})/iu, 3], [/(?<!\p{L})(quadrupl[oa]|quart[oa])(?!\p{L})/iu, 4]]) if (re.test(consegna)) dati.add(n);
+  for (const [re, n] of PAROLE_NUMERO) if (re.test(consegna)) dati.add(n);
+  const cardinali = CARDINALI.filter(([re]) => re.test(consegna)).map(([, n]) => n);
+  // Un ultimo controllo fatto di soli dati che arriva allo stesso numero del controllo prima («48 − 18 = 30», poi
+  // «5 × 6 = 30») si unisce a lui: «48 − 18 = 30 = 5 × 6», come se l'avesse scritto in una riga.
+  if (controlli.length >= 2) {
+    const ultimoPezzo = senzaUnita(conPer(controlli[controlli.length - 1])).split("=");
+    const sinistraUltima = ultimoPezzo.slice(0, -1).join(" "), numeri = numeriIn(sinistraUltima.replace(/\d+\s*\/\s*\d+/g, " "));
+    if (numeri.length >= 2 && numeri.every((n) => dati.has(n)) && coincide(finale(controlli[controlli.length - 1]), String(finale(controlli[controlli.length - 2])))) {
+      controlli = [...controlli.slice(0, -2), controlli[controlli.length - 2] + " = " + ultimoPezzo[0].trim()];
+      sinistre = controlli.map((x) => senzaUnita(conPer(x)).split("=").slice(0, -1).join(" "));
+    }
+  }
   // Se il testo ha frazioni, usarne una (o il suo denominatore) vale come un dato in più: «10 × 7 = 70» per
   // «spende 1/4 e restano 10 €» non rimette niente della frazione e non basta.
   const denominatori = new Set(frazioni.map((f) => Number(f.split("/")[1])));
@@ -118,6 +141,21 @@ export function controllaCompito(c) {
   const numFrazioni = new Set(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
   const pulito = (sx, ammessi) => numeriIn(sx).every((n) => n === 0 || n === 1 || dati.has(n) || numFrazioni.has(n) || ammessi.some((a) => coincide(n, String(a))));
   const tokenDi = (n) => new RegExp("(?<![\\d.,])" + String(n).replace(".", ",?\\.?") + "(?![\\d.,])", "g");
+  // Un controllo «al contrario» con un'operazione sola, dalla parte a un dato con un altro dato («220 + 80 = 300»),
+  // si riscrive come conto che arriva alla parte (220 = 300 − 80) e si sostituisce come gli altri.
+  const alContrario = (n) => {
+    for (const k of controlli.keys()) {
+      if (haValore(sinistre[k]) || !dati.has(finali[k])) continue;
+      const m = senzaUnita(conPer(sinistre[k])).replace(/\s/g, "").replace(/[−–]/g, "-").match(/^(\d+(?:[.,]\d+)?)([-+×x*:])(\d+(?:[.,]\d+)?)$/);
+      if (!m) continue;
+      const [a, op, b] = [Number(m[1].replace(",", ".")), m[2], Number(m[3].replace(",", "."))];
+      const altro = coincide(a, String(n)) ? b : coincide(b, String(n)) && (op === "+" || op === "×" || op === "x" || op === "*") ? a : null;
+      if (altro === null || !(dati.has(altro) || numFrazioni.has(altro))) continue;
+      const inverso = { "+": "-", "-": "+", "×": ":", x: ":", "*": ":", ":": "×" }[op];
+      return finali[k] + " " + inverso + " " + altro;
+    }
+    return null;
+  };
   const conCatena = (s, i) => {
     const ricavate = [...operandi(s)].filter((n) => !dati.has(n) && !numFrazioni.has(n));
     const altri = controlli.map((_, k) => k).filter((k) => k !== i);
@@ -125,8 +163,9 @@ export function controllaCompito(c) {
     let riga = s, sostituite = 0;
     for (const n of ricavate) {
       const k = altri.find((x) => !haValore(sinistre[x]) && coincide(finali[x], String(n)) && pulito(sinistre[x], []));
-      if (k === undefined) continue;
-      riga = riga.replace(tokenDi(n), "(" + sinistre[k] + ")"); sostituite++;
+      const conto = k !== undefined ? sinistre[k] : alContrario(n);
+      if (!conto) continue;
+      riga = riga.replace(tokenDi(n), "(" + conto + ")"); sostituite++;
     }
     if (!sostituite || haValore(riga)) return false;
     if (frazioni.length && ![riga, ...dalRisultato.map((k) => sinistre[k])].some(usaFrazione)) return false;
@@ -144,11 +183,122 @@ export function controllaCompito(c) {
   const primo = senzaUnita(conPer(controlli[0])).split("=")[0];
   const conta = valutaSicuro;
   const spostato = primo.replace(new RegExp("(?<![\\d.,])" + String(valore).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d.,])", "g"), String(valutaSicuro(valore) + 1));
-  const avanti = !indietro && haValore(sinistre[0]) && conta(spostato) !== null && conta(primo) !== null && Math.abs(conta(spostato) - conta(primo)) > 1e-9 &&
+  // In avanti ogni controllo usa solo il risultato, i numeri trovati nei controlli prima, i dati e le frazioni del testo:
+  // un numero inventato («52 − 22 = 30») non c'entra con la storia.
+  const primiPezzi = controlli.map((x) => senzaUnita(conPer(x)).split("=")[0]);
+  const extraTesto = [...(/(?<!\p{L})media(?!\p{L})/iu.test(consegna) ? [numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).length] : []), ...(/%|per\s*cento/i.test(consegna) ? [100] : [])];
+  const senzaInventati = /geom/i.test(c.materia || "") || /(?<!\p{L})perimetr/iu.test(consegna) || primiPezzi.every((x, i) => pulito(x.replace(/\d+\s*\/\s*\d+/g, " "), [valore, ...cardinali, ...extraTesto, ...finali.slice(0, i).filter((n) => n !== null)]));
+  const avanti = !indietro && senzaInventati && haValore(sinistre[0]) && conta(spostato) !== null && conta(primo) !== null && Math.abs(conta(spostato) - conta(primo)) > 1e-9 &&
     sinistre.every((s, i) => i === 0 || numeriIn(s).some((n) => coincide(n, String(finale(controlli[i - 1]))))) &&
     // Arrivare a un dato, o a un prodotto di dati, vale un dato solo: gli altri devono stare nei controlli.
-    arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...(dati.has(ultimo) ? [ultimo] : [])]).size + (dati.has(ultimo) ? 0 : 1) >= quanti : true);
-  if (!(indietro || avanti)) return { ok: false, motivo: "verifica" };
+    // Usare una frazione del testo vale un dato, come all'indietro («36 : 3 = 12», «36 − 12 = 24»).
+    arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...(dati.has(ultimo) ? [ultimo] : [])]).size + (dati.has(ultimo) ? 0 : 1) +
+      (frazioni.length && sinistre.some(usaFrazione) ? 1 : 0) >= quanti : true);
+  // I dati veri del testo, presi sul serio (17 novembre 2026, caso H della revisione e i casi della revisione avversaria).
+  // Si guardano i primi pezzi dei controlli (gli altri ripetono gli stessi numeri) e, in avanti, l'arrivo.
+  const tutteFrazioni = [...frazioni.map((f) => f.replace(/\s/g, "")), ...FRAZIONI_PAROLA.filter(([re]) => re.test(consegna)).map(([, f]) => f)];
+  const valoreF = (f) => { const [a, b] = f.split("/").map(Number); return a / b; };
+  const denominatoriTutti = new Set(tutteFrazioni.map((f) => Number(f.split("/")[1])));
+  const geometria = /geom/i.test(c.materia || "") || /(?<!\p{L})perimetr/iu.test(consegna);
+  const senzaFrazioni = (x) => String(x).replace(/\d+\s*\/\s*\d+/g, " ");
+  const primiPezziTutti = controlli.map((x) => senzaUnita(conPer(x)).split("=")[0]);
+  const v = valutaSicuro(valore);
+  // Le parti di una quantità con le frazioni del testo e i loro complementi («1/4 di 600» = 150, «3/4 di 600» = 450).
+  const parti = (x) => x === null ? [] : tutteFrazioni.flatMap((f) => [x * valoreF(f), x * (1 - valoreF(f))]);
+  const partiDelRisultato = parti(v);
+  const legamiFrazione = (x) => numeriIn(String(x)).some((n) => denominatoriTutti.has(n) && !dati.has(n)) || /(?<!\p{L})metà(?!\p{L})/iu.test(consegna) && /:\s*2(?![\d.,])/.test(String(x));
+  // Le parti di un dato solo se quel dato è il totale, cioè non più piccolo del risultato (Giulia ha 30 € e ne spende
+  // 1/5): con «regala 1/3 delle figurine … 4 bustine da 6» il 6 × 1/3 = 2 sarebbe una coincidenza.
+  const partiDeiDati = [...dati].filter((d) => v !== null && d >= v).flatMap(parti);
+  // 1. Numeri inventati (fuori dalla geometria, dove le misure trovate hanno la loro regola): ogni numero di un controllo
+  //    viene dal testo (dati, frazioni e i loro complementi), dal risultato, da un altro controllo, da una parte del
+  //    risultato o di un dato, o da un controllo al contrario. «24 + 2 + 34 = 60»: il 34 non viene da niente.
+  // Con il denominatore comune: «1/4 + 1/6 = 3/12 + 2/12 = 5/12» rende giusti 12, 3, 2, 5 e 7 (quello che resta).
+  const mcd = (a, b) => (b ? mcd(b, a % b) : a);
+  const comune = [...denominatoriTutti].reduce((m, d) => (m * d) / mcd(m, d), 1);
+  const riportati = tutteFrazioni.map((f) => { const [a, b] = f.split("/").map(Number); return (a * comune) / b; });
+  const somme = riportati.reduce((tutte, x) => [...tutte, ...tutte.map((t) => t + x)], [0]).filter((x) => x > 0);
+  const ammessiBase = [...dati, ...cardinali, ...tutteFrazioni.flatMap((f) => { const [a, b] = f.split("/").map(Number); return [a, b, b - a]; }),
+    ...(tutteFrazioni.length ? [comune, ...somme, ...somme.map((x) => comune - x)] : []), ...partiDelRisultato, ...partiDeiDati,
+    ...extraTesto]; // la media si divide per quanti sono i valori; con le percentuali serve il 100
+  const inventato = !geometria && primiPezziTutti.some((x, i) => numeriIn(senzaFrazioni(x)).some((n) => n !== 0 && n !== 1 && !coincide(n, valore) &&
+    !ammessiBase.some((a) => coincide(n, String(a))) && !finali.some((f, k) => k !== i && f !== null && coincide(f, String(n))) && !alContrario(n)));
+  // 2. Ogni dato che usa la soluzione entra anche nella verifica.
+  const tuttiINumeri = controlli.flatMap((x) => numeriIn(senzaFrazioni(senzaUnita(conPer(x)))));
+  // Solo i dati che usa anche la soluzione: i libri mettono apposta dati superflui (l'anno, la classe, l'ora di partenza).
+  const neiPassi = conConto.flatMap((x) => numeriIn(senzaFrazioni(senzaUnita(conPer(x.p.calcolo)))));
+  const datoIgnorato = numeriIn(senzaFrazioni(consegna), true).some((n) => dati.has(n) && neiPassi.some((m) => coincide(m, String(n))) && !tuttiINumeri.some((m) => coincide(m, String(n))));
+  // 3. Nessun dato si usa più volte di quante compare: «60 : 3 + 2 = 22», «22 + 2 = 24» usa due volte il «più 2».
+  //    Un uso in più è giusto quando il numero:
+  //    - compare di nuovo nel testo, anche dentro una frazione («1/4 … più 4»); in geometria ogni misura vale due
+  //      volte (i lati opposti del perimetro);
+  //    - è il risultato di un altro controllo («600 : 4 = 150», poi «150 + 150 + 300»);
+  //    - è una parte frazione del risultato o di un dato (Giulia: 30 × 1/5 = 6 e il dato 6 €);
+  //    - è usato «come legame»: diviso per il denominatore o moltiplicato per una frazione del testo («50 : 5 × 4»),
+  //      oppure moltiplicato per 2 o 3 se il testo dice «il doppio / il triplo di», o diviso per 2 se dice «la metà di».
+  //    Ogni «in più» / «in meno» del testo vale un riuso in più in tutta la verifica (Luca 10 anni, la sorella 4 in più).
+  const datoRiusato = (pezzoArrivo, kArrivo) => {
+    const conteggio = (lista) => lista.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map());
+    const nelTesto = conteggio(numeriIn(senzaFrazioni(consegna), true));
+    for (const [re, n] of PAROLE_NUMERO) nelTesto.set(n, (nelTesto.get(n) || 0) + (consegna.match(new RegExp(re.source, "giu")) || []).length);
+    const nelleFrazioni = conteggio(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
+    const ultimoK = controlli.length - 1;
+    const ricavati = conteggio(finali.filter((n, k) => n !== null && k !== kArrivo));
+    const quanteParti = (n) => [...partiDelRisultato, ...partiDeiDati].filter((p) => coincide(p, String(n))).length;
+    const doppio = /(?<!\p{L})doppi[oa](?!\p{L})/iu.test(consegna), triplo = /(?<!\p{L})tripl[oa](?!\p{L})/iu.test(consegna), meta = /(?<!\p{L})metà(?!\p{L})/iu.test(consegna);
+    const num = "(?<![\\d.,/])";
+    const legami = (x, n) => {
+      const t = String(x), N = num + String(n).replace(".", "\\.") + "(?![\\d.,/])";
+      let k = 0;
+      for (const d of denominatoriTutti) k += (t.match(new RegExp(N + "\\s*:\\s*" + d + "(?![\\d.,/])", "g")) || []).length;
+      k += (t.match(new RegExp(N + "\\s*[×x*]\\s*\\d+\\s*/\\s*\\d+|\\d+\\s*/\\s*\\d+\\s*[×x*]\\s*" + N, "g")) || []).length;
+      for (const [vale, m] of [[doppio, 2], [triplo, 3]]) if (vale) k += (t.match(new RegExp(N + "\\s*[×x*]\\s*" + m + "(?![\\d.,/])|" + num + m + "\\s*[×x*]\\s*" + N, "g")) || []).length;
+      if (meta) k += (t.match(new RegExp(N + "\\s*:\\s*2(?![\\d.,/])", "g")) || []).length;
+      // la base di una percentuale («25 × 40 : 100»): un uso come legame
+      if (/%|per\s*cento/i.test(consegna) && /:\s*100(?![\d.,])/.test(t)) k += (t.match(new RegExp(N + "\\s*[×x*]", "g")) || []).length;
+      return k;
+    };
+    const pezzi = [...primiPezziTutti];
+    if (pezzoArrivo !== null) pezzi.push(pezzoArrivo);
+    const usi = conteggio(pezzi.flatMap((x) => numeriIn(senzaFrazioni(x))));
+    // «4 anni in più», «5 € più di Paolo»: ogni frase vale un riuso in più, ma non per il numero attaccato alla frase
+    // (in «regala 1/3 e 2 in più» il 2 resta da usare una volta sola: è il caso H).
+    const frasi = [...consegna.matchAll(/(\d+(?:[.,]\d+)?)?[^\d.,;]{0,12}?(?<!\p{L})(?:in\s+(?:più|meno)|(?:più|meno)\s+(?:di|del|dello|della|dei|degli|delle|rispetto))(?!\p{L})/giu)];
+    let inPiu = frasi.length;
+    const attaccati = new Set(frasi.filter((m) => m[1]).map((m) => Number(m[1].replace(",", "."))));
+    for (const [n, u] of usi) {
+      if (!dati.has(n)) continue;
+      const permessi = (nelTesto.get(n) || 0) * (geometria ? 2 : 1) + (nelleFrazioni.get(n) || 0) + (ricavati.get(n) || 0) + quanteParti(n) +
+        pezzi.reduce((t, x) => t + legami(x, n), 0);
+      if (u > permessi && attaccati.has(n)) return true;
+      if (u > permessi) { inPiu -= u - permessi; if (inPiu < 0) return true; }
+    }
+    return false;
+  };
+  // Ricomporre il totale (17 novembre 2026): il risultato è una parte, e un controllo rimette insieme il risultato e le
+  // altre parti fino a un dato del testo («36 : 2 = 18», poi «18 + 5 + 13 = 36»). Le altre parti vengono da controlli
+  // puliti fatti con i dati, o sono una frazione di un dato («180 + 60 = 240» con lo sconto di 1/4 su 240 €).
+  const pezzoArrivoDi = (k) => senzaUnita(conPer(controlli[k])).split("=").pop();
+  const puliti = controlli.map((_, k) => !haValore(sinistre[k]) && pulito(senzaFrazioni(sinistre[k]), [...cardinali, ...extraTesto]));
+  const kRicomposto = indietro || avanti ? -1 : controlli.findIndex((_, i) => {
+    if (!haValore(primiPezziTutti[i]) || !dati.has(finali[i])) return false;
+    const altri = numeriIn(senzaFrazioni(primiPezziTutti[i])).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore));
+    const coperture = [];
+    for (const n of altri) {
+      if (dati.has(n) || cardinali.includes(n) || [...partiDeiDati, ...partiDelRisultato].some((p) => coincide(p, String(n)))) continue;
+      const k = controlli.findIndex((_, x) => x !== i && puliti[x] && coincide(finali[x], String(n)));
+      if (k < 0) return false;
+      coperture.push(k);
+    }
+    const usati = new Set([...datiIn(primiPezziTutti[i]), finali[i], ...coperture.flatMap((k) => [...datiIn(sinistre[k])])]);
+    const frazione = frazioni.length || tutteFrazioni.length ? [primiPezziTutti[i], ...coperture.map((k) => sinistre[k])].some((x) => usaFrazione(x) || legamiFrazione(x)) ||
+      altri.some((n) => [...partiDeiDati, ...partiDelRisultato].some((p) => coincide(p, String(n)))) : false;
+    return usati.size + (frazione ? 1 : 0) >= quanti;
+  });
+  const ricomposto = kRicomposto >= 0;
+  if (!(indietro || avanti || ricomposto)) return { ok: false, motivo: "verifica" };
+  const arrivoPezzo = avanti ? pezzoFinale : ricomposto ? pezzoArrivoDi(kRicomposto) : null;
+  if (inventato || datoIgnorato || datoRiusato(arrivoPezzo, avanti ? controlli.length - 1 : kRicomposto)) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
 }
@@ -283,6 +433,8 @@ export function numeriAdatti(calcolo) {
 // arriva al risultato.
 export function motivoGemello(g, c) {
   if (!g || !testo(g.testo) || !TIPI_GEMELLI.includes(g.tipo)) return "forma";
+  // Un testo con una correzione a metà («una somma di denominatori... no: per il compleanno…») non si mostra.
+  if (/(\.\.\.|…)\s*(no|anzi|cioè)\b/i.test(testo(g.testo, 1500))) return "forma";
   if (testo(g.testo).toLowerCase() === testo(c.testo).toLowerCase()) return "contesto";
   const conti = (g.passi || []).map((p) => testo(p?.calcolo, 400)).filter(Boolean);
   const attesi = (c.passi || []).filter((p) => p.calcolo).length;
