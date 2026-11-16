@@ -10,6 +10,11 @@ const JS = ["semaforo.js", "app.js", "libreria.js", "stampa.js", "aiuto.js", "ma
 const html = leggi("index.html");
 const css = leggi("style.css");
 
+test("le barre fisse in basso non coprono l'elemento su cui si arriva (scroll-padding)", () => {
+  const m = css.match(/html\{[^}]*scroll-padding-bottom:\s*(\d+)px/);
+  assert.ok(m && Number(m[1]) >= 100, "manca html{scroll-padding-bottom} almeno alto come la barra in basso");
+});
+
 // Le stringhe di un sorgente JS, senza i commenti: è lì che stanno i testi per l'utente.
 function stringheJs(src) {
   const senzaCommenti = src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((r) => !/^\s*\/\//.test(r)).join("\n");

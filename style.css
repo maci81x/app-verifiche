@@ -46,6 +46,9 @@ body{background:var(--carta);color:var(--inchiostro);font-family:var(--testo);fo
   padding-left:max(16px,env(safe-area-inset-left,0px));
   padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:0 60px}
+/* La barra in basso e il fondo fisso (domanda del compito) sono alti circa 90px: chi arriva a un elemento
+   (tocco, tastiera, lettore di schermo) lo trova sopra la barra, non sotto. */
+html{scroll-padding-bottom:120px;scroll-padding-top:16px}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--carta)}
 .wrap{max-width:640px;margin:0 auto}
 
