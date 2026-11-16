@@ -1,24 +1,33 @@
 // Avvio offline dell'interfaccia: prima la rete, se manca la copia salvata.
 // I dati (Supabase) e la funzione del modello non passano da qui.
 // Alza la versione a ogni rilascio, insieme a ?v= in index.html.
-const CACHE_NAME = 'app-verifiche-v14';
+const CACHE_NAME = 'app-verifiche-v22';
 const ASSETS = [
   '/app-verifiche/',
   '/app-verifiche/index.html',
-  '/app-verifiche/style.css?v=14',
-  '/app-verifiche/semaforo.js?v=14',
-  '/app-verifiche/app.js?v=14',
-  '/app-verifiche/libreria.js?v=14',
-  '/app-verifiche/stampa.js?v=14',
-  '/app-verifiche/aiuto.js?v=14',
-  '/app-verifiche/mappa-card.js?v=14',
-  '/app-verifiche/figure.js?v=14',
-  '/app-verifiche/formule.js?v=14',
-  '/app-verifiche/esercizi.js?v=14',
-  '/app-verifiche/prova-esercizi.js?v=14',
+  '/app-verifiche/style.css?v=22',
+  '/app-verifiche/semaforo.js?v=22',
+  '/app-verifiche/app.js?v=22',
+  '/app-verifiche/libreria.js?v=22',
+  '/app-verifiche/stampa.js?v=22',
+  '/app-verifiche/aiuto.js?v=22',
+  '/app-verifiche/mappa-card.js?v=22',
+  '/app-verifiche/figure.js?v=22',
+  '/app-verifiche/formule.js?v=22',
+  '/app-verifiche/esercizi.js?v=22',
+  '/app-verifiche/prova-esercizi.js?v=22',
+  '/app-verifiche/compito.js?v=22',
+  '/app-verifiche/classe-app.js?v=22',
+  '/app-verifiche/poesia.js?v=22',
+  '/app-verifiche/invalsi.js?v=22',
+  '/app-verifiche/esempi.js?v=22',
+  '/app-verifiche/esame.js?v=22',
+  '/app-verifiche/italia-mappa.js?v=22',
+  '/app-verifiche/geografia.js?v=22',
   '/app-verifiche/manifest.json',
   '/app-verifiche/icons/icon-192.png',
   '/app-verifiche/icons/icon-512.png',
+  '/app-verifiche/icons/icon-maskable-512.png',
   '/app-verifiche/icons/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js'
 ];

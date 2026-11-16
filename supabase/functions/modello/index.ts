@@ -29,6 +29,29 @@
 //      con il risultato dichiarato; gli altri si scartano e si contano.
 // POST { azione: "esercizi_correggi", pacchetto: [{ id, testo, passaggi, risultato, verifica, risposta, svolgimento }] }
 //      → { correzioni: [{ id, esito, punti, letto, primo_errore, tipo_errore, spiegazione, esempio }], analisi_mancante }
+// POST { azione: "compito", immagini?: [base64], testo?, esercizio? } → { esercizi: [{ id, inizio }] } oppure la scheda
+//      { testo, dati, cerca, soluzione_libro, indizi, passi, risultato, verifica, trucco, domande_pronte, libro_diverso? }
+//      «Aiutami con un compito» (issue #27). In matematica ogni calcolo si ricalcola qui (_shared/compito.js):
+//      se non torna si chiede una seconda volta, poi { errore: "conti_non_tornano" }. Se il risultato non è
+//      quello del libro, dopo il secondo tentativo la scheda arriva con libro_diverso: true.
+//      Nelle altre materie, se ci sono appunti della stessa materia, si usano come fonte e le ancore si controllano.
+// POST { azione: "compito_domanda", compito, cronologia: [{ chi, testo }], domanda, sbloccata } → { risposta, calcoli, figura, prova_tu }
+//      Senza sbloccata: true la risposta non deve contenere il risultato finale; se lo contiene si rigenera.
+// POST { azione: "esercizi_genera", modello: { testo }, quanti: 5 } → come sopra, con questo esercizio come modello (issue #27).
+// POST { azione: "prova_tu", atteso: { valore, unita }, risposta, calcolo?, testo? } → { esito, giusto, punti, letto, errore_tipico?, prerequisito? }:
+//      solo un calcolo (correzione.js); con il calcolo o il testo si riconosce anche l'errore tipico (issue #28).
+// POST { azione: "poesia", immagini | testo } → { titolo, autore, strofe: [[verso]] } (issue #28). Conta come un aiuto.
+// POST { azione: "invalsi", materia: matematica|italiano|inglese, quante: 3-10 } → { brano, domande, scartate }: solo 3ª media
+//      (422 solo_terza), conta come un aiuto; le risposte di matematica ricalcolate, quelle che non tornano scartate.
+// POST { azione: "esame" } → { titolo, partenza, tappe, domande, consigli, scartate }: scaletta del colloquio dell'esame
+//      dagli argomenti salvati (solo 3ª, 422 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
+// POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
+//      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
+//      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
+// POST { azione: "esercizi_genera", modello: { testo, concetto, calcolo }, mirati: true } → fino a 3 esercizi mirati
+//      su un concetto, dal più facile al problema a parole, più quelli in più (extra) per chi sbaglia.
+//      compito e compito_domanda contano come aiuti: al massimo 30 al giorno per profilo (giorno di Roma),
+//      contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
 //      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
 // POST { azione: "smista", trascrizioni: [testo], argomenti: [{ id, materia, titolo }], oggi: "YYYY-MM-DD" }
@@ -48,6 +71,7 @@ import {
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi, promptSmista,
+  promptCompito, promptCompitoDomanda, promptGemelli,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -57,6 +81,14 @@ import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } fr
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
 import { smistamento, breviArgomenti, oggiValido, MAX_FOTO, MAX_TESTO_FOTO, MAX_ARGOMENTI } from "../_shared/smista.js";
+import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
+  correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
+  rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
+import { ancoraRegge } from "../_shared/ancoraggio.js";
+import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
+import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
+import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
+import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -90,6 +122,12 @@ const comeUtente = (req: Request) =>
     global: { headers: { Authorization: req.headers.get("Authorization")! } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+// La classe del profilo (issue #28): con i permessi di chi chiama; null se non c'è.
+async function classeDi(req: Request, id: string | undefined): Promise<string | null> {
+  const { data } = await comeUtente(req).from("studenti").select("classe").eq("id", id).maybeSingle();
+  return data?.classe ?? null;
+}
 
 const MAX_CONCETTI_SCELTI = 12;
 const LIVELLI = ["semplice", "medio", "difficile"], TIPI = ["miste", "chiuse", "aperte"], MODALITA = ["scritta", "orale"];
@@ -262,10 +300,10 @@ const SCHEMA_ANALISI = {
       items: {
         type: "object",
         properties: {
-          id: STRINGA, primo_errore: STRINGA, tipo_errore: { type: "string", enum: TIPI_ERRORE },
+          id: STRINGA, primo_errore: STRINGA, tipo_errore: { type: "string", enum: TIPI_ERRORE }, errore_tipico: STRINGA,
           spiegazione: STRINGA, esempio: STRINGA,
         },
-        required: ["id", "primo_errore", "tipo_errore", "spiegazione", "esempio"], additionalProperties: false,
+        required: ["id", "primo_errore", "tipo_errore", "errore_tipico", "spiegazione", "esempio"], additionalProperties: false,
       },
     },
   },
@@ -298,6 +336,118 @@ const schemaSmista = (brevi: string[]) => ({
   required: ["foto", "scadenze"], additionalProperties: false,
 } as const);
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
+const PROVA_TU = {
+  type: "object",
+  properties: {
+    testo: STRINGA, risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+    calcolo: STRINGA, passo: { type: "integer" }, spiegazione: STRINGA,
+  },
+  required: ["testo", "risultato", "calcolo", "passo", "spiegazione"], additionalProperties: false,
+} as const;
+// «Aiutami con un compito» (issue #27): un solo schema, con più esercizi si compila solo l'elenco.
+const SCHEMA_COMPITO = {
+  type: "object",
+  properties: {
+    esercizi: { type: "array", items: { type: "object", properties: { id: STRINGA, inizio: STRINGA }, required: ["id", "inizio"], additionalProperties: false } },
+    materia: STRINGA, matematica: { type: "boolean" }, testo: STRINGA,
+    dati: { type: "array", items: { type: "object", properties: { valore: STRINGA, significato: STRINGA }, required: ["valore", "significato"], additionalProperties: false } },
+    cerca: STRINGA,
+    soluzione_libro: STRINGA, indizi: { type: "array", items: STRINGA },
+    passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA, ancora: STRINGA, concetto: STRINGA }, required: ["titolo", "spiegazione", "calcolo", "ancora", "concetto"], additionalProperties: false } },
+    risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+    verifica: {
+      type: "object",
+      properties: { spiegazione: STRINGA, controlli: { type: "array", items: { type: "object", properties: { testo: STRINGA, calcolo: STRINGA }, required: ["testo", "calcolo"], additionalProperties: false } } },
+      required: ["spiegazione", "controlli"], additionalProperties: false,
+    },
+    strategia: { type: "object", properties: { nome: STRINGA, perche: STRINGA }, required: ["nome", "perche"], additionalProperties: false },
+    trucco: STRINGA, domande_pronte: { type: "array", items: STRINGA },
+    prova_tu: PROVA_TU,
+  },
+  required: ["esercizi", "materia", "matematica", "testo", "dati", "cerca", "soluzione_libro", "strategia", "indizi", "passi", "risultato", "verifica", "trucco", "domande_pronte", "prova_tu"],
+  additionalProperties: false,
+} as const;
+const SCHEMA_RISPOSTA_COMPITO = {
+  type: "object",
+  properties: {
+    risposta: STRINGA, calcoli: { type: "array", items: STRINGA },
+    figura: { type: "object", properties: { tipo: { type: "string", enum: ["barra_frazioni", "nessuna"] }, parti: { type: "integer" }, colorate: { type: "integer" }, etichetta: STRINGA }, required: ["tipo", "parti", "colorate", "etichetta"], additionalProperties: false },
+    prova_tu: PROVA_TU, passo: { type: "integer" },
+  },
+  required: ["risposta", "calcoli", "figura", "prova_tu", "passo"], additionalProperties: false,
+} as const;
+const MAX_APPUNTI = 60_000;
+// Poesia a memoria e INVALSI (issue #28).
+const SCHEMA_POESIA = {
+  type: "object",
+  properties: { titolo: STRINGA, autore: STRINGA, strofe: { type: "array", items: { type: "array", items: STRINGA } } },
+  required: ["titolo", "autore", "strofe"], additionalProperties: false,
+} as const;
+const SCHEMA_INVALSI = {
+  type: "object",
+  properties: {
+    brano: { type: "object", properties: { titolo: STRINGA, testo: STRINGA, ascolto: { type: "boolean" } }, required: ["titolo", "testo", "ascolto"], additionalProperties: false },
+    domande: { type: "array", items: { type: "object", properties: {
+      ambito: STRINGA, formato: { type: "string", enum: FORMATI_INVALSI }, testo: STRINGA, opzioni: { type: "array", items: STRINGA },
+      corretta: { type: "integer" }, risposta: STRINGA, calcolo: STRINGA, spiegazione: STRINGA,
+    }, required: ["ambito", "formato", "testo", "opzioni", "corretta", "risposta", "calcolo", "spiegazione"], additionalProperties: false } },
+  },
+  required: ["brano", "domande"], additionalProperties: false,
+} as const;
+
+const SCHEMA_ESAME = {
+  type: "object",
+  properties: {
+    titolo: STRINGA,
+    partenza: { type: "object", properties: { argomento: STRINGA, apertura: STRINGA }, required: ["argomento", "apertura"], additionalProperties: false },
+    tappe: { type: "array", items: { type: "object", properties: { argomento: STRINGA, collegamento: STRINGA, concetti: { type: "array", items: STRINGA } }, required: ["argomento", "collegamento", "concetti"], additionalProperties: false } },
+    domande: { type: "array", items: { type: "object", properties: { argomento: STRINGA, testo: STRINGA }, required: ["argomento", "testo"], additionalProperties: false } },
+    consigli: { type: "array", items: STRINGA },
+  },
+  required: ["titolo", "partenza", "tappe", "domande", "consigli"], additionalProperties: false,
+} as const;
+
+const SCHEMA_GEMELLI = {
+  type: "object",
+  properties: {
+    gemelli: { type: "array", items: { type: "object", properties: {
+      tipo: { type: "string", enum: TIPI_GEMELLI }, testo: STRINGA,
+      passi: { type: "array", items: { type: "object", properties: { titolo: STRINGA, spiegazione: STRINGA, calcolo: STRINGA }, required: ["titolo", "spiegazione", "calcolo"], additionalProperties: false } },
+      risultato: { type: "object", properties: { valore: STRINGA, unita: STRINGA }, required: ["valore", "unita"], additionalProperties: false },
+      verifica: { type: "object", properties: { spiegazione: STRINGA, controlli: { type: "array", items: { type: "object", properties: { testo: STRINGA, calcolo: STRINGA }, required: ["testo", "calcolo"], additionalProperties: false } } }, required: ["spiegazione", "controlli"], additionalProperties: false },
+    }, required: ["tipo", "testo", "passi", "risultato", "verifica"], additionalProperties: false } },
+  },
+  required: ["gemelli"], additionalProperties: false,
+} as const;
+
+// Il conteggio degli aiuti vive nei metadati dell'account, che solo il server può scrivere: nessuna tabella nuova.
+const amministratore = () => createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+// L'aiuto si prenota subito, prima del modello (rilettura fresca, finestra di pochi millisecondi), e si
+// restituisce se la risposta non riesce. Senza una tabella (nessuna migration) il tetto non è atomico:
+// richieste parallele fatte apposta fuori dall'app possono superarlo di poco. Se la prenotazione non
+// si scrive, la richiesta si rifiuta.
+async function prenotaAiuto(sub: string): Promise<boolean> {
+  const db = amministratore();
+  const { data, error } = await db.auth.admin.getUserById(sub);
+  if (error || !data?.user) throw error ?? new Error("utente non trovato");
+  const am = data.user.app_metadata ?? {};
+  const { permesso, aiuti } = contaAiuti(am, giornoRoma());
+  if (!permesso) return false;
+  const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+  if (e2) throw e2;
+  return true;
+}
+async function restituisciAiuto(sub: string) {
+  try {
+    const db = amministratore();
+    const { data } = await db.auth.admin.getUserById(sub);
+    const am = data?.user?.app_metadata ?? {};
+    const aiuti = rimborsoAiuti(am, giornoRoma());
+    if (aiuti) await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+  } catch (e) { console.error("restituzione aiuto:", e); }
+}
 
 class Definitivo extends Error {}
 const STATO_DEFINITIVO: Record<string, number> = { rate_limited: 429, web_non_disponibile: 503, not_granted: 403 };
@@ -392,9 +542,10 @@ Deno.serve(async (req) => {
       if (!materiale.trim()) return json({ errore: "nessun testo da leggere" }, 422);
       const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean) : null;
       const pagine = Math.max(1, Math.round(Number(b.pagine)) || 1);
+      const classe = await classeDi(req, io.sub);
       const prompt = esistenti
-        ? promptConcettiNuovi(esistenti, materiale, pagine)
-        : promptConcetti(testo(b.materia), testo(b.titolo), materiale, pagine);
+        ? promptConcettiNuovi(esistenti, materiale, pagine, { classe, materia: testo(b.materia) })
+        : promptConcetti(testo(b.materia), testo(b.titolo), materiale, pagine, classe);
       const r = await chiedi(prompt, SCHEMA_CONCETTI);
       return json(concettiAncorati(r.concetti as unknown[], materiale));
     }
@@ -403,8 +554,27 @@ Deno.serve(async (req) => {
       const materiale = testo(b.testo).slice(0, 200_000);
       if (!materiale.trim()) return json({ errore: "nessun testo da leggere" }, 422);
       const esistenti = Array.isArray(b.esistenti) ? b.esistenti.map(testo).filter(Boolean).slice(0, 50) : [];
-      const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti), SCHEMA_TIPI);
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const r = await chiedi(promptEserciziTipi(testo(b.materia), testo(b.titolo), materiale, esistenti, st?.classe ?? null), SCHEMA_TIPI);
       return json(tipiAncorati(r.tipi as unknown[], materiale, esistenti));
+    }
+
+    // «Fammi un esercizio simile» (issue #27): il modello è l'esercizio del compito, non un argomento salvato.
+    if (b.azione === "esercizi_genera" && b.modello && typeof b.modello === "object") {
+      const modello = testoBreve(b.modello.testo, 4000).trim();
+      const mirati = b.mirati === true ? { concetto: testoBreve(b.modello.concetto, 80).trim(), calcolo: testoBreve(b.modello.calcolo, 400).trim(), testo: modello } : null;
+      if (mirati) b.quanti = 5; // se ne chiedono di più: tre in ordine di difficoltà e quelli in più per chi sbaglia
+      if (!modello || !QUANTI.includes(b.quanti) || (mirati && !mirati.concetto)) return json({ errore: "richiesta non valida" }, 400);
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const perBreve = { t1: { id: "compito", titolo: "Esercizio simile" } };
+      const elenco = [{ breve: "t1", titolo: "Esercizio simile al compito", ancora: modello, difficolta: 2, figura: false }];
+      const gruppi = Array.from({ length: b.quanti / PER_CHIAMATA }, () =>
+        chiedi(promptEserciziGenera({ materia: "matematica", titolo: "", classe: st?.classe ?? null, quanti: quantiDaChiedere(PER_CHIAMATA), tipi: elenco, mirati }), schemaEsercizi(["t1"])));
+      const risposte = await Promise.all(gruppi);
+      const esito = eserciziVerificati(risposte.flatMap((r) => r.esercizi as unknown[]), perBreve, b.quanti);
+      if (!esito.esercizi.length) return json({ errore: "nessun_verificato", scartati: esito.scartati }, 422);
+      // Mirati: l'ordine del modello va dal più facile al problema a parole; i primi tre, gli altri di scorta.
+      return json(mirati ? { esercizi: esito.esercizi.slice(0, 3), extra: esito.esercizi.slice(3), scartati: esito.scartati } : esito);
     }
 
     if (b.azione === "esercizi_genera") {
@@ -441,16 +611,22 @@ Deno.serve(async (req) => {
     if (b.azione === "esercizi_correggi") {
       const { correzioni, daAnalizzare } = correggiPacchetto(b.pacchetto);
       if (!correzioni.length) return json({ errore: "richiesta non valida" }, 400);
-      if (!daAnalizzare.length) return json({ correzioni, analisi_mancante: false });
+      const classe = await classeDi(req, io.sub);
+      // Errori tipici per nome (issue #28): senza modello quando si può (1/2 + 1/3 = 2/5), poi la scelta del modello.
+      const grezzi = new Map((Array.isArray(b.pacchetto) ? b.pacchetto : []).map((x: any) => [testo(x?.id).trim().slice(0, 40), x]));
+      const conTipici = (lista: any[], analisi: unknown[] = []) => lista.map((c) => {
+        const x: any = grezzi.get(c.id) || {}, a: any = (analisi as any[]).find((y) => y?.id === c.id) || {};
+        return { ...c, ...(erroreTipicoDi({ classe, testo: testo(x.testo), risposta: testo(x.risposta), passaggi: testo(x.svolgimento), scelta: testo(a.errore_tipico), giusto: c.giusto }) || {}) };
+      });
+      if (!daAnalizzare.length) return json({ correzioni: conTipici(correzioni), analisi_mancante: false });
       // Senza la spiegazione dei passaggi la correzione del risultato vale lo stesso.
       try {
-        const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
-        const r = await chiedi(promptCorrezioneEsercizi({ classe: st?.classe ?? null, pacchetto: daAnalizzare }), SCHEMA_ANALISI);
-        return json({ correzioni: conAnalisi(correzioni, r.analisi as unknown[], daAnalizzare), analisi_mancante: false });
+        const r = await chiedi(promptCorrezioneEsercizi({ classe, pacchetto: daAnalizzare }), SCHEMA_ANALISI);
+        return json({ correzioni: conTipici(conAnalisi(correzioni, r.analisi as unknown[], daAnalizzare), r.analisi as unknown[]), analisi_mancante: false });
       } catch (e) {
         if (e instanceof Definitivo && e.message !== "rate_limited") throw e;
         console.error("analisi dei passaggi:", e);
-        return json({ correzioni, analisi_mancante: true });
+        return json({ correzioni: conTipici(correzioni), analisi_mancante: true });
       }
     }
 
@@ -468,6 +644,178 @@ Deno.serve(async (req) => {
       const elenco = argomenti.map((a: any, i: number) => ({ breve: brevi[i], materia: a.materia, titolo: a.titolo }));
       const r = await chiedi(promptSmista({ oggi: b.oggi, trascrizioni, argomenti: elenco }), schemaSmista(brevi), [], "low");
       return json(smistamento(r, trascrizioni, argomenti, b.oggi));
+    }
+
+    if (b.azione === "compito") {
+      const imm = Array.isArray(b.immagini) ? b.immagini : [];
+      const scritto = testoBreve(b.testo, 6000).trim();
+      if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
+          !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
+        return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo dell'esercizio` }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+      const db = comeUtente(req);
+      const { data: st } = await db.from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      const base = { classe: st?.classe ?? null, testo: scritto || null, esercizio: testoBreve(b.esercizio, 200).trim() || null };
+      const foto = scritto ? [] : imm;
+      // Il testo scritto (o corretto) da chi studia vale più di quello riscritto dal modello.
+      const conTesto = (x: any) => (x && !x.esercizi && scritto ? { ...x, testo: scritto } : x);
+      let c = conTesto(pulisciCompito(await chiedi(promptCompito(base), SCHEMA_COMPITO, foto)));
+      if (!c) return json({ errore: "nessun_esercizio" }, 422);
+      if (c.esercizi) return json(c); // l'elenco da scegliere non consuma un aiuto: lo consuma l'esercizio scelto
+      if (eMatematica(c)) {
+        // Ogni conto si ricalcola; se non torna si chiede una seconda volta, poi niente soluzione.
+        // Il secondo tentativo si tiene solo se è migliore: conti giusti battono conti rotti.
+        const voto = (e: any) => (e.ok ? 2 : e.motivo === "libro" ? 1 : 0);
+        let esito = controllaCompito(c);
+        if (!esito.ok) {
+          const nota = esito.motivo === "libro"
+            ? "Attenzione: il tuo risultato non coincide con la soluzione del libro. Rileggi il testo e rifai i conti."
+            : "Attenzione: nel tentativo precedente un conto non tornava (" + (esito.motivo === "passo" ? "passo " + esito.passo : esito.motivo) + "). Rifai i conti uno per uno.";
+          const di_nuovo = conTesto(pulisciCompito(await chiedi(promptCompito(base) + "\n\n" + nota, SCHEMA_COMPITO, foto)));
+          if (di_nuovo && !di_nuovo.esercizi) {
+            const esito2 = controllaCompito(di_nuovo);
+            if (voto(esito2) > voto(esito)) { c = di_nuovo; esito = esito2; }
+          }
+        }
+        // Il motivo (passo, risultato, verifica) aiuta a capire un rifiuto; l'app mostra lo stesso messaggio.
+        if (!esito.ok && esito.motivo !== "libro") return json({ errore: "conti_non_tornano", motivo: esito.motivo, passo: esito.passo ?? null }, 422);
+        // In matematica non ci sono frasi del quaderno da evidenziare; gli indizi non dicono il risultato.
+        // Conti giusti ma risultato diverso dal libro: si mostrano tutti e due, senza dire chi ha ragione.
+        const scheda = { ...c, matematica: true, indizi: indiziSenzaRisultato(c), passi: c.passi.map((p: any) => ({ ...p, ancora: "" })), libro_diverso: !esito.ok };
+        riuscito = true;
+        return json(scheda);
+      }
+      // Altre materie: se ci sono appunti della stessa materia, si rifà con quelli come fonte e
+      // si tengono solo le ancore che si ritrovano davvero negli appunti.
+      const { data: arg } = c.materia
+        ? await db.from("argomenti").select("trascrizione").eq("studente_id", io.sub).ilike("materia", c.materia.replace(/[%_\\]/g, "")).order("aggiornato", { ascending: false }).limit(5)
+        : { data: null };
+      const appunti = (arg || []).map((a: any) => a.trascrizione || "").join("\n\n").slice(0, MAX_APPUNTI);
+      if (appunti.trim()) {
+        const conAppunti = pulisciCompito(await chiedi(promptCompito({ ...base, testo: base.testo || c.testo, appunti }), SCHEMA_COMPITO));
+        if (conAppunti && !conAppunti.esercizi) c = conTesto(conAppunti);
+      }
+      const passi = c.passi.map((p: any) => ({ ...p, calcolo: "", ancora: p.ancora && appunti && ancoraRegge(p.ancora, appunti) ? p.ancora : "" }));
+      const scheda = { ...c, passi, libro_diverso: false };
+      riuscito = true;
+      return json(scheda);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    if (b.azione === "compito_domanda") {
+      const compito = pulisciCompito(b.compito);
+      const domanda = testoBreve(b.domanda, 600).trim();
+      if (!compito || compito.esercizi || !domanda) return json({ errore: "richiesta non valida" }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+      const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+      // Finché l'app non dice sbloccata (almeno 1 indizio e 1 risposta provata) il risultato non si dice.
+      const bloccata = b.sbloccata !== true;
+      const prompt = promptCompitoDomanda({ classe: st?.classe ?? null, compito, cronologia: cronologiaPulita(b.cronologia), domanda, bloccata });
+      const genera = async (extra = "") => pulisciRisposta(await chiedi(prompt + extra, SCHEMA_RISPOSTA_COMPITO));
+      let r = bloccata ? await rispondiSenzaRisultato(genera, compito) : await genera();
+      if (!r) return json({ errore: "lettura non riuscita" }, 502);
+      // I conti della risposta si ricalcolano come quelli della soluzione: una seconda volta, poi niente.
+      if (calcoliCheNonTornano(r).length) {
+        const di_nuovo = await genera("\n\nAttenzione: nel tentativo precedente un conto non tornava. Rifai i conti uno per uno." + (bloccata ? AVVISO_BLOCCATA : ""));
+        if (di_nuovo && !(bloccata && rispostaColRisultato(di_nuovo, compito))) r = di_nuovo;
+        if (calcoliCheNonTornano(r).length) return json({ errore: "conti_non_tornano" }, 422);
+      }
+      riuscito = true;
+      return json(r);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // Poesia a memoria (issue #28): la foto (o il testo) della poesia, trascritta verso per verso. Conta come un aiuto.
+    if (b.azione === "poesia") {
+      const imm = Array.isArray(b.immagini) ? b.immagini : [];
+      const scritto = testoBreve(b.testo, 6000).trim();
+      if ((!imm.length && !scritto) || imm.length > MAX_IMMAGINI ||
+          !imm.every((x: unknown) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
+        return json({ errore: `una foto (fino a ${MAX_IMMAGINI}) o il testo della poesia` }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const prompt = promptPoesia() + (scritto ? "\n\nLa poesia, scritta a mano da chi studia (la foto non c'è):\n" + scritto : "");
+        const p = pulisciPoesia(await chiedi(prompt, SCHEMA_POESIA, imm));
+        if (!p) return json({ errore: "nessuna_poesia" }, 422);
+        riuscito = true;
+        return json(p);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // «Allenati per l'INVALSI» (issue #28): solo per la terza media. Conta come un aiuto.
+    if (b.azione === "invalsi") {
+      const quante = Math.min(10, Math.max(3, Math.round(Number(b.quante)) || 5));
+      if (!MATERIE_INVALSI.includes(b.materia)) return json({ errore: "richiesta non valida" }, 400);
+      const classe = await classeDi(req, io.sub);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 422); // 422: l'app lo legge (403 è «non autorizzato»)
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const esito = pulisciInvalsi(await chiedi(promptInvalsi({ materia: b.materia, quante, classe }), SCHEMA_INVALSI), b.materia, quante);
+        if (!esito.domande.length) return json({ errore: "nessuna_domanda", scartate: esito.scartate }, 422);
+        riuscito = true;
+        return json(esito);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // «Esame di terza media» (issue #28): scaletta del colloquio dagli argomenti salvati. Solo 3ª, conta come un aiuto.
+    if (b.azione === "esame") {
+      const classe = await classeDi(req, io.sub);
+      if (numeroClasse(classe) !== 3) return json({ errore: "solo_terza" }, 422); // 422: l'app lo legge (403 è «non autorizzato»)
+      const { data: salvati, error } = await comeUtente(req).from("argomenti").select("id, titolo, materia, concetti(titolo)")
+        .eq("studente_id", io.sub).order("aggiornato", { ascending: false }).limit(MAX_ARGOMENTI_ESAME);
+      if (error) throw error;
+      const argomenti = argomentiPerEsame(salvati);
+      if (!argomenti) return json({ errore: "pochi_argomenti" }, 422);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        let e = pulisciEsame(await chiedi(promptEsame({ classe, argomenti }), SCHEMA_ESAME), argomenti);
+        if (!e) e = pulisciEsame(await chiedi(promptEsame({ classe, argomenti }) + "\n\nAttenzione: usa solo gli id dell'elenco e almeno due materie diverse.", SCHEMA_ESAME), argomenti);
+        if (!e) return json({ errore: "nessuna_scaletta" }, 422);
+        riuscito = true;
+        return json(e);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    if (b.azione === "gemelli") {
+      const compito = pulisciCompito(b.compito);
+      if (!compito || compito.esercizi || !compito.passi.some((p: any) => p.calcolo)) return json({ errore: "richiesta non valida" }, 400);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const { data: st } = await comeUtente(req).from("studenti").select("classe").eq("id", io.sub).maybeSingle();
+        const classe = st?.classe ?? null;
+        let esito = pulisciGemelli(await chiedi(promptGemelli({ classe, compito, tipi: TIPI_GEMELLI }), SCHEMA_GEMELLI), compito);
+        // I tipi scartati si rigenerano una volta, chiedendo solo quelli.
+        if (esito.mancano.length) {
+          const di_nuovo = pulisciGemelli(await chiedi(promptGemelli({ classe, compito, tipi: esito.mancano }), SCHEMA_GEMELLI), compito);
+          const tutti = [...esito.gemelli, ...di_nuovo.gemelli.filter((g) => esito.mancano.includes(g.tipo))];
+          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, mancano: [] };
+        }
+        if (!esito.gemelli.length) return json({ errore: "nessun_gemello", scartati: esito.scartati }, 422);
+        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati };
+        riuscito = true;
+        return json(fuori);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
+    }
+
+    // «Prova tu» (issue #27): la risposta la giudica un calcolo, non il modello. Non conta come aiuto.
+    if (b.azione === "prova_tu") {
+      const atteso = b.atteso && typeof b.atteso === "object" ? { valore: testoBreve(b.atteso.valore, 40), unita: testoBreve(b.atteso.unita, 20) } : null;
+      if (!atteso?.valore) return json({ errore: "richiesta non valida" }, 400);
+      const esito = correggiProvaTu(testoBreve(b.risposta, 60), atteso);
+      // Con il testo o il calcolo della domanda si riconosce l'errore tipico (1/2 + 1/3 = 2/5) senza modello;
+      // la classe si legge solo se c'è (serve per il prerequisito).
+      const domanda = testoBreve(b.calcolo, 400) || testoBreve(b.testo, 400);
+      const tipico = domanda && !esito.giusto ? erroreTipicoDi({ classe: null, testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) : null;
+      if (!tipico) return json(esito);
+      return json({ ...esito, ...erroreTipicoDi({ classe: await classeDi(req, io.sub), testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) });
     }
 
     if (b.azione === "domande") {
@@ -507,7 +855,7 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
-        quante: b.quante, soloConcetto,
+        quante: b.quante, soloConcetto, classe: await classeDi(req, io.sub),
       }), SCHEMA_DOMANDE);
       const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
       // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.
@@ -525,7 +873,7 @@ Deno.serve(async (req) => {
         elementi: Array.isArray(x?.elementi) ? x.elementi.map(testo) : [], risposta_alunna: testo(x?.risposta_alunna).slice(0, 8000),
       })) : [];
       if (!pacchetto.length) return json({ valutazioni: [] });
-      const r = await chiedi(promptCorrezione(b.modalita === "orale" ? "orale" : "scritta", pacchetto), SCHEMA_VALUTAZIONI);
+      const r = await chiedi(promptCorrezione(b.modalita === "orale" ? "orale" : "scritta", pacchetto, await classeDi(req, io.sub), testo(b.materia)), SCHEMA_VALUTAZIONI);
       return json({ valutazioni: r.valutazioni });
     }
 
@@ -541,7 +889,7 @@ Deno.serve(async (req) => {
       // Solo l'albero, il più in fretta possibile: le sintesi arrivano dopo con l'azione `sintesi`
       // (issue #13). Con 25 concetti o più la mappa è già piena: niente modello.
       const posti = MAX_NODI - a.concetti.length;
-      const r = posti > 0 ? await chiedi(promptMappa(a, posti), SCHEMA_MAPPA, [], "low") : { nodi: [] };
+      const r = posti > 0 ? await chiedi(promptMappa(a, posti, await classeDi(req, io.sub)), SCHEMA_MAPPA, [], "low") : { nodi: [] };
       return json(costruisciMappa(a, r));
     }
 
@@ -553,7 +901,7 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
-      const r = await chiedi(promptSintesi(a), SCHEMA_SINTESI, [], "low");
+      const r = await chiedi(promptSintesi(a, await classeDi(req, io.sub)), SCHEMA_SINTESI, [], "low");
       return json(sintesiDaRisposta(a, r));
     }
 
