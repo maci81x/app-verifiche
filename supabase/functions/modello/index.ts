@@ -908,10 +908,13 @@ async function gestisci(req: Request): Promise<Response> {
         if (esito.mancano.length) {
           const di_nuovo = pulisciGemelli(await chiedi(promptGemelli({ classe, compito, tipi: esito.mancano }), SCHEMA_GEMELLI), compito);
           const tutti = [...esito.gemelli, ...di_nuovo.gemelli.filter((g) => esito.mancano.includes(g.tipo))];
-          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, mancano: [] };
+          const motivi: Record<string, number> = { ...esito.motivi };
+          for (const [k, n] of Object.entries(di_nuovo.motivi)) motivi[k] = (motivi[k] || 0) + Number(n);
+          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, motivi, mancano: [] };
         }
         if (!esito.gemelli.length) return json({ errore: "nessun_gemello", scartati: esito.scartati }, 422);
-        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati };
+        if (esito.scartati) console.log("gemelli scartati:", JSON.stringify(esito.motivi));
+        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati, motivi: esito.motivi };
         riuscito = true;
         return json(fuori);
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }

@@ -271,9 +271,10 @@ export function motivoGemello(g, c) {
 }
 // I gemelli buoni, uno per tipo, nell'ordine vicino, lontano, variante; quanti scartati e i tipi mancanti.
 export function pulisciGemelli(r, c) {
-  const buoni = new Map(); let scartati = 0;
+  const buoni = new Map(), motivi = {}; let scartati = 0;
   for (const g of Array.isArray(r?.gemelli) ? r.gemelli : []) {
-    if (motivoGemello(g, c)) { scartati++; continue; } // non rispetta le regole: si scarta (e si rigenera)
+    const motivo = motivoGemello(g, c);
+    if (motivo) { scartati++; motivi[motivo] = (motivi[motivo] || 0) + 1; continue; } // non rispetta le regole: si scarta (e si rigenera)
     if (buoni.has(g.tipo)) continue;                     // un doppione buono non è uno scarto
     buoni.set(g.tipo, {
       tipo: g.tipo, testo: testo(g.testo, 1500),
@@ -282,5 +283,5 @@ export function pulisciGemelli(r, c) {
       verifica: { spiegazione: testo(g.verifica?.spiegazione, 600), controlli: controlliDi(g.verifica) },
     });
   }
-  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
+  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, motivi, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
 }

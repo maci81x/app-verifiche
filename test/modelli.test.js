@@ -18,6 +18,12 @@ test("ogni azione della funzione ha il suo modello nella tabella, e solo modelli
   assert.deepEqual([OPUS, SONNET, HAIKU], ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]);
 });
 
+test("scelte del confronto: la trascrizione resta su Opus, nessun modello economico dove la qualità non era pari", () => {
+  assert.equal(MODELLO_PER_AZIONE.trascrivi, OPUS);
+  for (const a of ["compito", "compito_domanda", "gemelli"]) assert.equal(MODELLO_PER_AZIONE[a], OPUS, a);
+  assert.deepEqual(Object.entries(MODELLO_PER_AZIONE).filter(([, m]) => m !== OPUS).map(([a]) => a).sort(), ["correggi", "punti_chiave", "smista"]);
+});
+
 test("modelloPer: la tabella; nel dubbio Opus; l'override solo per gli account di prova e solo verso modelli noti", () => {
   assert.equal(modelloPer("azione_che_non_esiste"), OPUS);
   assert.equal(modelloPer("trascrivi"), MODELLO_PER_AZIONE.trascrivi);
