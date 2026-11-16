@@ -110,25 +110,27 @@ export function controllaCompito(c) {
     return new Set([...datiIn(s), ...legati.map((k) => finali[k]), ...[...legati, ...relazioni].flatMap((k) => [...datiIn(sinistre[k])])]
       .filter((n) => dati.has(n))).size >= quanti;
   };
-  // All'indietro a catena (gemelli «variante», 16 novembre 2026): la somma finale può usare parti ricavate
-  // («300 + 200 + 500 + 200 = 1200»), ma OGNI parte ricavata deve essere coperta da un controllo pulito:
-  //  - che arriva a lei usando solo dati e numeri delle frazioni del testo («125 × 4 = 500», «50 : 5 × 4 = 40»),
-  //    o il risultato con le frazioni (le parti «1200 : 4 = 300»);
-  //  - oppure che parte da lei e arriva a un dato usando solo dati («75 − 45 = 30»).
-  // I dati veri si contano dalla somma e dai controlli che non partono dal risultato.
+  // All'indietro a catena (gemelli «variante», 16 novembre 2026). Una parte della somma finale può venire da un
+  // controllo «pulito» che arriva a lei con soli dati e frazioni del testo («125 × 4 = 500»). La catena vale solo se,
+  // riscritta in una riga sola mettendo il conto al posto della parte («300 + 200 + (125 × 4) + 200»), passa la stessa
+  // regola di prima: così non accetta niente che scritto in una riga sarebbe stato scartato. In più, se il testo ha
+  // frazioni, la catena ne deve usare una (anche nelle parti ricavate dal risultato, «1200 : 6 = 200»).
   const numFrazioni = new Set(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
   const pulito = (sx, ammessi) => numeriIn(sx).every((n) => n === 0 || n === 1 || dati.has(n) || numFrazioni.has(n) || ammessi.some((a) => coincide(n, String(a))));
+  const tokenDi = (n) => new RegExp("(?<![\\d.,])" + String(n).replace(".", ",?\\.?") + "(?![\\d.,])", "g");
   const conCatena = (s, i) => {
     const ricavate = [...operandi(s)].filter((n) => !dati.has(n) && !numFrazioni.has(n));
-    if (!ricavate.length) return false;
-    const copre = (k, n) => k !== i && (
-      (coincide(finali[k], String(n)) && pulito(sinistre[k], haValore(sinistre[k]) ? [valore] : [])) ||
-      (!haValore(sinistre[k]) && dati.has(finali[k]) && operandi(sinistre[k]).has(n) && pulito(sinistre[k], [n])));
-    const coperture = ricavate.map((n) => controlli.map((_, k) => k).filter((k) => copre(k, n)));
-    if (coperture.some((l) => !l.length)) return false;
-    const conDati = [...new Set(coperture.flat())].filter((k) => !haValore(sinistre[k]));
-    const usati = new Set([...datiIn(s), ...conDati.flatMap((k) => [...datiIn(sinistre[k]), ...(dati.has(finali[k]) ? [finali[k]] : [])])]);
-    return usati.size + (frazioni.length && [s, ...conDati.map((k) => sinistre[k])].some(usaFrazione) ? 1 : 0) >= quanti;
+    const altri = controlli.map((_, k) => k).filter((k) => k !== i);
+    const dalRisultato = altri.filter((k) => haValore(sinistre[k]) && [...operandi(s)].some((n) => coincide(finali[k], String(n))) && pulito(sinistre[k], [valore]));
+    let riga = s, sostituite = 0;
+    for (const n of ricavate) {
+      const k = altri.find((x) => !haValore(sinistre[x]) && coincide(finali[x], String(n)) && pulito(sinistre[x], []));
+      if (k === undefined) continue;
+      riga = riga.replace(tokenDi(n), "(" + sinistre[k] + ")"); sostituite++;
+    }
+    if (!sostituite || haValore(riga)) return false;
+    if (frazioni.length && ![riga, ...dalRisultato.map((k) => sinistre[k])].some(usaFrazione)) return false;
+    return contaDati(riga) >= quanti;
   };
   const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) &&
     (dati.size ? contaDati(s) >= quanti || conMisure(s, i) || conCatena(s, i) : conFrazione(s)));
@@ -144,7 +146,8 @@ export function controllaCompito(c) {
   const spostato = primo.replace(new RegExp("(?<![\\d.,])" + String(valore).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d.,])", "g"), String(valutaSicuro(valore) + 1));
   const avanti = !indietro && haValore(sinistre[0]) && conta(spostato) !== null && conta(primo) !== null && Math.abs(conta(spostato) - conta(primo)) > 1e-9 &&
     sinistre.every((s, i) => i === 0 || numeriIn(s).some((n) => coincide(n, String(finale(controlli[i - 1]))))) &&
-    arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...datiIn(pezzoFinale), ...(dati.has(ultimo) ? [ultimo] : [])]).size >= quanti : true);
+    // Arrivare a un dato, o a un prodotto di dati, vale un dato solo: gli altri devono stare nei controlli.
+    arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...(dati.has(ultimo) ? [ultimo] : [])]).size + (dati.has(ultimo) ? 0 : 1) >= quanti : true);
   if (!(indietro || avanti)) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
