@@ -277,6 +277,8 @@ function puntiDelleCinque() {
 // #21: quando arriva il ripasso guidato, si sostituisce solo questa funzione.
 function avviaRipassoPunti(a, concetti, btn, elStato, elErr) {
   if (!concetti.length) return;
+  // #21: il ripasso guidato su quei punti; la verifica resta solo se non c'è (o se i punti non sono in libreria).
+  if (typeof avviaRipassoGuidato === "function" && avviaRipassoGuidato(concetti.map((c) => c.id))) return;
   modo = "argomento"; corrente = a;
   preparaVerifica([a], btn, elStato, elErr, concetti.length === 1 ? { concetto: concetti[0] } : { concetti: concetti.map((c) => ({ id: c.id, titolo: c.titolo })) });
 }
