@@ -390,6 +390,8 @@ export function numeriAdatti(calcolo) {
 // arriva al risultato.
 export function motivoGemello(g, c) {
   if (!g || !testo(g.testo) || !TIPI_GEMELLI.includes(g.tipo)) return "forma";
+  // Un testo con una correzione a metà («una somma di denominatori... no: per il compleanno…») non si mostra.
+  if (/(\.\.\.|…)\s*(no|anzi|cioè)\b/i.test(testo(g.testo, 1500))) return "forma";
   if (testo(g.testo).toLowerCase() === testo(c.testo).toLowerCase()) return "contesto";
   const conti = (g.passi || []).map((p) => testo(p?.calcolo, 400)).filter(Boolean);
   const attesi = (c.passi || []).filter((p) => p.calcolo).length;

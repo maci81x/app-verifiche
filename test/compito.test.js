@@ -662,3 +662,11 @@ test("revisione avversaria: numeri inventati, dati ignorati o riusati scartati; 
     ["Sara: denominatore comune", "Sara legge un libro. Il primo giorno legge 1/4 del libro e il secondo giorno legge 1/6 del libro. Poi legge 60 pagine e le restano ancora 80 pagine da leggere. Quante pagine ha il libro?", "240", ["240 : 12 × 5 = 100", "100 + 60 + 80 = 240"]],
   ]) assert.deepEqual(caso(testo, valore, controlli, materia), { ok: true }, nome);
 });
+
+test("gemelli: un testo con una correzione a metà («... no: …») si scarta e si rigenera", () => {
+  const g = copia(GIULIA); g.testo = "Per il compleanno Giulia riceve una somma di denominatori... no: per il compleanno Giulia riceve dei soldi. " + g.testo;
+  assert.equal(motivoGemello(g, PAOLO), "forma");
+  const h = copia(GIULIA); h.testo = g.testo.replace("... no:", "… anzi,");
+  assert.equal(motivoGemello(h, PAOLO), "forma");
+  assert.equal(motivoGemello(GIULIA, PAOLO), null);
+});
