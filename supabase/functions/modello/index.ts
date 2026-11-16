@@ -54,6 +54,11 @@
 //      contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
 //      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
+// POST { azione: "smista", trascrizioni: [testo], argomenti: [{ id, materia, titolo }], oggi: "YYYY-MM-DD" }
+//      → { foto: [{ materia, argomento_id, nuovo_titolo, confidenza }], scadenze: [{ materia, tipo, data, testo_letto }], scartate }
+//      Il diario di ogni giorno (issue #19): una riga per trascrizione, nello stesso ordine; argomento_id e
+//      nuovo_titolo entrambi null = pagina di solo diario. La data di una scadenza la ricava _shared/smista.js
+//      dalla frase letta (date relative rispetto a oggi), e la frase deve stare nella trascrizione: se no, si scarta.
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -66,7 +71,7 @@ import {
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
-  promptCompito, promptCompitoDomanda, promptGemelli,
+  promptCompito, promptCompitoDomanda, promptGemelli, promptSmista,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -83,6 +88,7 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
+import { smistamento, breviArgomenti, oggiValido, MAX_FOTO, MAX_TESTO_FOTO, MAX_ARGOMENTI } from "../_shared/smista.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -303,6 +309,32 @@ const SCHEMA_ANALISI = {
   },
   required: ["analisi"], additionalProperties: false,
 } as const;
+// Lo schema elenca gli id brevi degli argomenti della richiesta: il modello non può inventarne altri.
+const schemaSmista = (brevi: string[]) => ({
+  type: "object",
+  properties: {
+    foto: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          foto: { type: "integer" }, materia: STRINGA, argomento: { type: "string", enum: [...brevi, "nuovo", "nessuno"] },
+          nuovo_titolo: STRINGA, confidenza: { type: "number" },
+        },
+        required: ["foto", "materia", "argomento", "nuovo_titolo", "confidenza"], additionalProperties: false,
+      },
+    },
+    scadenze: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { foto: { type: "integer" }, materia: STRINGA, tipo: { type: "string", enum: ["scritta", "orale"] }, testo_letto: STRINGA },
+        required: ["foto", "materia", "tipo", "testo_letto"], additionalProperties: false,
+      },
+    },
+  },
+  required: ["foto", "scadenze"], additionalProperties: false,
+} as const);
 const testoBreve = (v: unknown, max = 2000) => (typeof v === "string" ? v.slice(0, max) : "");
 const PROVA_TU = {
   type: "object",
@@ -768,6 +800,22 @@ Deno.serve(async (req) => {
       const tipico = domanda && !esito.giusto ? erroreTipicoDi({ classe: null, testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) : null;
       if (!tipico) return json(esito);
       return json({ ...esito, ...erroreTipicoDi({ classe: await classeDi(req, io.sub), testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) });
+    }
+
+    if (b.azione === "smista") {
+      const tr = b.trascrizioni, ar = b.argomenti ?? [];
+      if (!Array.isArray(tr) || !tr.length || tr.length > MAX_FOTO || !tr.every((x) => typeof x === "string") ||
+          !Array.isArray(ar) || ar.length > MAX_ARGOMENTI ||
+          !ar.every((a: any) => a && typeof a.id === "string" && UUID.test(a.id) && testo(a.materia).trim() && testo(a.titolo).trim()) ||
+          !oggiValido(b.oggi))
+        return json({ errore: "richiesta non valida" }, 400);
+      const trascrizioni = tr.map((x: string) => x.slice(0, MAX_TESTO_FOTO));
+      if (!trascrizioni.some((x: string) => x.trim())) return json({ errore: "nessun testo da leggere" }, 422);
+      const argomenti = ar.map((a: any) => ({ id: a.id, materia: testoBreve(a.materia, 60).trim(), titolo: testoBreve(a.titolo, 200).trim() }));
+      const brevi = breviArgomenti(argomenti);
+      const elenco = argomenti.map((a: any, i: number) => ({ breve: brevi[i], materia: a.materia, titolo: a.titolo }));
+      const r = await chiedi(promptSmista({ oggi: b.oggi, trascrizioni, argomenti: elenco }), schemaSmista(brevi), [], "low");
+      return json(smistamento(r, trascrizioni, argomenti, b.oggi));
     }
 
     if (b.azione === "domande") {

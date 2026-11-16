@@ -424,3 +424,20 @@ export function promptGemelli(dati) {
     'Rispondi solo con JSON: {"gemelli":[{"tipo":"vicino","testo":"","passi":[{"titolo":"","spiegazione":"","calcolo":""}],"risultato":{"valore":"","unita":""},"verifica":{"spiegazione":"","controlli":[{"testo":"","calcolo":""}]}}]}',
   ].join("\n\n");
 }
+
+// Smistamento delle foto del giorno e date del diario (issue #19).
+// { oggi: 'YYYY-MM-DD', trascrizioni: [testo], argomenti: [{ breve, materia, titolo }] }
+// La data non la chiediamo: la ricava smista.js dalla frase copiata.
+export function promptSmista(dati) {
+  return [
+    "Sei un insegnante di scuola media italiana e aiuti un'alunna a mettere in ordine quello che ha fatto oggi a scuola. Oggi è " + dati.oggi + ".",
+    "Ogni foto è già trascritta. Per ogni foto (foto = il suo numero) scegli la materia e l'argomento:",
+    "- se parla di un argomento già in libreria, argomento = il suo id breve (a1, a2...);\n- se è un argomento nuovo, argomento = \"nuovo\", nuovo_titolo = un titolo breve preso da quello che c'è scritto, materia = la materia della scuola media;\n- se è solo una pagina di diario (compiti, avvisi, date) e non contiene niente da studiare, argomento = \"nessuno\".",
+    "confidenza da 0 a 1: quanto sei sicuro della scelta. Bassa se la foto è poco leggibile o potrebbe andare in più argomenti.",
+    "Poi cerca nelle trascrizioni le verifiche e le interrogazioni annunciate (sul diario, alla lavagna, nel quaderno). Per ognuna: foto, materia, tipo (scritta per verifica, compito in classe, test; orale per interrogazione) e testo_letto = la frase che contiene il giorno, copiata parola per parola dalla trascrizione, giorno compreso (per esempio «Verifica di matematica giovedì 19»).",
+    "Solo quelle scritte davvero, con un giorno scritto. Non dedurre una data, non completarla e non correggerla: se il giorno non c'è o è illeggibile, non mettere la scadenza.",
+    "Argomenti in libreria:\n" + JSON.stringify(dati.argomenti),
+    dati.trascrizioni.map((t, i) => "Foto " + (i + 1) + ":\n" + t).join("\n\n"),
+    'Rispondi solo con JSON: {"foto":[{"foto":1,"materia":"","argomento":"a1","nuovo_titolo":"","confidenza":0.9}],"scadenze":[{"foto":1,"materia":"","tipo":"scritta","testo_letto":""}]}',
+  ].join("\n\n");
+}
