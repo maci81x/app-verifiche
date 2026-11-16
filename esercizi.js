@@ -184,7 +184,7 @@ async function confermaTipi() {
 
 /* =================================================================== scheda dell'argomento */
 
-const BOTTONI_TEORIA = ["scelte-scheda", "consiglio-scheda", "altro-modo", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica", "btn-rileggi-concetti"];
+const BOTTONI_TEORIA = ["scelte-scheda", "consiglio-scheda", "altro-modo", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica", "btn-rileggi-concetti", "btn-cinque", "btn-menu-cinque"];
 
 // Un argomento di esercizi mostra i suoi tipi al posto dei concetti e niente prove di teoria.
 function adattaSchedaEsercizi(a) {

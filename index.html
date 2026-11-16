@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
 <div class="wrap">
@@ -484,6 +484,7 @@
     <p class="occhiello">Per ripassare in un altro modo</p>
     <p class="link-riga"><button type="button" class="link" id="btn-mappa">Mappa</button><button type="button" class="link" id="btn-altro-stampa">Stampa</button></p>
   </div>
+  <p class="link-riga"><button type="button" class="link" id="btn-cinque">Le 5 cose da sapere</button><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
   <details class="sezione" id="sez-punti"><summary id="sum-punti">I punti</summary><div id="stato-concetti-scheda"></div></details>
   <details class="sezione"><summary>Le foto</summary>
     <div class="miniature" id="foto-scheda"></div>
@@ -516,6 +517,7 @@
   <div class="card-nodo foglio-menu" role="dialog" aria-modal="true" aria-label="Altre azioni">
     <div class="maniglia" aria-hidden="true"></div>
     <button type="button" class="voce-menu" id="btn-menu-mappa">Mappa</button>
+    <button type="button" class="voce-menu" id="btn-menu-cinque">Le 5 cose da sapere</button>
     <button type="button" class="voce-menu" id="btn-studiare">Cosa studiare</button>
     <button type="button" class="voce-menu" id="btn-stampa-verifica">Verifica da stampare</button>
     <button type="button" class="voce-menu" id="btn-rivedi" hidden>Rivedi l'ultima verifica</button>
@@ -526,11 +528,25 @@
   </div>
 </div>
 
+<!-- ============ LE 5 COSE DA SAPERE (issue #22) ============ -->
+<section id="v-cinque" hidden>
+  <h2 id="t-cinque" class="solo-lettore">Le 5 cose da sapere</h2>
+  <div id="cinque-corpo"></div>
+  <div id="err-cinque"></div>
+  <div id="stato-cinque"></div>
+  <div class="bottoni cinque-azioni" id="cinque-azioni" hidden>
+    <button class="azione" id="btn-cinque-provami">Ora provami su queste 5</button>
+    <button class="minore" id="btn-cinque-stampa">Stampa o salva PDF</button>
+    <button class="link" id="btn-cinque-rifai">Rifalle da capo</button>
+  </div>
+</section>
+
 <!-- ============ MAPPA E COSA STUDIARE ============ -->
 <section id="v-mappa" hidden>
   <h2 id="t-mappa" class="solo-lettore"></h2>
   <div class="linguette" role="tablist" aria-label="Ripasso dagli appunti">
     <button type="button" role="tab" id="tab-mappa" aria-controls="pannello-mappa" aria-selected="true">Mappa</button>
+    <button type="button" role="tab" id="tab-racconto" aria-controls="pannello-racconto" aria-selected="false">Racconto</button>
     <button type="button" role="tab" id="tab-studiare" aria-controls="pannello-studiare" aria-selected="false">Cosa studiare</button>
   </div>
   <div id="pannello-mappa" role="tabpanel" aria-labelledby="tab-mappa">
@@ -542,6 +558,27 @@
       <button class="minore" id="btn-arricchisci" disabled>Arricchisci dal web</button>
       <button class="minore" id="btn-stampa" disabled>Stampa o salva PDF</button>
     </div>
+  </div>
+  <!-- Raccontalo in 2 minuti (issue #22): racconto a voce seguendo i blocchi, poi il confronto con i punti. -->
+  <div id="pannello-racconto" role="tabpanel" aria-labelledby="tab-racconto" hidden>
+    <p class="aiuto">Racconta l'argomento a voce, come all'interrogazione, seguendo i blocchi. Bastano due minuti. Poi ti dico quali punti hai detto e quali hai saltato.</p>
+    <ol class="rc-scaletta" id="rc-scaletta"></ol>
+    <div class="voce" id="rc-voce" hidden aria-live="polite">
+      <span class="mic" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </span>
+      <span class="cosa"><span id="rc-ascolto"></span></span>
+      <span class="tempo" id="rc-tempo"></span>
+    </div>
+    <label class="etichetta" for="rc-testo">Il tuo racconto</label>
+    <textarea id="rc-testo" placeholder="Quello che dici compare qui. Puoi anche scrivere."></textarea>
+    <div class="bottoni">
+      <button class="azione" id="btn-rc-parla">Comincia a raccontare</button>
+      <button class="minore" id="btn-rc-controlla">Controlla il racconto</button>
+    </div>
+    <div id="err-rc"></div>
+    <div id="stato-rc"></div>
+    <div id="rc-esito" aria-live="polite"></div>
   </div>
   <div id="pannello-studiare" role="tabpanel" aria-labelledby="tab-studiare" hidden>
     <p class="aiuto">In cima i punti andati peggio nell'ultima prova. Rileggi la frase evidenziata, poi rifai la verifica.</p>
@@ -717,27 +754,28 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=27"></script>
-<script src="app.js?v=27"></script>
-<script src="libreria.js?v=27"></script>
-<script src="stampa.js?v=27"></script>
-<script src="aiuto.js?v=27"></script>
-<script src="mappa-card.js?v=27"></script>
-<script src="figure.js?v=27"></script>
-<script src="formule.js?v=27"></script>
-<script src="esercizi.js?v=27"></script>
-<script src="prova-esercizi.js?v=27"></script>
-<script src="compito.js?v=27"></script>
-<script src="classe-app.js?v=27"></script>
-<script src="poesia.js?v=27"></script>
-<script src="invalsi.js?v=27"></script>
-<script src="esempi.js?v=27"></script>
-<script src="esame.js?v=27"></script>
-<script src="italia-mappa.js?v=27"></script>
-<script src="geografia.js?v=27"></script>
-<script src="lezione.js?v=27"></script>
-<script src="diario.js?v=27"></script>
-<script src="piano.js?v=27"></script>
-<script src="ripasso.js?v=27"></script>
+<script src="semaforo.js?v=28"></script>
+<script src="app.js?v=28"></script>
+<script src="libreria.js?v=28"></script>
+<script src="stampa.js?v=28"></script>
+<script src="aiuto.js?v=28"></script>
+<script src="mappa-card.js?v=28"></script>
+<script src="figure.js?v=28"></script>
+<script src="formule.js?v=28"></script>
+<script src="esercizi.js?v=28"></script>
+<script src="prova-esercizi.js?v=28"></script>
+<script src="compito.js?v=28"></script>
+<script src="classe-app.js?v=28"></script>
+<script src="poesia.js?v=28"></script>
+<script src="invalsi.js?v=28"></script>
+<script src="esempi.js?v=28"></script>
+<script src="esame.js?v=28"></script>
+<script src="italia-mappa.js?v=28"></script>
+<script src="geografia.js?v=28"></script>
+<script src="lezione.js?v=28"></script>
+<script src="diario.js?v=28"></script>
+<script src="piano.js?v=28"></script>
+<script src="ripasso.js?v=28"></script>
+<script src="studio.js?v=28"></script>
 </body>
 </html>

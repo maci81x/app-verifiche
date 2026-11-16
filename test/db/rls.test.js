@@ -324,6 +324,37 @@ prova('spiegazioni: una per concetto, la ragazza legge e scrive le sue, il genit
   ${verifica(`${conta('spiegazioni')} = 0`, 'la spiegazione sopravvive al concetto')}
 `);
 
+// ---------------------------------------------------------------- le 5 cose da sapere (issue #22)
+const CINQUE = `'{"punti":[{"concetto_id":"${CONC}","etichetta":"Quando","testo":"","chiave":"La peste nera arrivò in Europa nel 1347"}],"catena":[],"parole":[],"domanda":null}'`;
+
+prova('punti_chiave: una per argomento, la ragazza legge e scrive le sue, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into punti_chiave (argomento_id, contenuto) values ('${ARG}', ${CINQUE});
+  ${verifica(`(select studente_id = '${ANNA}' and generata is not null from punti_chiave)`, 'le 5 cose non sono di Anna')}
+  -- Rifalle da capo: sovrascrive la stessa riga
+  insert into punti_chiave (argomento_id, contenuto) values ('${ARG}', '{"punti":[]}')
+    on conflict (argomento_id, studente_id) do update set contenuto = excluded.contenuto, generata = now();
+  ${verifica(`${conta('punti_chiave')} = 1 and (select contenuto->'punti' = '[]'::jsonb from punti_chiave)`, 'rifarle non sovrascrive')}
+  ${vieta(`insert into punti_chiave (argomento_id, contenuto) values ('${ARG}', '[1,2]')`, 'check_violation', 'il contenuto non è un oggetto')}
+  ${come(BEA)}
+  ${verifica(`${conta('punti_chiave')} = 0`, 'Bea vede le 5 cose di Anna')}
+  ${vieta(`insert into punti_chiave (argomento_id, contenuto) values ('${ARG}', ${CINQUE})`,
+    'foreign_key_violation', "Bea crea le 5 cose sull'argomento di Anna")}
+  ${vieta(`insert into punti_chiave (studente_id, argomento_id, contenuto) values ('${ANNA}', '${ARG}', ${CINQUE})`,
+    'insufficient_privilege', 'Bea crea le 5 cose a nome di Anna')}
+  ${nessunaRiga(`update punti_chiave set contenuto = '{}'`, 'Bea modifica le 5 cose di Anna')}
+  ${nessunaRiga(`delete from punti_chiave`, 'Bea cancella le 5 cose di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('punti_chiave')} = 1`, 'il genitore non legge le 5 cose della figlia')}
+  ${nessunaRiga(`update punti_chiave set contenuto = '{}'`, 'il genitore modifica le 5 cose')}
+  ${nessunaRiga(`delete from punti_chiave`, 'il genitore cancella le 5 cose')}
+  ${come(null)}
+  ${vieta(`perform * from punti_chiave`, 'insufficient_privilege', "l'anonimo legge le 5 cose")}
+  ${come(ANNA)}
+  delete from argomenti where id = '${ARG}';
+  ${verifica(`${conta('punti_chiave')} = 0`, "le 5 cose sopravvivono all'argomento")}
+`);
+
 // ---------------------------------------------------------------- tipi di esercizio (issue #5, fetta #6)
 const TIPO = `'Espressioni con le frazioni', '[3/4 + (2/5 - 1/10)] x 2', 2, false`;
 

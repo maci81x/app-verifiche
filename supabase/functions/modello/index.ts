@@ -16,6 +16,11 @@
 // POST { azione: "sintesi", argomento_id } → { sintesi: { [concetto_id]: testo o "" }, scartate }
 //      «In breve» dei concetti, chiesto dopo la mappa (issue #13); filtrato con _shared/sintesi.js.
 //      Primo livello = i concetti dell'argomento (stesso id); sotto, sotto-punti ancorati alla trascrizione.
+// POST { azione: "punti_chiave", argomento_id } → { punti: [{ concetto_id, etichetta, testo, chiave }], catena: [{ testo, ancora }],
+//      parole, domanda: { concetto_id, testo, ancora } | null, scartati }: «Le 5 cose da sapere» (issue #22), ogni elemento
+//      passa dal filtro di ancoraggio (_shared/punti.js). La cache (tabella punti_chiave) la scrive l'app.
+// POST { azione: "racconto", argomento_id, testo } → { esiti: [{ concetto_id, esito: detto|impreciso|saltato, frase_detta }], toccati, totale }
+//      «Raccontalo in 2 minuti» (issue #22): il racconto detto a voce confrontato con i concetti letti dal database.
 // POST { azione: "spiega", concetto_id, errore?: { domanda, risposta_alunna, risposta_attesa } }
 //      → { spiegazione, esempio, analogia, fonti: [{ titolo, url }], eta }
 // POST { azione: "arricchisci", argomento_id } → { albero, aggiunti, scartati }
@@ -80,7 +85,7 @@ import {
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
   PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi, promptSmista,
-  promptCompito, promptCompitoDomanda, promptGemelli,
+  promptCompito, promptCompitoDomanda, promptGemelli, promptPuntiChiave, promptRacconto,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -95,6 +100,7 @@ import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano
   correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
   rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
 import { ancoraRegge } from "../_shared/ancoraggio.js";
+import { puntiChiaveDaRisposta, esitiRacconto, ETICHETTE, ESITI_RACCONTO } from "../_shared/punti.js";
 import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
@@ -228,6 +234,30 @@ const SCHEMA_SINTESI = {
   },
   required: ["sintesi"], additionalProperties: false,
 } as const;
+// «Le 5 cose da sapere» e il racconto (issue #22).
+const ANCORATO = { type: "object", properties: { testo: { type: "string" }, ancora: { type: "string" } }, required: ["testo", "ancora"], additionalProperties: false } as const;
+const SCHEMA_PUNTI = {
+  type: "object",
+  properties: {
+    punti: { type: "array", items: { type: "object", properties: {
+      concetto_id: { type: "string" }, etichetta: { type: "string", enum: ETICHETTE }, testo: { type: "string" }, chiave: { type: "string" },
+    }, required: ["concetto_id", "etichetta", "testo", "chiave"], additionalProperties: false } },
+    catena: { type: "array", items: ANCORATO },
+    parole: { type: "array", items: { type: "string" } },
+    domanda: { type: "object", properties: { concetto_id: { type: "string" }, testo: { type: "string" }, ancora: { type: "string" } }, required: ["concetto_id", "testo", "ancora"], additionalProperties: false },
+  },
+  required: ["punti", "catena", "parole", "domanda"], additionalProperties: false,
+} as const;
+const SCHEMA_RACCONTO = {
+  type: "object",
+  properties: {
+    esiti: { type: "array", items: { type: "object", properties: {
+      concetto_id: { type: "string" }, esito: { type: "string", enum: ESITI_RACCONTO }, frase_detta: { type: "string" },
+    }, required: ["concetto_id", "esito", "frase_detta"], additionalProperties: false } },
+  },
+  required: ["esiti"], additionalProperties: false,
+} as const;
+const MAX_RACCONTO = 8000; // caratteri: due minuti parlati sono circa 2000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const SCHEMA_SPIEGAZIONE = {
@@ -942,6 +972,23 @@ Deno.serve(async (req) => {
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
       const r = await chiedi(promptSintesi(a, await classeDi(req, io.sub)), SCHEMA_SINTESI, [], "low");
       return json(sintesiDaRisposta(a, r));
+    }
+
+    if (b.azione === "punti_chiave" || b.azione === "racconto") {
+      if (typeof b.argomento_id !== "string" || !UUID.test(b.argomento_id)) return json({ errore: "richiesta non valida" }, 400);
+      const racconto = testoBreve(b.testo, MAX_RACCONTO).trim();
+      if (b.azione === "racconto" && !racconto) return json({ errore: "richiesta non valida" }, 400);
+      const { data: a, error } = await comeUtente(req).from("argomenti")
+        .select("id, titolo, materia, trascrizione, concetti(id, titolo, descrizione, ancora, peso, ordine)")
+        .eq("id", b.argomento_id).eq("studente_id", io.sub).maybeSingle();
+      if (error) throw error;
+      if (!a) return json({ errore: "argomento non trovato" }, 404);
+      if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
+      const classe = await classeDi(req, io.sub);
+      if (b.azione === "racconto") return json(esitiRacconto(a, await chiedi(promptRacconto(a, racconto, classe), SCHEMA_RACCONTO, [], "low"), racconto));
+      const esito = puntiChiaveDaRisposta(a, await chiedi(promptPuntiChiave(a, classe), SCHEMA_PUNTI));
+      if (!esito.punti.length) return json({ errore: "nessun_punto", scartati: esito.scartati }, 422);
+      return json(esito);
     }
 
     if (b.azione === "spiega") {

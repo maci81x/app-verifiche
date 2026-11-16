@@ -991,3 +991,43 @@ button.link.link-in-riga{padding:10px 0;display:inline;text-align:left}
 .rg-voce::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--rosso);flex:none;animation:onda 1s ease-out infinite}
 .rg-voce[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.rg-voce::before{animation:none}}
+/* ================================================================ issue #22
+   Mappa per paragrafi, punto aperto sotto, «Le 5 cose da sapere», «Raccontalo in 2 minuti». */
+.m-blocchi{list-style:none;margin:16px 0 0;padding:0}
+.m-blocco+.m-blocco{margin-top:22px}
+.m-blocco-tit{display:flex;align-items:center;gap:10px;margin:0;font-size:1.12rem;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+.m-blocco-n{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--inchiostro);color:var(--carta);font-size:.95rem;font-variant-numeric:tabular-nums}
+.m-blocco .m-albero{margin-top:10px}
+.m-albero .m-nodo[aria-expanded="true"]{background:var(--superficie);border-bottom-color:transparent}
+.m-aperto{background:var(--superficie);padding:2px 14px 14px;border-bottom:1px solid var(--bordo)}
+.m-aperto .occhiello{margin:12px 0 6px}
+.m-aperto .bottoni{margin-top:14px}
+/* Le 5 cose da sapere */
+.cinque-punti{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bordo)}
+.cinque-punti li{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--bordo)}
+.cinque-n{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--inchiostro);color:var(--carta);font-weight:800;font-size:1.05rem;font-variant-numeric:tabular-nums}
+.cinque-punti li>div{min-width:0}
+.cinque-testo{margin:4px 0 0;font-size:1.06rem;line-height:1.5}
+.cinque-chiave{margin:6px 0 0;font-size:1rem;line-height:1.55}
+.sez-cinque{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;margin:32px 0 10px}
+.catena{border-left:3px solid var(--bordo);padding-left:14px}
+.anello p{margin:0}
+.anello p+p{margin-top:4px}
+.quindi{margin:8px 0;font-weight:700;color:var(--inchiostro-2)}
+.parole-belle{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.parole-belle li{border:1.5px solid var(--bordo);border-radius:999px;padding:6px 14px;font-weight:700}
+.domanda-prof{margin:0;font-size:1.12rem;font-weight:700;line-height:1.4}
+.cinque-azioni{margin-top:28px}
+/* Raccontalo in 2 minuti */
+.rc-scaletta{margin:0 0 8px;padding-left:22px}
+.rc-scaletta li{padding:6px 0}
+.rc-scaletta li span{display:block;color:var(--inchiostro-2);font-size:.95rem}
+#pannello-racconto textarea{width:100%}
+.rc-titolo{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;margin:26px 0 4px}
+.esito-c .detto{margin:6px 0 0}
+@media print{
+  body[data-vista="cinque"]{background:#fff!important;color:#000;padding:0!important}
+  body[data-vista="cinque"]::before,body[data-vista="cinque"] .testata,body[data-vista="cinque"] .barra-basso,body[data-vista="cinque"] .nota,body[data-vista="cinque"] .cinque-azioni{display:none!important}
+  body[data-vista="cinque"] #t-cinque{position:static;width:auto;height:auto;clip:auto;overflow:visible;white-space:normal;font-size:20pt;margin:0 0 8pt}
+  .cinque-punti li,.anello{break-inside:avoid;page-break-inside:avoid}
+}
