@@ -442,7 +442,7 @@ async function eserciziMirati(concetto, passo) {
   attesa($("stato-mirati"), null); allenaOccupato = false;
 }
 function htmlMirato(e, i, occhiello) {
-  return '<article class="esercizio"><p class="occhiello">' + occhiello + '</p><p class="consegna">' + esc(e.testo) + "</p>" +
+  return '<article class="esercizio"><p class="occhiello">' + occhiello + '</p><p class="consegna">' + testoConFormule(e.testo) + "</p>" +
     (e.dati ? '<p class="dati-es">Dati: ' + esc(e.dati) + "</p>" : "") + htmlDomandaConRisposta("mi-" + i, "<b>La tua risposta</b>") +
     '<details class="come-si-fa" id="mi-' + i + '-sol" hidden><summary>Ecco come si fa</summary><ol class="passaggi">' +
     (e.passaggi || []).map((x) => "<li>" + esc(x.testo) + (x.formula ? '<span class="riga-formula">' + formulaHtml(x.formula) + "</span>" : "") + "</li>").join("") +
@@ -489,7 +489,7 @@ async function problemiGemelli(c, dove, soloUno = false) {
   attesa(stato, null); allenaOccupato = false;
 }
 function disegnaGemelli(box) {
-  box.innerHTML = gemelliOra.map((g, i) => '<article class="esercizio gemello" data-g="' + i + '"><p class="occhiello">' + esc(NOMI_GEMELLI[g.tipo] || "Problema gemello") + '</p><p class="consegna">' + esc(g.testo) + "</p>" +
+  box.innerHTML = gemelliOra.map((g, i) => '<article class="esercizio gemello" data-g="' + i + '"><p class="occhiello">' + esc(NOMI_GEMELLI[g.tipo] || "Problema gemello") + '</p><p class="consegna">' + testoConFormule(g.testo) + "</p>" +
     htmlDomandaConRisposta("ge-" + i, "<b>Prova tu:</b> la tua risposta") + '<div class="gradini" id="ge-' + i + '-gradini"></div></article>').join("");
 }
 function gradinoGemello(i, n) {

@@ -49,7 +49,7 @@ async function apriMiniRipasso(dove, titolo, esempio) {
     miniRipassi[dove] = { esercizi: (r.esercizi || []).slice(0, 3), esiti: [] };
     lista.innerHTML = miniRipassi[dove].esercizi.map((e, i) => {
       const id = "pr-" + dove + "-" + i;
-      return '<article class="esercizio"><p class="occhiello">Ripasso ' + (i + 1) + " di " + miniRipassi[dove].esercizi.length + '</p><p class="consegna">' + esc(e.testo) + "</p>" +
+      return '<article class="esercizio"><p class="occhiello">Ripasso ' + (i + 1) + " di " + miniRipassi[dove].esercizi.length + '</p><p class="consegna">' + testoConFormule(e.testo) + "</p>" +
         '<label for="' + id + '"><b>La tua risposta</b></label><div class="prova-riga"><input type="text" id="' + id + '" inputmode="decimal" autocomplete="off" placeholder="La tua risposta">' +
         '<button type="button" class="minore" data-pr-giudica="' + dove + '" data-i="' + i + '">Controlla</button></div><div class="prova-esito" id="' + id + '-esito" aria-live="polite"></div>' +
         '<details class="come-si-fa" id="' + id + '-sol" hidden><summary>Ecco come si fa</summary><ol class="passaggi">' +
