@@ -1,0 +1,34 @@
+# Avviso guasti: ogni mattina chiamate di prova a modello, accedi e profili con i profili di prova
+# (scripts/sentinella.mjs). Se una risponde male o troppo lentamente il job fallisce e GitHub manda la
+# mail di «workflow fallito». Le credenziali sono nei Secrets del repo: GitHub le maschera nei log.
+name: Controllo mattutino
+on:
+  schedule:
+    - cron: "30 5 * * *" # 6:30 ora italiana d'inverno, 7:30 d'estate
+  workflow_dispatch:
+    inputs:
+      prova_guasto:
+        description: "Fai fallire apposta il controllo (per provare che la mail arriva)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Chiamate di prova
+        run: node scripts/sentinella.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          TEST_BEA_EMAIL: ${{ secrets.TEST_BEA_EMAIL }}
+          TEST_BEA_PASSWORD: ${{ secrets.TEST_BEA_PASSWORD }}
+          TEST_GENITORE_EMAIL: ${{ secrets.TEST_GENITORE_EMAIL }}
+          TEST_GENITORE_PASSWORD: ${{ secrets.TEST_GENITORE_PASSWORD }}
+          PROVA_GUASTO: ${{ inputs.prova_guasto }}
