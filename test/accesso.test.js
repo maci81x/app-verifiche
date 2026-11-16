@@ -18,6 +18,7 @@ function elemento(tag = "div") {
     get innerHTML() { return this._html + this.children.map((c) => c.testo()).join(""); },
     set innerHTML(v) { this._html = v; this.children = []; },
     appendChild(c) { this.children.push(c); return c; },
+    replaceChildren(...c) { this._html = ""; this.children = c; },
     setAttribute(k, v) { this.attributi[k] = String(v); },
     getAttribute(k) { return this.attributi[k]; },
     querySelectorAll() { return []; },

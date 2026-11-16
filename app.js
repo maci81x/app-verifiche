@@ -621,16 +621,22 @@ function testoConsumo(c, tetto) {
   return "Oggi: " + c.chiamate + " richieste su " + tetto + " · " + token.toLocaleString("it-IT") + " token · circa " +
     (c.costo || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
 }
-let figlie = [];
+let figlie = [], giroImpostazioni = 0;
 async function disegnaImpostazioni() {
   disegnaSvuota();
-  const box = $("imp-profili"); box.innerHTML = "";
+  // Due disegni di fila (creazione, poi elenco) non si mescolano: vale solo l'ultimo, e le righe
+  // si sostituiscono tutte insieme alla fine, così non restano pulsanti vecchi né righe doppie.
+  const giro = ++giroImpostazioni;
   const { data, error } = await genitore.from("studenti").select("id, nome, classe").order("nome");
+  if (giro !== giroImpostazioni) return;
   if (error) { errore($("err-imp"), "Non riesco a leggere i profili. Controlla la connessione e riprova."); return; }
-  figlie = data || [];
-  if (!figlie.length) box.innerHTML = '<p class="legenda">Ancora nessun profilo. Crealo qui sotto.</p>';
+  const lista = data || [];
   // Il consumo non blocca il pannello: se non arriva, la riga non c'è.
-  const consumo = figlie.length ? await funzioneProfili({ azione: "consumo" }).catch((e) => { console.warn("consumo:", e); return null; }) : null;
+  const consumo = lista.length ? await funzioneProfili({ azione: "consumo" }).catch((e) => { console.warn("consumo:", e); return null; }) : null;
+  if (giro !== giroImpostazioni) return;
+  figlie = lista;
+  const righe = [];
+  if (!figlie.length) { const p = document.createElement("p"); p.className = "legenda"; p.textContent = "Ancora nessun profilo. Crealo qui sotto."; righe.push(p); }
   figlie.forEach((s) => {
     const d = document.createElement("div"); d.className = "riga-profilo";
     const b = document.createElement("b"); b.textContent = s.nome + (s.classe ? " (" + s.classe + ")" : ""); d.appendChild(b);
@@ -650,8 +656,9 @@ async function disegnaImpostazioni() {
     d.appendChild(campo); d.appendChild(cc); d.appendChild(el); d.appendChild(lv);
     const c = consumo && (consumo.profili || []).find((x) => x.studente_id === s.id);
     if (c) { const p = document.createElement("p"); p.className = "aiuto consumo"; p.textContent = testoConsumo(c, consumo.tetto); d.appendChild(p); }
-    box.appendChild(d);
+    righe.push(d);
   });
+  $("imp-profili").replaceChildren(...righe);
 }
 async function creaProfilo() {
   const nome = $("np-nome").value.trim(), classe = $("np-classe").value.trim(), codice = $("np-codice").value.trim();
