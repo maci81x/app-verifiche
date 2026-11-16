@@ -468,6 +468,7 @@ prova('giorni_diario: un giorno per data, la ragazza scrive i suoi, il genitore 
   ${come(ANNA)}
   select svuota_memoria();
   ${verifica(`${conta('giorni_diario')} = 0`, 'svuota_memoria lascia i giorni')}
+`);
 
 // ---------------------------------------------------------------- ripasso guidato (issue #21)
 prova("sessioni: il tipo 'ripasso' entra, un tipo sconosciuto no, le policy restano quelle", `
