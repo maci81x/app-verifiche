@@ -375,3 +375,38 @@ prova('prove di esercizi: colonne nuove con le policy di sempre', `
   ${come(null)}
   ${vieta(`perform * from sessioni`, 'insufficient_privilege', "l'anonimo legge le prove")}
 `);
+
+// ---------------------------------------------------------------- ripasso dilazionato (issue #20)
+const RIPASSO = `'${CONC}', '2026-11-19', 3, 2.6, 'ci', 9`;
+
+prova('ripasso_stato: uno per concetto, la ragazza legge e scrive il suo, il genitore legge, le altre niente', `
+  ${come(ANNA)}
+  insert into ripasso_stato (concetto_id, prossima, intervallo_giorni, facilita, ultima_sicurezza, ultimo_esito) values (${RIPASSO});
+  ${verifica(`(select studente_id = '${ANNA}' and aggiornato is not null from ripasso_stato)`, 'lo stato non è di Anna')}
+  -- dopo la risposta seguente: upsert sulla stessa riga
+  insert into ripasso_stato (concetto_id, prossima, intervallo_giorni, facilita, ultimo_esito) values ('${CONC}', '2026-11-17', 1, 2.4, 2)
+    on conflict (concetto_id, studente_id) do update set prossima = excluded.prossima, intervallo_giorni = excluded.intervallo_giorni,
+      facilita = excluded.facilita, ultimo_esito = excluded.ultimo_esito, aggiornato = now();
+  ${verifica(`${conta('ripasso_stato')} = 1 and (select intervallo_giorni = 1 and prossima = '2026-11-17' from ripasso_stato)`, "l'upsert non aggiorna")}
+  ${vieta(`update ripasso_stato set ultima_sicurezza = 'boh'`, 'check_violation', 'sicurezza sconosciuta')}
+  ${vieta(`update ripasso_stato set ultimo_esito = 11`, 'check_violation', 'esito oltre 10')}
+  ${vieta(`update ripasso_stato set intervallo_giorni = 0`, 'check_violation', 'intervallo 0')}
+  ${vieta(`update ripasso_stato set facilita = 0.5`, 'check_violation', 'facilità sotto 1,3')}
+  ${come(BEA)}
+  ${verifica(`${conta('ripasso_stato')} = 0`, 'Bea vede il ripasso di Anna')}
+  ${vieta(`insert into ripasso_stato (concetto_id, prossima) values ('${CONC}', '2026-11-20')`,
+    'foreign_key_violation', 'Bea crea uno stato sul concetto di Anna')}
+  ${vieta(`insert into ripasso_stato (studente_id, concetto_id, prossima) values ('${ANNA}', '${CONC}', '2026-11-20')`,
+    'insufficient_privilege', 'Bea crea uno stato a nome di Anna')}
+  ${nessunaRiga(`update ripasso_stato set intervallo_giorni = 9`, 'Bea modifica il ripasso di Anna')}
+  ${nessunaRiga(`delete from ripasso_stato`, 'Bea cancella il ripasso di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`${conta('ripasso_stato')} = 1`, 'il genitore non legge il ripasso della figlia')}
+  ${nessunaRiga(`update ripasso_stato set intervallo_giorni = 9`, 'il genitore modifica il ripasso')}
+  ${nessunaRiga(`delete from ripasso_stato`, 'il genitore cancella il ripasso')}
+  ${come(null)}
+  ${vieta(`perform * from ripasso_stato`, 'insufficient_privilege', "l'anonimo legge il ripasso")}
+  ${come(ANNA)}
+  delete from concetti where id = '${CONC}';
+  ${verifica(`${conta('ripasso_stato')} = 0`, 'lo stato sopravvive al concetto')}
+`);

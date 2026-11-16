@@ -107,6 +107,9 @@
   </div>
   <h1 id="ciao">Ciao.</h1>
   <p class="sotto" id="frase-oggi"></p>
+  <p class="link-riga"><button type="button" class="link" id="link-settimana" hidden>Guarda la settimana</button></p>
+  <section class="piano" id="piano-oggi" aria-label="Il piano di oggi" hidden></section>
+  <div class="numeri-oggi" id="numeri-oggi" hidden></div>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
   <div id="ripasso-oggi"></div>
@@ -116,7 +119,17 @@
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
+  <div class="bottoni"><button type="button" class="minore" id="btn-altri-appunti">Fotografa altri appunti</button></div>
   <div id="stato-lib"></div>
+</section>
+
+<!-- ============ SETTIMANA (issue #20) ============ -->
+<section id="v-settimana" hidden>
+  <ol class="set-giorni" id="set-giorni" aria-label="I prossimi sette giorni"></ol>
+  <p class="occhiello">In arrivo</p>
+  <p class="sotto" id="set-vuoto" hidden></p>
+  <div id="set-arrivo"></div>
+  <section class="piano" id="set-piano" aria-label="Il piano di oggi" hidden></section>
 </section>
 
 <!-- ============ ARGOMENTI (elenco completo) ============ -->
@@ -643,5 +656,6 @@
 <script src="esame.js?v=22"></script>
 <script src="italia-mappa.js?v=22"></script>
 <script src="geografia.js?v=22"></script>
+<script src="piano.js?v=22"></script>
 </body>
 </html>

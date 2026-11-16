@@ -24,6 +24,7 @@ const ASSETS = [
   '/app-verifiche/esame.js?v=22',
   '/app-verifiche/italia-mappa.js?v=22',
   '/app-verifiche/geografia.js?v=22',
+  '/app-verifiche/piano.js?v=22',
   '/app-verifiche/manifest.json',
   '/app-verifiche/icons/icon-192.png',
   '/app-verifiche/icons/icon-512.png',
