@@ -1,6 +1,6 @@
 -- Ripasso guidato (issue #21): una sessione di ripasso si salva in `sessioni` con tipo 'ripasso'.
 --
--- La scrive l'app con i permessi della ragazza alla fine del ripasso guidato (ripasso.js,
+-- La scrive l'app con i permessi di chi studia alla fine del ripasso guidato (ripasso.js,
 -- salvaRipassoGuidato), con le sue domande e risposte come una verifica. Policy invariate.
 --
 -- Unica eccezione alla regola delle sole aggiunte, chiesta dalla issue: il vincolo sul tipo si
