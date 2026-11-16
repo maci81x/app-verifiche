@@ -880,8 +880,8 @@ function mostraConcetti() {
     pesi.setAttribute("role", "group"); pesi.setAttribute("aria-label", "peso di " + x.titolo);
     [1, 2, 3].forEach((n) => {
       const b = document.createElement("button"); b.type = "button";
-      b.setAttribute("aria-label", "peso " + n + " su 3"); b.dataset.pieno = n <= x.peso ? "1" : "0";
-      b.onclick = () => { x.peso = n; x._cambiato = true; Array.prototype.forEach.call(pesi.children, (el, j) => { el.dataset.pieno = (j + 1) <= n ? "1" : "0"; }); };
+      b.setAttribute("aria-label", "peso " + n + " su 3"); b.dataset.pieno = n <= x.peso ? "1" : "0"; b.setAttribute("aria-pressed", String(n === x.peso));
+      b.onclick = () => { x.peso = n; x._cambiato = true; Array.prototype.forEach.call(pesi.children, (el, j) => { el.dataset.pieno = (j + 1) <= n ? "1" : "0"; el.setAttribute("aria-pressed", String(j + 1 === n)); }); };
       pesi.appendChild(b);
     });
     const via = document.createElement("button"); via.type = "button"; via.className = "via"; via.textContent = "×";
@@ -1517,6 +1517,7 @@ function mostraDomanda() {
   const corpo = $("q-corpo"); corpo.innerHTML = "";
   if (d.tipo === "chiusa") {
     const box = document.createElement("div"); box.className = "opzioni";
+    box.setAttribute("role", "radiogroup"); box.setAttribute("aria-labelledby", "q-testo");
     d._ord.forEach((j, pos) => {
       const l = document.createElement("label");
       const i = document.createElement("input"); i.type = "radio"; i.name = d.id; i.value = j;
@@ -1527,7 +1528,7 @@ function mostraDomanda() {
     });
     corpo.appendChild(box);
   } else {
-    const ta = document.createElement("textarea"); ta.id = "risp-aperta";
+    const ta = document.createElement("textarea"); ta.id = "risp-aperta"; ta.setAttribute("aria-labelledby", "q-testo");
     ta.placeholder = modalita === "orale" ? "Quello che dici compare qui. Puoi anche scrivere." : "Scrivi la tua risposta";
     ta.value = (risposte[d.id] && risposte[d.id].testo) || "";
     corpo.appendChild(ta);

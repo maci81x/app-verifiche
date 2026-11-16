@@ -71,6 +71,12 @@ function formulaHtml(latex) {
   return '<span class="formula" data-latex="' + escFormula(latex) + '">' + escFormula(latexATesto(latex)) + "</span>";
 }
 
+// Testo generato che può contenere formule fra \( \) o \[ \]: il resto si mostra come testo, le formule come formule.
+function testoConFormule(s) {
+  return String(s == null ? "" : s).split(/(\\\(.+?\\\)|\\\[.+?\\\])/s)
+    .map((p, i) => i % 2 ? formulaHtml(p.slice(2, -2).trim()) : escFormula(p)).join("");
+}
+
 let katexPronto = null;
 // Carica KaTeX una volta sola; risolve false se non arriva (offline, CDN giù): si resta sul testo.
 function caricaKatex() {
