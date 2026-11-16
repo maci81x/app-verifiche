@@ -423,6 +423,9 @@ prova('scadenze: la ragazza legge e scrive le sue, il genitore legge, le altre n
   ${vieta(`insert into scadenze (materia, tipo, data) values ('Storia', 'pratica', '2026-11-19')`, 'check_violation', 'tipo sconosciuto')}
   ${vieta(`insert into scadenze (materia, tipo, data, fonte) values (${SCAD}, 'web')`, 'check_violation', 'fonte sconosciuta')}
   ${vieta(`insert into scadenze (materia, tipo, data) values ('  ', 'scritta', '2026-11-19')`, 'check_violation', 'materia vuota')}
+  ${vieta(`insert into scadenze (materia, tipo, data) values ('matematica', 'scritta', '2026-11-19')`, 'unique_violation', 'la stessa scadenza segnata due volte')}
+  insert into scadenze (materia, tipo, data) values ('matematica', 'orale', '2026-11-19');
+  delete from scadenze where tipo = 'orale' and materia = 'matematica';
   ${come(BEA)}
   ${verifica(`${conta('scadenze')} = 0`, 'Bea vede le scadenze di Anna')}
   ${vieta(`insert into scadenze (argomento_id, materia, tipo, data) values ('${ARG}', ${SCAD})`,
