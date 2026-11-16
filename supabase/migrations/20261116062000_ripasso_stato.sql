@@ -1,14 +1,14 @@
 -- Ripetizione dilazionata per il piano del giorno (issue #20).
 --
--- Una riga per concetto e per studentessa: quando ripassarlo (prossima), ogni quanti giorni
--- (intervallo_giorni), quanto le riesce facile (facilita) e com'è andata l'ultima risposta
+-- Una riga per concetto e per profilo: quando ripassarlo (prossima), ogni quanti giorni
+-- (intervallo_giorni), quanto è facile (facilita) e com'è andata l'ultima risposta
 -- (ultimo_esito 0-10, ultima_sicurezza «Ci prendo» / «Forse» / «A caso»).
--- La scrive l'app con i permessi della ragazza dopo ogni prova (ripasso, verifica,
+-- La scrive l'app con i permessi di chi studia dopo ogni prova (ripasso, verifica,
 -- interrogazione, prova lampo), con un upsert su (concetto_id, studente_id); la regola sta in
 -- piano.js (nuovoStatoRipasso). Cancellare il concetto cancella la riga.
 --
--- Solo aggiunte: una tabella nuova con le policy delle altre tabelle per studentessa
--- (la ragazza legge e scrive le sue, il genitore legge).
+-- Solo aggiunte: una tabella nuova con le policy delle altre tabelle per profilo
+-- (chi studia legge e scrive le sue, il genitore legge).
 
 create table public.ripasso_stato (
   studente_id       uuid not null default auth.uid(),
@@ -22,7 +22,7 @@ create table public.ripasso_stato (
   primary key (concetto_id, studente_id),
   foreign key (concetto_id, studente_id) references public.concetti (id, studente_id) on delete cascade
 );
--- Il piano legge le righe della ragazza in ordine di scadenza.
+-- Il piano legge le righe di chi studia in ordine di scadenza.
 create index ripasso_stato_prossima on public.ripasso_stato (studente_id, prossima);
 
 alter table public.ripasso_stato enable row level security;
