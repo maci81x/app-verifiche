@@ -69,6 +69,8 @@ test("forme neutre: grep di pronta, sicura, brava, stanca non trova testi per l'
   const vietate = /pronta|sicura|brava|stanca/i;
   assert.doesNotMatch(testoHtml.replace(/<script[\s\S]*?<\/script>/g, ""), vietate);
   for (const f of JS) for (const s of stringheJs(leggi(f))) assert.doesNotMatch(s, vietate, f + ": " + s);
+  // niente asterischi al posto della desinenza («sicur*»): si gira la frase
+  for (const f of JS) for (const s of stringheJs(leggi(f))) assert.doesNotMatch(s, /[a-zà]\*(?=[\s.,;:!?]|$)/i, f + ": " + s);
 });
 
 test("service worker: cache alzata e stessa versione di index.html", () => {

@@ -63,6 +63,11 @@ test("il prompt delle domande cambia con livello, tipo e modalità come nel prot
   assert.match(scritta, /6 domande: tutte aperte/);
   assert.match(scritta, /verifica scritta/);
   assert.match(scritta, /non riproporle uguali[\s\S]*"Q1"/);
+  // opzioni sbagliate = confusioni vere (skill socratica): una risposta sbagliata dice quale idea va chiarita
+  assert.match(orale, /opzioni sbagliate[^.]*confusioni tipiche/);
+  const ripasso = promptDomande({ ...base, livello: "medio", tipo: "miste", modalita: "scritta", ripasso: true });
+  assert.doesNotMatch(ripasso, /[a-zà]\*/i); // niente «andat*»: frasi neutre
+  assert.match(ripasso, /ha avuto più difficoltà/);
 });
 
 test("verifica da stampare: il numero di domande si sceglie (10, 15, 20); senza scelta il prompt resta quello del prototipo", () => {

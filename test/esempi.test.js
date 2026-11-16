@@ -85,3 +85,7 @@ test("fine degli esempi con meno di quattro esempi: niente gradino che non c'è"
   assert.equal(run("fineEsempi([undefined, true, true], 3)"), "Hai fatto tutti gli esempi che avevo: 2 su 2 al primo colpo.");
   assert.equal(run("fineEsempi([undefined, true, true, true], 4)"), "L'ultimo l'hai fatto senza passi: 3 su 3 al primo colpo.");
 });
+
+test("esempio non ancora giusto: i passi si mostrano con cosa fare (confrontare), non solo «Ecco tutti i passi»", () => {
+  assert.match(run("MSG_ESEMPIO_NON_ANCORA"), /confronta/i);
+});

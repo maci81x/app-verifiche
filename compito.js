@@ -33,7 +33,7 @@ function htmlIndizi(c, mostrati, provo = false) {
 
 // La soluzione completa si sblocca dopo almeno 1 indizio e 1 risposta finale provata (anche sbagliata).
 // Lo stato sta nel compito, così si salva con lui e riaprendolo resta com'era.
-const MSG_BLOCCATA = "Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se non sei sicur*. Poi ti faccio vedere tutto.";
+const MSG_BLOCCATA = "Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se hai dei dubbi. Poi ti faccio vedere tutto.";
 // Senza indizi basta la risposta provata (altrimenti resterebbe bloccata per sempre).
 const soluzioneSbloccata = (c) => !!(c && c.sblocco && c.sblocco.risposta && (c.sblocco.indizio || !(c.indizi || []).length));
 const conSblocco = (c, cosa) => ({ ...c, sblocco: { ...(c.sblocco || {}), [cosa]: true } });
@@ -265,7 +265,7 @@ function segnaSblocco(cosa, quale = compito) {
 // «La tua risposta» sotto gli indizi: la giudica il calcolo del server (anche sbagliata, conta come tentativo).
 async function provaRisposta() {
   const risposta = $("cp-mia-risposta").value.trim(), out = $("cp-tentativo-esito");
-  if (!risposta) { out.innerHTML = "<p>Scrivi la tua risposta, anche se non sei sicur*.</p>"; return; }
+  if (!risposta) { out.innerHTML = "<p>Scrivi la tua risposta, anche se hai dei dubbi.</p>"; return; }
   if (!(compito.risultato && compito.risultato.valore)) { segnaSblocco("risposta"); out.innerHTML = "<p>Fatto. Adesso confrontala con la soluzione.</p>"; return; }
   const c = compito;
   try {

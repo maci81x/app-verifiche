@@ -458,3 +458,22 @@ test("risposta di riserva: l'indizio non porta il risultato nemmeno come frazion
   assert.match(r.risposta, /Porta tutto in dodicesimi/);
   assert.doesNotMatch(r.risposta, /5\/12/);
 });
+
+// ------------------------------------------------------------------ skill socratica: indizi e tutor
+test("indizi a scalini: il primo è una domanda senza conti, l'ultimo è quasi la soluzione ma si ferma prima del risultato", () => {
+  const p = promptCompito({ classe: "1", testo: TESTO_PAOLO });
+  assert.match(p, /il primo indizio è una domanda[^;]*niente conti/i);
+  assert.match(p, /l'ultimo indizio[^;]*quasi la soluzione[^;]*fermati prima del risultato/i);
+  assert.match(p, /errore tipico[^;]*domanda/i);
+});
+
+test("tutor: con la soluzione bloccata risponde con una domanda o un indizio e chiude con cosa provare adesso", () => {
+  const bloccata = promptCompitoDomanda({ classe: "2", compito: PAOLO, cronologia: [], domanda: "Quanto fa?", bloccata: true });
+  assert.match(bloccata, /domanda o un indizio sul passo che serve/);
+  assert.match(bloccata, /cosa provare adesso/);
+  const aperta = promptCompitoDomanda({ classe: "2", compito: PAOLO, cronologia: [], domanda: "Perché 18?", bloccata: false });
+  // l'errore nella domanda si riconosce e si chiama per nome; al massimo una domanda: la sera si è stanchi
+  assert.match(aperta, /conto o un ragionamento sbagliato[^.]*errore tipico/);
+  assert.match(aperta, /al massimo una domanda/i);
+  assert.match(aperta, /prossimo passo/);
+});
