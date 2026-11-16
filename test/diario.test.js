@@ -215,3 +215,112 @@ test("aggiungiTesto: argomento esistente con i punti nuovi, argomento nato adess
   assert.equal((await run('aggiungiTesto(__a, "3/4 + 1/2", 1, () => {})')).length, 0);
   assert.equal(ctx.__chiamate.length, 2); // nessuna chiamata al modello per gli esercizi
 });
+
+/* ---------------------------------------------------------------- revisione #19 */
+
+test("foto illeggibile: la riga lo dice", () => {
+  run("argomenti = []");
+  const ill = run("GRUPPO_ILLEGGIBILE");
+  for (const t of [ill, "", "   "]) {
+    assert.deepEqual(json(`rigaFoto({ materia: "", argomento_id: null, nuovo_titolo: null }, ${JSON.stringify(t)})`),
+      { materia: "", testo: "Non riesco a leggere questa foto: rifotografala o scegli tu dove va" });
+  }
+  assert.equal(json('rigaFoto({ materia: "", argomento_id: null, nuovo_titolo: null }, "Diario: compiti")').testo, "Solo diario: qui non c'è niente da studiare");
+});
+
+test("stessa scadenza già segnata: materia senza maiuscole, tipo e data uguali", () => {
+  const lista = '[{ id: "x", materia: "Matematica", tipo: "scritta", data: "2026-11-19" }]';
+  assert.equal(run(`giaSegnata({ materia: " matematica ", tipo: "scritta", data: "2026-11-19" }, ${lista})`), true);
+  assert.equal(run(`giaSegnata({ materia: "matematica", tipo: "orale", data: "2026-11-19" }, ${lista})`), false);
+  assert.equal(run(`giaSegnata({ materia: "matematica", tipo: "scritta", data: "2026-11-20" }, ${lista})`), false);
+  run(`diario = { pronto: true, scadenze: ${lista}, giorni: [], messaggio: "" }`);
+  const h = run('htmlDataLetta({ materia: "matematica", tipo: "scritta", data: "2026-11-19", testo_letto: "Verifica di matematica giovedì 19" }, 0)');
+  assert.match(h, /Già segnata/);
+  assert.doesNotMatch(h, /Sì, segnala/);
+});
+
+test("salvaScadenza: una già segnata non si scrive di nuovo", async () => {
+  const f = finto(() => ({ data: null, error: null }));
+  usa(f);
+  run('diario = { pronto: true, scadenze: [{ id: "x", materia: "Matematica", tipo: "scritta", data: "2026-11-19", fonte: "diario" }], giorni: [], messaggio: "" }');
+  await run('salvaScadenza({ materia: "matematica", tipo: "scritta", data: "2026-11-19" }, "manuale", "2026-11-16")');
+  assert.equal(f.chiamate.length, 0);
+  assert.equal(run("diario.scadenze.length"), 1);
+});
+
+test("salvaScadenza: il doppione rifiutato dal database (indice unico) non è un errore", async () => {
+  usa(finto(() => ({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } })));
+  run('diario = { pronto: true, scadenze: [], giorni: [], messaggio: "" }');
+  assert.equal(await run('salvaScadenza({ materia: "Storia", tipo: "orale", data: "2026-11-20" }, "diario", "2026-11-16")'), null);
+});
+
+test("aggiungiTesto ripetuto dopo un errore: il testo non si aggiunge due volte", async () => {
+  const f = finto(() => ({ data: null, error: null }));
+  usa(f);
+  ctx.__chiamate = [];
+  run(`modello = async (c) => { __chiamate.push(JSON.parse(JSON.stringify(c))); return { concetti: [] }; }`);
+  ctx.__a = run(`({ id: "a2", materia: "Scienze", titolo: "Il cuore", trascrizione: "Il cuore ha quattro cavità", concetti: [] })`);
+  await run('aggiungiTesto(__a, "Il cuore ha quattro cavità", 1, () => {})');
+  assert.equal(ctx.__a.trascrizione, "Il cuore ha quattro cavità");
+  assert.equal(f.chiamate.filter((q) => q.tabella === "argomenti").length, 0);
+  assert.deepEqual(ctx.__chiamate[0], { azione: "concetti", materia: "Scienze", titolo: "Il cuore", testo: "Il cuore ha quattro cavità", pagine: 1 });
+});
+
+// mettiVia: foto una per una, argomenti nuovi creati una volta sola, testo una volta sola.
+function preparaMettiVia({ fallisceFoto = new Set(), fallisceTesto = false } = {}) {
+  const f = finto((q) => (q.tabella === "argomenti" ? { data: { id: "nuovo-" + f.chiamate.length, ...verbo(q, "insert")[1] }, error: null } : { data: null, error: null }));
+  usa(f);
+  ctx.__foto = []; ctx.__testi = []; ctx.__falliscono = fallisceFoto; ctx.__testoKo = { v: fallisceTesto };
+  run(`argomenti = ${JSON.stringify(ARG.map((a) => ({ ...a, concetti: [] })))};
+    conservaFoto = async (a, blobs) => { __foto.push(blobs[0]); return __falliscono.has(blobs[0]) ? [] : ["p"]; };
+    aggiungiTesto = async (a, testo) => { if (__testoKo.v) throw new Error("rete"); __testi.push([a.id, testo]); return [{}]; };
+    segnaGiorno = async () => true;
+    smistate = { blobs: ["b0", "b1", "b2"], testi: ["storia", "cuore", "diario"], righe: [
+      { materia: "Storia", argomento_id: "${ARG[0].id}", nuovo_titolo: null },
+      { materia: "Scienze", argomento_id: null, nuovo_titolo: "Il cuore" },
+      { materia: "", argomento_id: null, nuovo_titolo: null } ], scadenze: [] };`);
+  return f;
+}
+
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
+test("mettiVia: una foto non salvata fa fallire il gruppo; al nuovo tentativo solo quella, niente doppioni", async () => {
+  const f = preparaMettiVia({ fallisceFoto: new Set(["b1"]) });
+  const e1 = plain(await run("mettiVia(() => {})"));
+  assert.deepEqual(e1, { salvate: 1, nuoviArgomenti: 1, punti: 1, fotoFallite: 1, testoFallito: 0, gruppiFalliti: 0 });
+  assert.deepEqual(plain(ctx.__foto), ["b0", "b1"]);
+  assert.deepEqual(plain(ctx.__testi), [[ARG[0].id, "storia"]]); // il cuore aspetta la sua foto
+  assert.match(run("messaggioMessaVia(" + JSON.stringify(e1) + ")"), /1 foto non è stata salvata/);
+  // Nuovo tentativo: solo la foto mancante, sullo stesso argomento nuovo; storia non si ripete.
+  ctx.__falliscono = new Set();
+  const e2 = plain(await run("mettiVia(() => {})"));
+  assert.equal(e2.fotoFallite, 0);
+  assert.equal(e2.nuoviArgomenti, 0);
+  assert.deepEqual(plain(ctx.__foto), ["b0", "b1", "b1"]);
+  assert.equal(f.chiamate.filter((q) => q.tabella === "argomenti").length, 1);
+  const testi = plain(ctx.__testi);
+  assert.equal(testi.length, 2);
+  assert.equal(testi[1][1], "cuore");
+  assert.match(testi[1][0], /^nuovo-/);
+});
+
+test("mettiVia: foto salvate ma testo no; al nuovo tentativo solo il testo", async () => {
+  preparaMettiVia({ fallisceTesto: true });
+  const e1 = plain(await run("mettiVia(() => {})"));
+  assert.equal(e1.fotoFallite, 0);
+  assert.equal(e1.testoFallito, 2);
+  assert.match(run("messaggioMessaVia(" + JSON.stringify(e1) + ")"), /Non ricaricare le foto/);
+  ctx.__testoKo.v = false;
+  const e2 = plain(await run("mettiVia(() => {})"));
+  assert.equal(plain(ctx.__foto).length, 2); // le foto non si rimettono via
+  assert.equal(e2.testoFallito, 0);
+  assert.equal(plain(ctx.__testi).length, 2);
+});
+
+test("messaggio della messa via: dice cosa è andato storto e cosa fare", () => {
+  assert.match(run('messaggioMessaVia({ salvate: 1, nuoviArgomenti: 0, punti: 0, fotoFallite: 1, testoFallito: 0, gruppiFalliti: 0 })'), /1 foto non è stata salvata.*Riprova/);
+  assert.match(run('messaggioMessaVia({ salvate: 0, nuoviArgomenti: 0, punti: 0, fotoFallite: 0, testoFallito: 0, gruppiFalliti: 1 })'), /Riprova/);
+  assert.equal(run('messaggioMessaVia({ salvate: 2, nuoviArgomenti: 1, punti: 3, fotoFallite: 0, testoFallito: 0, gruppiFalliti: 0 })'),
+    "Foto messe via, 1 argomento nuovo, 3 punti nuovi da studiare.");
+  assert.equal(run('messaggioMessaVia({ salvate: 0, nuoviArgomenti: 0, punti: 0, fotoFallite: 0, testoFallito: 0, gruppiFalliti: 0 })'), "Fatto: oggi solo diario.");
+});

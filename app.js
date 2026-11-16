@@ -1043,11 +1043,15 @@ async function aggiungiFoto(nuove) {
 // Testo nuovo di un argomento: si aggiunge alla trascrizione e se ne ricavano i punti nuovi (tutti,
 // se l'argomento non aveva ancora testo). Lo usano «aggiungi foto» e il diario di ogni giorno (#19).
 // Negli argomenti di esercizi si salva solo il testo: i tipi nuovi si confermano dalla scheda.
+// Ripetuta dopo un errore (il testo è già in fondo alla trascrizione) non lo aggiunge due volte.
 async function aggiungiTesto(a, testo, pagine, onPasso) {
-  const primo = !String(a.trascrizione || "").trim();
-  a.trascrizione = ((a.trascrizione || "") + "\n\n" + testo).trim();
-  const { error: e1 } = await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
-  if (e1) throw e1;
+  const prima = String(a.trascrizione || ""), gia = !!testo && prima.endsWith(testo);
+  const primo = !(gia ? prima.slice(0, -testo.length) : prima).trim();
+  if (!gia) {
+    a.trascrizione = (prima + "\n\n" + testo).trim();
+    const { error: e1 } = await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
+    if (e1) { a.trascrizione = prima; throw e1; }
+  }
   if (conEsercizi(a)) return [];
   onPasso(primo ? "Separo i punti uno per uno" : "Cerco i punti nuovi");
   const r = await modello(primo ? { azione: "concetti", materia: a.materia, titolo: a.titolo, testo, pagine }
