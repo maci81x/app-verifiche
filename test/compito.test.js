@@ -638,7 +638,6 @@ test("revisione avversaria: numeri inventati, dati ignorati o riusati scartati; 
   const caso = (testo, valore, controlli, materia = "matematica") => controllaCompito({ ...gemelloDa(testo, [valore + " × 1 = " + valore], valore, "", controlli), materia });
   for (const [nome, testo, valore, controlli, materia] of [
     ["W1 dato riusato messo per primo", LH, "60", ["2 + 2 + 60 : 3 = 24"]],
-    ["W9 ignora il «più 2»", LH, "72", ["24 × 3 = 72"]],
     ["W2 numero inventato", LH, "60", ["24 × 2 + 12 = 60"]],
     ["W3 numero inventato", LH, "60", ["24 + 2 + 34 = 60"]],
     ["W11 150 tre volte", T, "750", ["150 + 150 + 150 + 300 = 750"]],
@@ -669,4 +668,45 @@ test("gemelli: un testo con una correzione a metà («... no: …») si scarta e
   const h = copia(GIULIA); h.testo = g.testo.replace("... no:", "… anzi,");
   assert.equal(motivoGemello(h, PAOLO), "forma");
   assert.equal(motivoGemello(GIULIA, PAOLO), null);
+});
+
+test("dati: la verifica usa i dati che usa la soluzione; i dati superflui del testo no", () => {
+  const T = "Nel 2024 una scuola ha 3 classi di prima con 22, 24 e 23 alunni. Quanti alunni ci sono in prima?";
+  const c = (passi, controlli) => controllaCompito(gemelloDa(T, passi, "69", "", controlli));
+  assert.deepEqual(c(["22 + 24 + 23 = 69"], ["69 - 22 - 24 = 23"]), { ok: true });          // il 2024 non serve
+  // La soluzione usa 22, 24 e 23: una verifica che ne ignora uno si scarta.
+  const L = "Luca regala 1/3 delle figurine più 2. Gli restano 24 figurine. Quante ne aveva?";
+  assert.equal(controllaCompito(gemelloDa(L, ["24 + 2 = 26", "26 : 2 × 3 = 39"], "39", "", ["39 : 3 = 13", "39 - 13 = 26"])).motivo, "verifica");
+});
+
+// Seconda revisione avversaria (17 novembre 2026): H scritto con «in più» resta scartato; dati superflui, numeri a parole,
+// perimetri, «più di», medie, percentuali e «ricomporre il totale» non si scartano.
+test("seconda revisione: H con «in più» scartato; verifiche giuste dei libri accettate", () => {
+  const caso = (testo, valore, controlli, materia = "matematica") => controllaCompito({ ...gemelloDa(testo, [valore + " × 1 = " + valore], valore, "", controlli), materia });
+  const LP = "Luca regala 1/3 delle figurine e 2 in più. Gli restano 24 figurine. Quante ne aveva?";
+  assert.equal(caso(LP, "60", ["60 : 3 + 2 = 22", "22 + 2 = 24"]).motivo, "verifica", "H con «in più»");
+  assert.equal(caso(LP, "60", ["60 : 3 + 2 = 22", "24 - 2 = 22"]).motivo, "verifica", "H con «in più», al contrario");
+  assert.deepEqual(caso(LP, "39", ["39 : 3 + 2 = 15", "39 - 15 = 24"]), { ok: true }, "H giusto con «in più»");
+  for (const [nome, testo, valore, controlli, materia] of [
+    ["G1 l'anno è superfluo", "Nel 2024 una scuola ha 3 classi di prima con 22, 24 e 23 alunni. Quanti alunni ci sono in prima?", "69", ["22 + 24 + 23 = 69"]],
+    ["G2 la classe è superflua", "Gli alunni della 2ª B raccolgono tappi: 45 il lunedì e 38 il martedì. Quanti tappi in tutto?", "83", ["45 + 38 = 83"]],
+    ["G25 l'ora di partenza è superflua", "Un treno parte alle 8 e viaggia per 3 ore a 120 km all'ora. Quanti km percorre?", "360", ["120 × 3 = 360"]],
+    ["G3 tre amici", "Tre amici si dividono 24 euro in parti uguali. Quanto riceve ciascuno?", "8", ["8 × 3 = 24"]],
+    ["G3b otto più otto più otto", "Tre amici si dividono 24 euro in parti uguali. Quanto riceve ciascuno?", "8", ["8 + 8 + 8 = 24"]],
+    ["G29 due dozzine", "Compro 2 dozzine di uova e se ne rompono 5. Quante uova restano?", "19", ["19 + 5 = 24", "24 : 12 = 2"]],
+    ["G10b perimetro in avanti", "Un rettangolo ha la base di 12 cm e l'altezza di 5 cm. Calcola il perimetro.", "34", ["34 : 2 = 17", "17 - 12 = 5"], "geometria"],
+    ["G10c perimetro in matematica", "Un rettangolo ha la base di 12 cm e l'altezza di 5 cm. Calcola il perimetro.", "34", ["(12 + 5) × 2 = 34"]],
+    ["G26 più di", "Paolo ha 12 € e Gino ha 5 € più di Paolo. Quanti euro hanno in tutto?", "29", ["12 + 5 = 17", "12 + 17 = 29"]],
+    ["G27 più di, al contrario", "Paolo ha 12 € e Gino ha 5 € più di Paolo. Quanti euro hanno in tutto?", "29", ["29 - 12 = 17", "17 - 12 = 5"]],
+    ["G4c media", "I voti di Anna sono 5, 8, 9 e 6. Qual è la media?", "7", ["5 + 8 + 9 + 6 = 28", "28 : 4 = 7"]],
+    ["G15 ricomporre: la metà", "Paolo ha 36 biglie e ne regala la metà a Gianni e 5 a Carlo. Quante gliene restano?", "13", ["36 : 2 = 18", "18 + 5 + 13 = 36"]],
+    ["G16 ricomporre: la terza parte", "Un nastro di 90 cm viene diviso: la terza parte va a Ugo, il resto a Ida. Quanti cm a Ida?", "60", ["90 : 3 = 30", "30 + 60 = 90"]],
+    ["G30 ricomporre: 3/8", "In una classe di 24 alunni, i 3/8 sono maschi. Quante sono le femmine?", "15", ["24 : 8 × 3 = 9", "9 + 15 = 24"]],
+    ["G11 sconto di 1/4", "Una bici costa 240 € e ha uno sconto di 1/4. Quanto si paga?", "180", ["180 + 60 = 240"]],
+    ["G13 percentuale", "In una classe di 25 alunni il 40% sono maschi. Quante sono le femmine?", "15", ["25 × 40 : 100 = 10", "10 + 15 = 25"]],
+    ["G6c resto con i decimali", "Compri 3 quaderni da 1,50 € e paghi con 10 €. Quanto ricevi di resto?", "5,50", ["5,50 + 4,50 = 10", "1,50 × 3 = 4,50"]],
+  ]) assert.deepEqual(caso(testo, valore, controlli, materia), { ok: true }, nome);
+  // Ricomporre con un numero inventato o arrivando a un numero che non è un dato: scartato.
+  assert.equal(caso("Paolo ha 36 biglie e ne regala la metà a Gianni e 5 a Carlo. Quante gliene restano?", "14", ["36 : 2 = 18", "18 + 5 + 14 = 37"]).motivo, "verifica");
+  assert.equal(caso("Paolo ha 36 biglie e ne regala la metà a Gianni e 5 a Carlo. Quante gliene restano?", "14", ["17 + 5 + 14 = 36"]).motivo, "verifica");
 });
