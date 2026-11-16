@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 <div class="wrap">
@@ -107,6 +107,9 @@
   </div>
   <h1 id="ciao">Ciao.</h1>
   <p class="sotto" id="frase-oggi"></p>
+  <p class="link-riga"><button type="button" class="link" id="link-settimana" hidden>Guarda la settimana</button></p>
+  <section class="piano" id="piano-oggi" aria-label="Il piano di oggi" hidden></section>
+  <div class="numeri-oggi" id="numeri-oggi" hidden></div>
   <section class="primo" id="da-ripassare" aria-label="Io farei questo" hidden></section>
   <div id="diario-oggi"></div>
   <p class="link-riga"><button type="button" class="link" id="link-compito">Hai un compito difficile? Fotografalo</button></p>
@@ -117,7 +120,17 @@
   <div id="avviso-db"></div>
   <p class="occhiello" id="occhiello-lib" hidden>I tuoi argomenti</p>
   <div id="lista-argomenti"></div>
+  <div class="bottoni"><button type="button" class="minore" id="btn-altri-appunti">Fotografa altri appunti</button></div>
   <div id="stato-lib"></div>
+</section>
+
+<!-- ============ SETTIMANA (issue #20) ============ -->
+<section id="v-settimana" hidden>
+  <ol class="set-giorni" id="set-giorni" aria-label="I prossimi sette giorni"></ol>
+  <p class="occhiello">In arrivo</p>
+  <p class="sotto" id="set-vuoto" hidden></p>
+  <div id="set-arrivo"></div>
+  <section class="piano" id="set-piano" aria-label="Il piano di oggi" hidden></section>
 </section>
 
 <!-- ============ ARGOMENTI (elenco completo) ============ -->
@@ -690,25 +703,26 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=25"></script>
-<script src="app.js?v=25"></script>
-<script src="libreria.js?v=25"></script>
-<script src="stampa.js?v=25"></script>
-<script src="aiuto.js?v=25"></script>
-<script src="mappa-card.js?v=25"></script>
-<script src="figure.js?v=25"></script>
-<script src="formule.js?v=25"></script>
-<script src="esercizi.js?v=25"></script>
-<script src="prova-esercizi.js?v=25"></script>
-<script src="compito.js?v=25"></script>
-<script src="classe-app.js?v=25"></script>
-<script src="poesia.js?v=25"></script>
-<script src="invalsi.js?v=25"></script>
-<script src="esempi.js?v=25"></script>
-<script src="esame.js?v=25"></script>
-<script src="italia-mappa.js?v=25"></script>
-<script src="geografia.js?v=25"></script>
-<script src="lezione.js?v=25"></script>
-<script src="diario.js?v=25"></script>
+<script src="semaforo.js?v=26"></script>
+<script src="app.js?v=26"></script>
+<script src="libreria.js?v=26"></script>
+<script src="stampa.js?v=26"></script>
+<script src="aiuto.js?v=26"></script>
+<script src="mappa-card.js?v=26"></script>
+<script src="figure.js?v=26"></script>
+<script src="formule.js?v=26"></script>
+<script src="esercizi.js?v=26"></script>
+<script src="prova-esercizi.js?v=26"></script>
+<script src="compito.js?v=26"></script>
+<script src="classe-app.js?v=26"></script>
+<script src="poesia.js?v=26"></script>
+<script src="invalsi.js?v=26"></script>
+<script src="esempi.js?v=26"></script>
+<script src="esame.js?v=26"></script>
+<script src="italia-mappa.js?v=26"></script>
+<script src="geografia.js?v=26"></script>
+<script src="lezione.js?v=26"></script>
+<script src="diario.js?v=26"></script>
+<script src="piano.js?v=26"></script>
 </body>
 </html>

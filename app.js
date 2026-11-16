@@ -361,9 +361,9 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], lezione: ["Spiegamelo a schede", 0], diario: ["Il diario di oggi", 0], smistato: ["Il diario di oggi", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], lezione: ["Spiegamelo a schede", 0], diario: ["Il diario di oggi", 0], smistato: ["Il diario di oggi", 0], settimana: ["Settimana", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
-const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
+const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito", "settimana"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
 const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", lezione: "scheda", smistato: "diario" };
 function vai(v, materia, titolo) {
@@ -740,6 +740,7 @@ async function caricaLibreria() {
       "concetti(id, titolo, descrizione, ancora, peso, stato, media, tentativi, ordine, errore_appunti), " +
       "fonti(id, tipo, storage_path, riferimento_pagina)").order("aggiornato", { ascending: false }).limit(300),
     sb.from("sessioni").select("*").order("data", { ascending: false }).limit(500),
+    typeof leggiPiano === "function" ? leggiPiano() : null, // piano.js: scadenze e ripasso (issue #20), mai un errore
   ]);
   attesa($("stato-lib"), null);
   libreriaCaricata = !(a.error || s.error);
@@ -1999,6 +2000,9 @@ async function salvaProva(es, per) {
     c.media = Math.round(x.media * 10) / 10; c.stato = x.stato; c.tentativi = (c.tentativi || 0) + 1;
     return sb.from("concetti").update({ media: c.media, stato: c.stato, tentativi: c.tentativi }).eq("id", c.id);
   }));
+  // piano.js (issue #20): quando ripassare ogni punto. Se la tabella non c'è ancora, la prova resta salvata.
+  if (typeof aggiornaStatoRipasso === "function")
+    await aggiornaStatoRipasso(es.concetti.filter((x) => concettoDi[x.concetto_id]), sicurezzePerConcetto(domande, risposte, per));
   await caricaLibreria();
 }
 
@@ -2067,6 +2071,7 @@ function collega() {
   $("btn-nuovo").addEventListener("click", () => apriFoglio("menu-foto"));
   collegaCompito();
   collegaFoto();
+  if (typeof collegaPiano === "function") collegaPiano();
 }
 
 // Nuovo materiale da fotografare (gli appunti): il flusso di sempre.

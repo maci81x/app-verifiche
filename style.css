@@ -895,6 +895,37 @@ details.sezione[open]{padding-bottom:16px}
 .lz-video .aiuto{margin:0}
 .check-video{flex-basis:100%;display:flex;align-items:center;gap:10px;min-height:44px;font-size:.95rem;cursor:pointer}
 .check-video input{width:22px;height:22px;margin:0;accent-color:var(--inchiostro)}
+/* Oggi e Settimana (issue #20): la card scura del piano, i tre numeri, i sette giorni. */
+.parola-scadenza{background:linear-gradient(transparent 62%,color-mix(in srgb,var(--tinta) 40%,transparent) 62%);padding:0 .06em}
+.piano{margin-top:18px;background:#1A1A1E;color:#F2F2EE;border-radius:24px;padding:20px 18px 18px}
+.piano-titolo{margin:0 0 10px;font-size:1.45rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:#F2F2EE}
+.piano-punti{list-style:none;margin:0;padding:0}
+.piano-punti li{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid #34343B}
+.piano-punti li:first-child{border-top:0}
+.piano-punti .sem{flex:none;min-width:30px;justify-content:center;padding:3px 8px}
+.piano-tit{display:flex;flex-direction:column;gap:2px;font-weight:700;line-height:1.3}
+.piano-tit small{font-weight:400;font-size:.92rem;color:#C9CCD2}
+button.piano-parti{display:block;width:100%;margin-top:14px;background:var(--evidenziatore);color:#1A1A1E;border:0;border-radius:999px;min-height:52px;padding:14px 22px;font:700 1.08rem var(--testo);cursor:pointer}
+button.piano-parti:focus-visible{outline:3px solid #F2F2EE;outline-offset:3px}
+.numeri-oggi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}
+.numeri-oggi div{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--bordo);padding-top:10px}
+.numeri-oggi b{font-size:1.8rem;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.numeri-oggi span{font-size:.9rem;color:var(--inchiostro-2);line-height:1.25}
+.set-giorni{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.set-giorni .giorno{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:76px;padding:8px 0;border:2px solid transparent;border-radius:14px;font-size:.85rem;color:var(--inchiostro-2)}
+.set-giorni .giorno b{font-size:1.25rem;font-weight:800;color:var(--inchiostro)}
+.set-giorni .giorno small{font-weight:800;font-size:.72rem;color:var(--inchiostro);letter-spacing:.02em}
+.set-giorni .giorno[aria-current]{background:var(--superficie)}
+.set-giorni .giorno.con-verifica{border-color:var(--tinta)}
+.card-scadenza{display:flex;flex-direction:column;gap:4px;border-bottom:1px solid var(--bordo);padding:14px 0 14px 16px;position:relative}
+.card-scadenza::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:4px;border-radius:4px;background:var(--tinta)}
+.card-scadenza .occhiello{margin:0;font-size:.92rem;color:var(--inchiostro-2)}
+.card-scadenza b{font-size:1.12rem;font-weight:800}
+.card-scadenza small{font-size:.92rem;color:var(--inchiostro-2)}
+.barra-pronto{display:block;height:10px;border-radius:999px;background:var(--grigio-bg);overflow:hidden;margin:6px 0 2px}
+.barra-pronto i{display:block;height:100%;background:var(--verde)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .piano{background:#0B0B0E;border:1px solid var(--bordo)}}
+:root[data-theme="dark"] .piano{background:#0B0B0E;border:1px solid var(--bordo)}
 /* Il diario di ogni giorno (issue #19) */
 .miniature.griglia{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .miniature.griglia img{width:100%;height:auto;aspect-ratio:1}

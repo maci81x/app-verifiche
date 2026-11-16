@@ -217,14 +217,16 @@ function cardArgomento(a) {
   return b;
 }
 
-// Oggi (issue #26): saluto, una frase vera, la card consigliata e gli argomenti. Niente altro.
+// Oggi (issue #26, #20): saluto, una frase vera, il piano del giorno (o la card consigliata) e gli argomenti.
 function disegnaLibreria() {
   const lista = $("lista-argomenti");
   const tot = riepilogoStati(argomenti);
   if (profilo && libreriaCaricata) salvaLocale(chiaveRipassare(profilo.id), tot.rosso);
   $("ciao").textContent = profilo ? "Ciao " + profilo.nome + "." : "Ciao.";
   $("frase-oggi").textContent = fraseOggi(argomenti);
-  disegnaPrimo(daRipassarePrima(argomenti));
+  // piano.js (issue #20): con dei punti, il piano del giorno prende il posto di «Io farei questo».
+  const conPiano = typeof disegnaPianoOggi === "function" && disegnaPianoOggi();
+  disegnaPrimo(conPiano ? null : daRipassarePrima(argomenti));
   if (typeof disegnaRipassoOggi === "function") disegnaRipassoOggi(); // compito.js: ripasso 1-3-7 e allenamento di ieri
   if (typeof disegnaInvalsiOggi === "function") disegnaInvalsiOggi(); // invalsi.js: solo per la terza
   if (typeof disegnaEsameOggi === "function") disegnaEsameOggi(); // esame.js: solo per la terza
