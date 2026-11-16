@@ -86,6 +86,11 @@ export const MAX_MATERIALE = 120_000;
 // all'altra (il materiale, l'esercizio già spiegato) e la funzione modello lo legge dalla cache; il segno
 // non arriva mai al modello.
 export const FINE_PARTE_FISSA = "\n\n§FINE_PARTE_FISSA§\n\n";
+// Solo il primo segno conta: un testo di chi studia che lo contenesse per caso non tronca il prompt.
+export function dividiPerCache(prompt) {
+  const i = prompt.indexOf(FINE_PARTE_FISSA);
+  return i < 0 ? { fisso: prompt, resto: null } : { fisso: prompt.slice(0, i), resto: prompt.slice(i + FINE_PARTE_FISSA.length) };
+}
 
 // Verifica da stampare (ticket #3, 30 ottobre 2026): il numero di domande si sceglie.
 // Le miste tengono la proporzione chiuse/aperte del livello, riscalata al numero scelto.

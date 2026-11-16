@@ -114,7 +114,7 @@ import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
 import { modelloPer, costoUsd, tettoRaggiunto, consumoAggiornato, TETTO_CHIAMATE } from "../_shared/modelli.js";
-import { FINE_PARTE_FISSA } from "../_shared/prompt.js";
+import { dividiPerCache } from "../_shared/prompt.js";
 import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
 // Contesto di una richiesta (AsyncLocalStorage: le richieste in parallelo non si mescolano): quale azione,
@@ -538,7 +538,8 @@ async function prenotaAiuto(sub: string): Promise<boolean> {
   const am = data.user.app_metadata ?? {};
   const { permesso, aiuti } = contaAiuti(am, giornoRoma());
   if (!permesso) return false;
-  const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+  // Solo la chiave aiuti: il server unisce le chiavi di app_metadata, così non si cancella il consumo scritto nel frattempo.
+  const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { aiuti } });
   if (e2) throw e2;
   return true;
 }
@@ -548,7 +549,7 @@ async function restituisciAiuto(sub: string) {
     const { data } = await db.auth.admin.getUserById(sub);
     const am = data?.user?.app_metadata ?? {};
     const aiuti = rimborsoAiuti(am, giornoRoma());
-    if (aiuti) await db.auth.admin.updateUserById(sub, { app_metadata: { ...am, aiuti } });
+    if (aiuti) await db.auth.admin.updateUserById(sub, { app_metadata: { aiuti } });
   } catch (e) { console.error("restituzione aiuto:", e); }
 }
 
@@ -565,8 +566,8 @@ async function chiedi(prompt: string, schema: { type: "object" }, immagini: stri
     const model = modelloDellaRichiesta();
     // Prompt caching: la parte prima di FINE_PARTE_FISSA (il materiale, l'esercizio già spiegato) è uguale da
     // una chiamata all'altra e si legge dalla cache per 5 minuti; il resto (domanda, risposta) cambia.
-    const [fisso, resto] = prompt.split(FINE_PARTE_FISSA);
-    const testi = resto === undefined ? [{ type: "text" as const, text: fisso }]
+    const { fisso, resto } = dividiPerCache(prompt);
+    const testi = resto === null ? [{ type: "text" as const, text: fisso }]
       : [{ type: "text" as const, text: fisso, cache_control: { type: "ephemeral" as const } }, { type: "text" as const, text: resto }];
     const r = await client.messages.parse({
       model,
@@ -1197,7 +1198,7 @@ Deno.serve(async (req) => {
     try {
       const { data: fresco } = await db.auth.admin.getUserById(io.sub!);
       const m = fresco?.user?.app_metadata ?? {};
-      await db.auth.admin.updateUserById(io.sub!, { app_metadata: { ...m, consumo: consumoAggiornato(m, giornoRoma(), c) } });
+      await db.auth.admin.updateUserById(io.sub!, { app_metadata: { consumo: consumoAggiornato(m, giornoRoma(), c) } }); // solo la sua chiave
     } catch (e) { console.error("consumo:", e); }
   })();
   if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(salva); else await salva;

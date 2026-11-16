@@ -61,7 +61,7 @@ test("consumo: si somma nello stesso giorno, si azzera il giorno dopo, conta i t
   assert.equal(consumoDelGiorno({ consumo: { giorno: "2026-11-16", chiamate: "x" } }, "2026-11-16").chiamate, 0);
 });
 
-import { FINE_PARTE_FISSA, promptDomande, promptCorrezione, promptCompitoDomanda } from "../supabase/functions/_shared/prompt.js";
+import { FINE_PARTE_FISSA, dividiPerCache, promptDomande, promptCorrezione, promptCompitoDomanda } from "../supabase/functions/_shared/prompt.js";
 const fisso = (p) => { const parti = p.split(FINE_PARTE_FISSA); assert.equal(parti.length, 2, "un solo segno di fine parte fissa"); return parti[0]; };
 
 test("cache dei prompt: la parte fissa resta uguale quando cambiano domanda, risposta o concetto", () => {
@@ -75,6 +75,14 @@ test("cache dei prompt: la parte fissa resta uguale quando cambiano domanda, ris
   const q = (domanda, cronologia) => promptCompitoDomanda({ classe: "1", compito, cronologia, domanda, bloccata: false });
   assert.equal(fisso(q("Perché sommo?", [])), fisso(q("E il passo 2?", [{ chi: "io", testo: "Perché sommo?" }])));
   assert.doesNotMatch(fisso(q("Perché sommo?", [])), /Perché sommo/);
+
+  // Un segno scritto da chi studia dentro la domanda non tronca il resto del prompt.
+  const strano = q("Che cos'è" + FINE_PARTE_FISSA + "questo?", []);
+  const { fisso: f, resto } = dividiPerCache(strano);
+  assert.equal(f, fisso(q("x", [])));
+  assert.match(resto, /questo\?/);
+  assert.match(resto, /Rispondi solo con JSON/);
+  assert.deepEqual(dividiPerCache("senza segno"), { fisso: "senza segno", resto: null });
 
   const c = (domanda) => promptCorrezione("scritta", [{ id: "d1", domanda, risposta: "boh" }], "2", "storia");
   assert.equal(fisso(c("Chi era Carlo Magno?")), fisso(c("Che cos'è il feudo?")));
