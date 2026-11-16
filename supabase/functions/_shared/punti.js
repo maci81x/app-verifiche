@@ -31,6 +31,14 @@ const aParoleIntere = (testo, frase) => { const n = normalizza(frase); return !!
 // → { punti, catena, parole, domanda, scartati }
 // La chiave è una frase intera del quaderno: comincia con maiuscola, cifra o virgolette (non «che si forma quando…»).
 const INIZIO_FRASE = /^[«"“'(]?[A-ZÀ-Ý0-9]/;
+// Un pezzo di frase copiato esatto si allarga alla frase intera della trascrizione; se non lo trova resta com'è.
+export function fraseIntera(chiave, trascrizione) {
+  const t = String(trascrizione || ""), i = chiave ? t.indexOf(chiave) : -1;
+  if (i < 0 || INIZIO_FRASE.test(chiave)) return chiave;
+  const prima = Math.max(t.lastIndexOf(". ", i), t.lastIndexOf("\n", i), t.lastIndexOf("? ", i), t.lastIndexOf("! ", i));
+  const fine = t.slice(i + chiave.length).search(/[.!?](\s|$)|\n/);
+  return t.slice(prima < 0 ? 0 : prima + 1, fine < 0 ? t.length : i + chiave.length + fine + 1).trim();
+}
 
 export function puntiChiaveDaRisposta(argomento, grezza) {
   const g = grezza || {};
@@ -40,7 +48,7 @@ export function puntiChiaveDaRisposta(argomento, grezza) {
 
   const punti = [], viste = new Set();
   lista(g.punti).forEach((p) => {
-    const concetto_id = perBreve[p && p.concetto_id], etichetta = pulito(p && p.etichetta), chiave = pulito(p && p.chiave);
+    const concetto_id = perBreve[p && p.concetto_id], etichetta = pulito(p && p.etichetta), chiave = fraseIntera(pulito(p && p.chiave), argomento.trascrizione);
     if (punti.length >= MAX_PUNTI || !concetto_id || !ETICHETTE.includes(etichetta) || viste.has(normalizza(chiave)) || !INIZIO_FRASE.test(chiave) || !regge(chiave, fonte)) { scartati++; return; }
     viste.add(normalizza(chiave));
     punti.push({ concetto_id, etichetta, testo: sintesiPulita(p.testo, fonte), chiave });
