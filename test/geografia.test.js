@@ -63,8 +63,8 @@ test("la card del quiz in Oggi solo per la 1ª", () => {
   assert.equal(run(`perPrima(null)`), false);
 });
 
-test("solo dati verificati: ogni fatto del quiz ha la sua fonte nella tabella docs/da-verificare.md", () => {
-  const md = readFileSync(new URL("../docs/da-verificare.md", import.meta.url), "utf8");
+test("solo dati verificati: ogni fatto del quiz ha la sua fonte nella tabella fonti/da-verificare.md", () => {
+  const md = readFileSync(new URL("../fonti/da-verificare.md", import.meta.url), "utf8");
   for (const f of json("GEOGRAFIA_ITALIA.fatti")) assert.ok(md.includes(f.fonte), f.nome + ": fonte non in tabella");
   assert.ok(md.includes(json("GEOGRAFIA_ITALIA.fonte_regioni")));
   // le correzioni della verifica sono nel quiz

@@ -1,6 +1,6 @@
 // Quiz di geografia d'Italia per la 1ª (issue #28): regioni, capoluoghi, monti, fiumi e laghi, con una cartina
 // da toccare (italia-mappa.js) e quattro bottoni con i nomi (chi non riesce a toccare una regione piccola
-// risponde con i bottoni). Solo dati verificati: ogni fatto ha la sua fonte (docs/da-verificare.md).
+// risponde con i bottoni). Solo dati verificati: ogni fatto ha la sua fonte (fonti/da-verificare.md).
 // Script classico caricato dopo italia-mappa.js: usa $, esc, vai, profilo, classeNumero.
 
 /* ---- dati verificati ---- */
