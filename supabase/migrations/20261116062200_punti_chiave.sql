@@ -1,13 +1,13 @@
 -- «Le 5 cose da sapere» (issue #22).
 --
--- Una riga per argomento e per studentessa: è la cache della pagina con i 5 punti, la catena
+-- Una riga per argomento e per profilo: è la cache della pagina con i 5 punti, la catena
 -- causa-effetto, le parole tecniche e la domanda della prof. La prepara la Edge Function
 -- `modello` (azione punti_chiave, ogni elemento già passato dal filtro di ancoraggio) e l'app
--- la salva con i permessi della ragazza; «Rifalle da capo» la sovrascrive (upsert). Cancellare
+-- la salva con i permessi di chi studia; «Rifalle da capo» la sovrascrive (upsert). Cancellare
 -- l'argomento cancella la sua riga.
 --
--- Solo aggiunte: una tabella nuova con le policy delle altre tabelle per studentessa (la
--- ragazza legge e scrive le sue, il genitore legge), come da MIGRATION-GUIDE.md.
+-- Solo aggiunte: una tabella nuova con le policy delle altre tabelle per profilo (chi studia
+-- legge e scrive le sue, il genitore legge), come da MIGRATION-GUIDE.md.
 
 create table public.punti_chiave (
   id           uuid primary key default gen_random_uuid(),
