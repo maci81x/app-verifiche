@@ -184,7 +184,7 @@ test("soluzione bloccata senza tentativi; sbloccata dopo un indizio e una rispos
   const tutti = json(`conSblocco(conSblocco(${JSON.stringify(C)}, "risposta"), "indizio")`);
   assert.equal(run(`soluzioneSbloccata(${JSON.stringify(tutti)})`), true);
   assert.equal(C.sblocco, undefined); // il compito di partenza non cambia
-  assert.match(run("MSG_BLOCCATA"), /^Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se non sei sicur\*\. Poi ti faccio vedere tutto\.$/);
+  assert.match(run("MSG_BLOCCATA"), /^Prima prova tu: leggi un indizio e scrivi la tua risposta, anche se hai dei dubbi\. Poi ti faccio vedere tutto\.$/);
 });
 
 test("lo sblocco si ricorda per quel compito: riaperto da I compiti di oggi resta sbloccato", () => {

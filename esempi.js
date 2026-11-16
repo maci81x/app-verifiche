@@ -7,6 +7,8 @@
 
 /* ---- parti pure ---- */
 
+// Quando il risultato non è ancora giusto si vedono tutti i passi: con cosa farne.
+const MSG_ESEMPIO_NON_ANCORA = "Ecco tutti i passi: confrontali con i tuoi e trova il primo diverso.";
 const GRADINI_ESEMPI = ["Esempio svolto", "Manca l'ultimo passo", "Mancano due passi", "Adesso tocca a te, senza aiuti"];
 // Quanti passi si vedono al gradino g (0-3): al terzo gradino non se ne vede nessuno.
 function passiVisibili(passi, g) {
@@ -84,7 +86,7 @@ async function controllaEsempio() {
     if (esempi.provati[g] === undefined) esempi.provati[g] = !!r.giusto;
     const ultimo = g >= Math.min(4, lista.length) - 1;
     out.innerHTML = (r.giusto ? '<p><span class="sem" data-s="verde"><i aria-hidden="true">●</i> Ci sei</span></p>'
-      : '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora</span> Ecco tutti i passi.</p>' + htmlErroreTipico(r, "esempio-" + g)) +
+      : '<p><span class="sem" data-s="rosso"><i aria-hidden="true">✕</i> Non ancora</span> ' + esc(MSG_ESEMPIO_NON_ANCORA) + '</p>' + htmlErroreTipico(r, "esempio-" + g)) +
       (r.giusto ? "" : htmlPassiEsempio(e, e.passaggi.length, 0)) +
       (ultimo ? '<p class="aiuto">' + esc(fineEsempi(esempi.provati, Math.min(4, lista.length))) + "</p>"
         : '<div class="bottoni"><button type="button" class="minore" id="btn-es-dopo">' + esc(GRADINI_ESEMPI[g + 1]) + "</button></div>");
