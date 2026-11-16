@@ -42,7 +42,8 @@ test("ripassi dovuti mescolati per strategia", () => {
 
 test("fine degli esempi: preciso, solo con quello che è successo", () => {
   assert.equal(run("fineEsempi([undefined, true, true, true])"), "L'ultimo l'hai fatto senza passi: 3 su 3 al primo colpo.");
-  assert.match(run("fineEsempi([undefined, true, false, false])"), /^1 su 3 al primo colpo\. Riprova l'ultimo gradino/);
+  // #24: si finisce solo con l'ultimo scalino giusto; se al primo colpo non era venuto, ci si è arrivati tornando indietro
+  assert.equal(run("fineEsempi([undefined, true, false, false])"), "1 su 3 al primo colpo. L'ultimo scalino ti è riuscito dopo un passo indietro.");
 });
 
 // la scaletta dell'esame (esame.js, client)
@@ -88,4 +89,23 @@ test("fine degli esempi con meno di quattro esempi: niente gradino che non c'è"
 
 test("esempio non ancora giusto: i passi si mostrano con cosa fare (confrontare), non solo «Ecco tutti i passi»", () => {
   assert.match(run("MSG_ESEMPIO_NON_ANCORA"), /confronta/i);
+});
+
+// Issue #24: se sbaglia uno scalino si torna a quello prima, con un esempio nuovo.
+test("scalini: giusto si sale, non ancora si torna a quello prima (mai sotto l'esempio svolto)", () => {
+  assert.equal(run("scalinoDopo(0, true)"), 1);   // dall'esempio svolto si sale
+  assert.equal(run("scalinoDopo(1, true)"), 2);
+  assert.equal(run("scalinoDopo(3, true)"), 4);   // oltre l'ultimo: finito
+  assert.equal(run("scalinoDopo(3, false)"), 2);
+  assert.equal(run("scalinoDopo(2, false)"), 1);
+  assert.equal(run("scalinoDopo(1, false)"), 0);  // si rilegge un esempio svolto
+  assert.equal(run("scalinoDopo(0, false)"), 0);
+  assert.equal(run("esempiFiniti(4)"), true);
+  assert.equal(run("esempiFiniti(3)"), false);
+});
+
+test("scalini: ogni scalino usa un esempio nuovo; quando finiscono se ne chiedono altri", () => {
+  assert.equal(run("serveAltroEsempio({ lista: [1, 2, 3, 4], i: 3 })"), false);
+  assert.equal(run("serveAltroEsempio({ lista: [1, 2, 3, 4], i: 4 })"), true);
+  assert.equal(run("serveAltroEsempio({ lista: [1, 2], i: 1 })"), false);
 });

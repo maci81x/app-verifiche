@@ -287,6 +287,13 @@
   </div>
 </section>
 
+<!-- Strumenti per materia (issue #24): il contenuto lo disegna strumenti.js -->
+<section id="v-strumento" hidden>
+  <div id="str-corpo"></div>
+  <div id="err-strumento"></div>
+  <div id="stato-strumento"></div>
+</section>
+
 <section id="v-esame" hidden>
   <h2>Il colloquio dell'esame</h2>
   <p class="aiuto">Parti da un tuo argomento e collegalo alle altre materie. I collegamenti sono idee per legare gli argomenti: controllali con la prof.</p>
@@ -468,6 +475,8 @@
     <div><p class="arg-materia" id="mat-scheda"></p><p class="arg-stato" id="meta-scheda"></p></div>
   </div>
   <div class="scelte" id="scelte-scheda"></div>
+  <!-- Strumento della materia (issue #24): linea del tempo, vocaboli, schema da completare -->
+  <button type="button" class="scelta" id="btn-strumento" hidden></button>
   <button class="azione" id="btn-esercizi" hidden>Preparami degli esercizi</button>
   <p class="link-riga"><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
   <details class="sezione" id="sez-punti"><summary id="sum-punti">I punti</summary><div id="stato-concetti-scheda"></div></details>
@@ -696,5 +705,6 @@
 <script src="italia-mappa.js?v=23"></script>
 <script src="geografia.js?v=23"></script>
 <script src="piano.js?v=23"></script>
+<script src="strumenti.js?v=23"></script>
 </body>
 </html>
