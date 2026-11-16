@@ -361,11 +361,11 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], diario: ["Il diario di oggi", 0], smistato: ["Il diario di oggi", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
-const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda" };
+const PADRE = { mappa: "scheda", prepara: "scheda", esercizi: "scheda", tipi: "scheda", smistato: "diario" };
 function vai(v, materia, titolo) {
   if (typeof chiudiCardNodo === "function") chiudiCardNodo(false);
   ["menu-scheda", "menu-foto"].forEach((id) => { if ($(id)) chiudiFoglio(id); });
@@ -745,6 +745,7 @@ async function caricaLibreria() {
   sessioni = s.data || [];
   argomenti.forEach((x) => { x.ultima = sessioni.find((y) => y.argomento_id === x.id) || null; });
   disegnaProfiliSalvati(); disegnaLibreria();
+  if (typeof aggiornaDiario === "function") aggiornaDiario(); // diario.js: date e giorni di fila
 }
 
 /* =================================================================== nuovo argomento */
@@ -804,6 +805,7 @@ async function conservaFoto(a, blobs, onPasso) {
     } catch (e) { continue; } // la foto non salvata non si conserva, ma si legge lo stesso
     tenute.push(path);
   }
+  if (typeof segnaGiorno === "function") await segnaGiorno(tenute.length); // diario.js: serie dei giorni di fila
   return tenute;
 }
 
@@ -1025,22 +1027,36 @@ async function aggiungiFoto(nuove) {
     await conservaFoto(a, blobs, (t) => passoAttesa(st, t));
     const testo = (await trascrivi(blobs, true, (t) => passoAttesa(st, t))).join("\n\n");
     if (!testo.trim()) throw new Error("vuoto");
-    a.trascrizione = ((a.trascrizione || "") + "\n\n" + testo).trim();
-    await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
-    passoAttesa(st, "Cerco i punti nuovi");
-    const r = await modello({ azione: "concetti", testo, pagine: blobs.length, esistenti: a.concetti.map((c) => c.titolo) });
-    const primo = a.concetti.reduce((m, c) => Math.max(m, c.ordine + 1), 0);
-    if (r.concetti.length)
-      await sb.from("concetti").insert(r.concetti.map((c, i) => ({ argomento_id: a.id, titolo: c.titolo, descrizione: c.descrizione, ancora: c.ancora, peso: c.peso, ordine: primo + i, errore_appunti: c.errore_appunti })));
+    const nuovi = await aggiungiTesto(a, testo, blobs.length, (t) => passoAttesa(st, t));
     attesa(st, null);
     await caricaLibreria();
     apriScheda(argomenti.find((x) => x.id === a.id) || a);
-    if (!r.concetti.length) avviso($("err-scheda"), "Foto aggiunte. Non ho trovato punti nuovi: erano già tutti nell'elenco.");
+    if (!nuovi.length) avviso($("err-scheda"), "Foto aggiunte. Non ho trovato punti nuovi: erano già tutti nell'elenco.");
   } catch (e) {
     attesa(st, null);
     errore($("err-scheda"), messaggioModello(e, "Non sono riuscito a leggere le nuove foto. Riprova, magari con più luce."));
     caricaLibreria();
   }
+}
+
+// Testo nuovo di un argomento: si aggiunge alla trascrizione e se ne ricavano i punti nuovi (tutti,
+// se l'argomento non aveva ancora testo). Lo usano «aggiungi foto» e il diario di ogni giorno (#19).
+// Negli argomenti di esercizi si salva solo il testo: i tipi nuovi si confermano dalla scheda.
+async function aggiungiTesto(a, testo, pagine, onPasso) {
+  const primo = !String(a.trascrizione || "").trim();
+  a.trascrizione = ((a.trascrizione || "") + "\n\n" + testo).trim();
+  const { error: e1 } = await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
+  if (e1) throw e1;
+  if (conEsercizi(a)) return [];
+  onPasso(primo ? "Separo i punti uno per uno" : "Cerco i punti nuovi");
+  const r = await modello(primo ? { azione: "concetti", materia: a.materia, titolo: a.titolo, testo, pagine }
+    : { azione: "concetti", testo, pagine, esistenti: (a.concetti || []).map((c) => c.titolo) });
+  const da = (a.concetti || []).reduce((m, c) => Math.max(m, c.ordine + 1), 0);
+  if (r.concetti.length) {
+    const { error } = await sb.from("concetti").insert(r.concetti.map((c, i) => ({ argomento_id: a.id, titolo: c.titolo, descrizione: c.descrizione, ancora: c.ancora, peso: c.peso, ordine: da + i, errore_appunti: c.errore_appunti })));
+    if (error) throw error;
+  }
+  return r.concetti;
 }
 
 // Se l'estrazione dei concetti si era interrotta, la si rifà dal testo già letto.
@@ -1992,6 +2008,7 @@ function collega() {
     const padre = PADRE[document.body.dataset.vista];
     if (document.body.dataset.vista === "impostazioni") { genEsci(); return; } // mai pannello del genitore aperto alle spalle
     if (padre === "scheda" && corrente) apriScheda(argomenti.find((x) => x.id === corrente.id) || corrente);
+    else if (padre === "diario") vai("diario");
     else if (!profilo) vai("profili");
     else { disegnaLibreria(); vai("libreria"); }
   });

@@ -29,7 +29,7 @@ function claims(req: Request): { role?: string; sub?: string; email?: string; ap
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BUCKET = "fonti";
 // Tabelle con i dati di una studentessa: dopo l'eliminazione devono avere 0 righe.
-const TABELLE = ["argomenti", "concetti", "mappe", "sessioni", "domande", "risposte", "spiegazioni", "esercizi_tipi", "fonti", "report"];
+const TABELLE = ["argomenti", "concetti", "mappe", "sessioni", "domande", "risposte", "spiegazioni", "esercizi_tipi", "fonti", "report", "scadenze", "giorni_diario"];
 
 type Db = ReturnType<typeof admin>;
 
