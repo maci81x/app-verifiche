@@ -135,3 +135,11 @@ test("revisione: la frase detta ha almeno 3 parole e non è la stessa di un altr
   ] }, RACCONTO);
   assert.deepEqual(r.esiti.map((e) => e.esito), ["saltato", "saltato", "saltato", "saltato"]);
 });
+
+test("5 cose: una chiave che è un pezzo di frase (inizia in minuscolo) non diventa un punto", () => {
+  const r = puntiChiaveDaRisposta(ARGOMENTO, { punti: [
+    punto("c2", "Che cosa", "trasmettevano la malattia agli uomini che vivevano in città sporche e affollate"),
+    punto("c1", "Quando", "Nel 1347 alcune navi genovesi portarono la peste a Messina"),
+  ] });
+  assert.deepEqual(r.punti.map((p) => p.concetto_id), ["u1"]);
+});

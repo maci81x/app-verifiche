@@ -11,6 +11,8 @@
 
 const RIGA_PAGINA = /^\s*\[?\s*(?:pag(?:ina)?\.?|p\.)\s*(\d{1,3})\s*\]?\s*$/i; // «pag. 24», «[Pagina 24]»
 const RIGA_NUMERO = /^\s*[-–]?\s*(\d{1,3})\s*[-–]?\s*$/;                       // numero di pagina stampato, da solo
+// Righe corte che non sono titoli: firme delle foto, legende, parti illeggibili, consegne di esercizi.
+const NON_TITOLO = /\/|\[\?\]|\b(?:photo|foto|istock|shutterstock|alamy)\b|^(?:legenda|fonte|didascalia)\b|^(?:disegna|trova|completa|rispondi|osserva|scrivi|calcola|indica|colora|collega|sottolinea|cerchia|leggi|esercizi[oa]?)\b/i;
 const MIN_PARAGRAFO = 40; // caratteri: un titolo è seguito da una riga di testo vero
 
 // Titolo di paragrafo: riga corta, senza punto in fondo, con la maiuscola, seguita da un paragrafo.
@@ -19,6 +21,7 @@ function titoloDiRiga(riga, dopo) {
   const t = String(riga).trim().replace(/^#{1,6}\s*/, "").replace(/^\*\*(.+)\*\*$/, "$1").trim();
   if (t.length < 3 || t.length > 70 || t.split(/\s+/).length > 9 || /[.,;:!?]$/.test(t) || /^[-•*]/.test(t) || /^\[/.test(t)) return null;
   if (!/^(?:\d+(?:\.\d+)*\.?\s+)?[A-ZÀ-Ý«"]/.test(t) || String(dopo || "").trim().length < MIN_PARAGRAFO) return null;
+  if (NON_TITOLO.test(t)) return null;
   return t.replace(/^\d+(?:\.\d+)*\.?\s+/, "");
 }
 

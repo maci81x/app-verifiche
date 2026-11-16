@@ -29,6 +29,9 @@ const aParoleIntere = (testo, frase) => { const n = normalizza(frase); return !!
 // argomento: { trascrizione, concetti: [{ id, ancora, ordine }] }
 // grezza: { punti: [{ concetto_id, etichetta, testo, chiave }], catena: [{ testo, ancora }], parole: [""], domanda: { concetto_id, testo, ancora } }
 // → { punti, catena, parole, domanda, scartati }
+// La chiave è una frase intera del quaderno: comincia con maiuscola, cifra o virgolette (non «che si forma quando…»).
+const INIZIO_FRASE = /^[«"“'(]?[A-ZÀ-Ý0-9]/;
+
 export function puntiChiaveDaRisposta(argomento, grezza) {
   const g = grezza || {};
   const perBreve = perBreveDi(argomento.concetti);
@@ -38,7 +41,7 @@ export function puntiChiaveDaRisposta(argomento, grezza) {
   const punti = [], viste = new Set();
   lista(g.punti).forEach((p) => {
     const concetto_id = perBreve[p && p.concetto_id], etichetta = pulito(p && p.etichetta), chiave = pulito(p && p.chiave);
-    if (punti.length >= MAX_PUNTI || !concetto_id || !ETICHETTE.includes(etichetta) || viste.has(normalizza(chiave)) || !regge(chiave, fonte)) { scartati++; return; }
+    if (punti.length >= MAX_PUNTI || !concetto_id || !ETICHETTE.includes(etichetta) || viste.has(normalizza(chiave)) || !INIZIO_FRASE.test(chiave) || !regge(chiave, fonte)) { scartati++; return; }
     viste.add(normalizza(chiave));
     punti.push({ concetto_id, etichetta, testo: sintesiPulita(p.testo, fonte), chiave });
   });

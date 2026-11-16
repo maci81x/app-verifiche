@@ -166,3 +166,10 @@ test("racconto: «Hai toccato 2 punti su 3. Hai saltato: …» e ogni punto con 
   assert.deepEqual(json(`frasiRacconto({ esiti: [], toccati: 3, totale: 3 }, [])`), ["Hai toccato tutti i 3 punti.", ""]);
   assert.deepEqual(json(`frasiRacconto({ esiti: [{ concetto_id: "c3", esito: "saltato" }], toccati: 1, totale: 2 }, ${JSON.stringify(CONCETTI)})`), ["Hai toccato 1 punto su 2.", "Hai saltato: Le conseguenze."]);
 });
+
+test("mappa: firme delle foto, legende e consegne di esercizi non sono titoli di paragrafo", () => {
+  const dopo = "Un paragrafo di testo vero che spiega bene l'argomento della pagina con molte parole.";
+  for (const riga of ["Jim Pintar/iStock Photo", "Legenda: metalli (giallo), non metalli (azzurro)", "Disegna una [?] l'atomo di [?]", "Trova la formula chimica", "Completa la tabella"])
+    assert.equal(run(`titoloDiRiga(${JSON.stringify(riga)}, ${JSON.stringify(dopo)})`), null, riga);
+  assert.equal(run(`titoloDiRiga("Il legame ionico", ${JSON.stringify(dopo)})`), "Il legame ionico");
+});
