@@ -65,7 +65,7 @@
 //      vocaboli → { lingua, vocaboli: [{ parola, traduzione }], frasi, scartati }: lingue straniere (422 nessuna_lingua).
 //      schema → { titolo, forma: ciclo|strati|parti, etichette: [{ termine, ancora }], scartati }: geografia e scienze.
 //      Dalla trascrizione letta con i permessi della studentessa; tutto quello che non è scritto lì si scarta
-//      (_shared/strumenti.js). 422 niente_da_mostrare se non resta niente.
+//      (_shared/strumenti.js). 422 niente_da_mostrare se non resta niente. Conta come un aiuto (restituito se non riesce).
 //
 // La funzione non scrive nel database: restituisce il risultato e l'app lo
 // salva con i permessi della studentessa (RLS). Così la stessa funzione serve
@@ -848,18 +848,26 @@ Deno.serve(async (req) => {
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!String(a.trascrizione || "").trim()) return json({ errore: "nessun testo da leggere" }, 422);
       const tipo = b.tipo as "date" | "vocaboli" | "schema";
-      const r = await chiedi(promptStrumento(tipo, a), SCHEMI_STRUMENTO[tipo], [], "low");
-      if (tipo === "date") {
-        const d = dateAncorate(r, a);
-        return d.eventi.length >= 2 ? json(d) : json({ errore: "niente_da_mostrare", scartati: d.scartati }, 422);
-      }
-      if (tipo === "vocaboli") {
-        const v = vocaboliAncorati(r, a);
-        if (!v.lingua) return json({ errore: "nessuna_lingua" }, 422);
-        return v.vocaboli.length || v.frasi.length ? json(v) : json({ errore: "niente_da_mostrare", scartati: v.scartati }, 422);
-      }
-      const sc = schemaAncorato(r, a);
-      return sc.etichette.length ? json(sc) : json({ errore: "niente_da_mostrare", scartati: sc.scartati }, 422);
+      // Conta come un aiuto; se non resta niente da mostrare (422) o qualcosa va storto, l'aiuto si restituisce.
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const r = await chiedi(promptStrumento(tipo, a), SCHEMI_STRUMENTO[tipo], [], "low");
+        if (tipo === "date") {
+          const d = dateAncorate(r, a);
+          if (d.eventi.length < 2) return json({ errore: "niente_da_mostrare", scartati: d.scartati }, 422);
+          riuscito = true; return json(d);
+        }
+        if (tipo === "vocaboli") {
+          const v = vocaboliAncorati(r, a);
+          if (!v.lingua) return json({ errore: "nessuna_lingua" }, 422);
+          if (!v.vocaboli.length && !v.frasi.length) return json({ errore: "niente_da_mostrare", scartati: v.scartati }, 422);
+          riuscito = true; return json(v);
+        }
+        const sc = schemaAncorato(r, a);
+        if (!sc.etichette.length) return json({ errore: "niente_da_mostrare", scartati: sc.scartati }, 422);
+        riuscito = true; return json(sc);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
     if (b.azione === "domande") {

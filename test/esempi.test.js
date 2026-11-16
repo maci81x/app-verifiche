@@ -109,3 +109,11 @@ test("scalini: ogni scalino usa un esempio nuovo; quando finiscono se ne chiedon
   assert.equal(run("serveAltroEsempio({ lista: [1, 2, 3, 4], i: 4 })"), true);
   assert.equal(run("serveAltroEsempio({ lista: [1, 2], i: 1 })"), false);
 });
+
+test("scalini: al massimo 2 rifornimenti di esempi per sessione (ognuno conta come aiuto)", () => {
+  assert.equal(run("puoRifornire({ rifornimenti: 0 })"), true);
+  assert.equal(run("puoRifornire({ rifornimenti: 1 })"), true);
+  assert.equal(run("puoRifornire({ rifornimenti: 2 })"), false);
+  assert.equal(run("puoRifornire({})"), true);
+  assert.equal(run("MAX_RIFORNIMENTI"), 2);
+});

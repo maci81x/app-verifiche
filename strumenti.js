@@ -62,10 +62,11 @@ const CONTRAZIONI = { "i'm": "i am", "you're": "you are", "he's": "he is", "she'
 const paroleFrase = (s) => String(s || "").toLowerCase().replace(/[’`]/g, "'").split(/\s+/)
   .flatMap((w) => { const k = w.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, ""); return (CONTRAZIONI[k] || k).split(" "); })
   .map((w) => w.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean);
-// Parole uguali, o con una lettera di differenza se lunghe almeno 4 (colour/color, il riconoscimento sbaglia così).
+// Parole uguali, o con una lettera di differenza (colour/color, il riconoscimento sbaglia così).
+// a è la parola attesa: la tolleranza vale solo se ha almeno 6 lettere (casa/cosa, pero/perro, hola/hora restano diverse).
 function quasiUguali(a, b) {
   if (a === b) return true;
-  if (Math.min(a.length, b.length) < 4 || Math.abs(a.length - b.length) > 1) return false;
+  if (a.length < 6 || Math.abs(a.length - b.length) > 1) return false;
   let i = 0; while (i < a.length && a[i] === b[i]) i++;
   return a.slice(i + 1) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i) || a.slice(i) === b.slice(i + 1);
 }
@@ -83,7 +84,7 @@ function confrontaFrase(attesa, detta) {
     else if (t[i - 1][j] >= t[i][j - 1]) i--; else j--;
   }
   let k = 0;
-  const parole = originali.map((parola, g) => { const ok = gruppi[g].every(() => presa[k++]); return { parola, ok }; });
+  const parole = originali.map((parola, g) => { const ok = gruppi[g].map(() => presa[k++]).every(Boolean); return { parola, ok }; });
   const mancanti = parole.filter((p) => !p.ok).map((p) => p.parola);
   return { giusta: d.length > 0 && mancanti.length <= Math.floor(parole.length / 5), parole, mancanti, vuota: !d.length };
 }
@@ -153,7 +154,8 @@ function svgSchema(spec, posti, esiti) {
 
 let strumento = null; // { tipo, a, dati, ... } dello strumento aperto
 const cacheStrumenti = {}; // argomento|tipo → risposta del modello: dentro la stessa sessione non si richiede
-let ascoltoStrumento = null;
+let ascoltoStrumento = null, avvioAscolto = false;
+let clickDaTrascinamento = false; // il click che segue un trascinamento non deve scegliere né togliere
 
 function fermaStrumento() {
   if (ascoltoStrumento) { try { ascoltoStrumento.abort(); } catch (e) { /* già fermo */ } ascoltoStrumento = null; }
@@ -349,9 +351,14 @@ function mostraConfronto(attesa, detti) {
 }
 
 async function ascoltaFrase(attesa, btn) {
-  const lingua = strumento.dati.lingua, out = $("parla-esito");
-  if (ascoltoStrumento) return;
-  if (!(await provaMicrofono())) { errore(out, messaggioVoce(erroreVoce, lingua)); strumento.scrivi = true; return; }
+  const lingua = strumento.dati.lingua, out = $("parla-esito"), mio = strumento;
+  if (ascoltoStrumento || avvioAscolto) return;
+  avvioAscolto = true; // niente doppio avvio mentre si chiede il permesso del microfono
+  let micOk = false;
+  try { micOk = await provaMicrofono(); } finally { avvioAscolto = false; }
+  // nel frattempo è uscita, o ha aperto un altro argomento: non si parte
+  if (strumento !== mio || document.body.dataset.vista !== "strumento" || !document.body.contains(btn)) return;
+  if (!micOk) { errore(out, messaggioVoce(erroreVoce, lingua)); strumento.scrivi = true; return; }
   fermaStrumento();
   const r = new Riconoscimento();
   r.lang = lingua; r.continuous = false; r.interimResults = false; r.maxAlternatives = 3;
@@ -390,6 +397,7 @@ function disegnaSchema(nuovo = true) {
       : '<button type="button" class="azione" id="btn-controlla-schema"' + (posti.some((x) => !x) ? " disabled" : "") + ">Controlla</button>") + "</div>";
   const corpo = $("str-corpo");
   corpo.onclick = (e) => {
+    if (clickDaTrascinamento) { clickDaTrascinamento = false; return; }
     const t = e.target.closest("[data-termine]"), p = e.target.closest("[data-posto]");
     if (t) { strumento.scelta = strumento.scelta === t.dataset.termine ? null : t.dataset.termine; disegnaSchema(false); const b = corpo.querySelector('[data-termine="' + CSS.escape(t.dataset.termine) + '"]'); if (b) b.focus(); }
     else if (p) mettiNelPosto(Number(p.dataset.posto), strumento.scelta);
@@ -411,6 +419,7 @@ function mettiNelPosto(i, termine) {
 function trascinaEtichette(box, metti) {
   let presa = null;
   box.onpointerdown = (e) => {
+    clickDaTrascinamento = false;
     const b = e.target.closest("[data-termine]"); if (!b) return;
     presa = { b, x: e.clientX, y: e.clientY, mosso: false };
     try { b.setPointerCapture(e.pointerId); } catch (x) { /* niente */ }
@@ -429,7 +438,8 @@ function trascinaEtichette(box, metti) {
     b.style.visibility = "hidden";
     const sotto = document.elementFromPoint(e.clientX, e.clientY), posto = sotto && sotto.closest("[data-posto]");
     b.style.visibility = ""; b.style.transform = ""; delete b.dataset.presa;
-    b.addEventListener("click", (ev) => ev.stopPropagation(), { capture: true, once: true }); // il click dopo il trascinamento non sceglie
+    // il click che il browser manda subito dopo il trascinamento non sceglie né toglie; poi si torna normali
+    clickDaTrascinamento = true; setTimeout(() => { clickDaTrascinamento = false; }, 0);
     if (posto) metti(b.dataset.termine, Number(posto.dataset.posto));
   };
   box.onpointercancel = () => { if (presa) { presa.b.style.transform = ""; delete presa.b.dataset.presa; presa = null; } };

@@ -20,13 +20,14 @@ const MATERIE = [
   ["matematica", ["matemat", "geometr", "algebr", "aritmet"], 196, 72, 40],
   ["storia", ["storia", "storic", "civilt", "medioev"], 24, 78, 46],
   ["geografia", ["geograf"], 168, 62, 36],
+  // motoria prima di scienze: «educazione fisica» contiene «fisica» (issue #24)
+  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 56, 34],
   ["scienze", ["scienz", "biolog", "chimic", "fisica"], 280, 52, 48],
   ["inglese", ["ingles", "english"], 320, 56, 44],
   ["spagnolo", ["spagnol", "frances", "tedesc"], 42, 80, 42],
   ["arte", ["arte", "immagin", "disegn"], 350, 64, 46],
   ["tecnologia", ["tecnolog", "informat"], 150, 56, 34],
   ["musica", ["music"], 262, 58, 50],
-  ["motoria", ["motoria", "educazione fisica", "sportiv"], 95, 56, 34],
   ["italiano", ["italian", "grammat", "letterat", "epic", "antolog"], 224, 70, 46],
 ];
 function slugMateria(nome) {

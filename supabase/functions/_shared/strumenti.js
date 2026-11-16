@@ -2,7 +2,7 @@
 // (lingue straniere), schema da completare (geografia, scienze). JavaScript puro: lo usano la
 // Edge Function e i test. Il modello copia dagli appunti; qui si tiene solo quello che c'è davvero:
 // una data, un vocabolo o un termine mostrati sono sempre un pezzo della trascrizione.
-import { ancoraRegge, fonteDi } from "./ancoraggio.js";
+import { ancoraRegge, fonteDi, normalizza } from "./ancoraggio.js";
 
 export const TIPI_STRUMENTO = ["date", "vocaboli", "schema"];
 export const FORME_SCHEMA = ["ciclo", "strati", "parti"];
@@ -29,9 +29,11 @@ function romano(s) {
 }
 // L'anno su cui si ordina una data scritta: «1492», «476 d.C.», «753 a.C.» (negativo), «XV secolo»
 // e «15° secolo» (metà secolo: 1450), «V secolo a.C.» (-450). null se non c'è un anno.
+const MESI = "gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre";
 export function annoDi(data) {
-  const t = piega(data);
-  const aC = /\ba\.?\s?c\.?(?![a-z])|avanti cristo/.test(t);
+  // giorno e mese non sono l'anno: «24 agosto 79 d.C.» → «79 d.C.»
+  const t = piega(data).replace(new RegExp("\\b\\d{1,2}\\s*°?\\s*(" + MESI + ")\\b", "g"), " ");
+  const aC = /\ba\.?\s?c\.?(?![a-z])|avanti cristo|prima di cristo|\bav\.?\s?cr\b/.test(t);
   const sec = /\b([ivxlc]+)\s*(?:°\s*)?sec(?:olo|\.|\b)/.exec(t) || /\bsec(?:olo|\.)?\s*([ivxlc]+)\b/.exec(t) || /\b(\d{1,2})\s*°?\s*sec(?:olo|\.|\b)/.exec(t);
   if (sec) {
     const n = /\d/.test(sec[1]) ? Number(sec[1]) : romano(sec[1]);
@@ -53,6 +55,31 @@ export function linguaDi(materia, rilevata) {
   return LINGUE.includes(rilevata) ? rilevata : null;
 }
 
+// L'evento (scritto dal modello) deve parlare della sua frase: regge sulla frase, o ha almeno una
+// parola chiave in comune (stessa radice di 5 lettere), senza contare numeri e parole vuote.
+const VUOTE = new Set(["della", "delle", "degli", "dello", "nella", "nelle", "negli", "sono", "viene", "vengono", "come", "dopo", "prima", "anche", "questo", "questa", "loro", "molto"]);
+const chiavi = (s) => normalizza(s).split(" ").filter((w) => w.length >= 4 && !/^\d+$/.test(w) && !VUOTE.has(w)).map((w) => w.slice(0, 5));
+function eventoRegge(evento, ancora) {
+  if (ancoraRegge(evento, normalizza(ancora))) return true;
+  const nellAncora = new Set(chiavi(ancora));
+  return chiavi(evento).some((w) => nellAncora.has(w));
+}
+// Parola e traduzione vicine: sulla stessa riga degli appunti, o a meno di 80 caratteri, in qualsiasi ordine.
+const VICINE = 80;
+function posizioni(pezzo, testo) {
+  const re = new RegExp("(?<![\\p{L}\\p{N}])" + fuga(piega(pezzo).trim()) + "(?![\\p{L}\\p{N}])", "gu"), out = [];
+  for (let m; (m = re.exec(testo));) out.push([m.index, m.index + m[0].length]);
+  return out;
+}
+export function vicine(parola, traduzione, trascrizione) {
+  const t = String(trascrizione || "").normalize("NFC").replace(/[ \t]+/g, " ").toLowerCase();
+  const p = posizioni(parola, t), q = posizioni(traduzione, t);
+  return p.some(([a1, b1]) => q.some(([a2, b2]) => {
+    const da = Math.min(b1, b2), a = Math.max(a1, a2);
+    return a - da <= VICINE || !t.slice(Math.min(a1, a2), Math.max(b1, b2)).includes("\n");
+  }));
+}
+
 const materiale = (a) => String(a.trascrizione || "").slice(0, 120_000);
 
 // grezzo: { eventi: [{ data, evento, ancora }] }. Una data passa se è scritta negli appunti, se sta
@@ -64,7 +91,7 @@ export function dateAncorate(grezzo, a) {
     const data = pulisci(x?.data, 60), evento = pulisci(x?.evento, 120), ancora = pulisci(x?.ancora, 400);
     const anno = data ? annoDi(data) : null, chiave = piega(data) + "|" + piega(evento);
     if (anno == null || !evento || viste.has(chiave) || eventi.length >= MAX_EVENTI || !inTrascrizione(data, a.trascrizione) ||
-        !inTrascrizione(data, ancora) || !ancoraRegge(ancora, fonte)) { scartati++; continue; }
+        !inTrascrizione(data, ancora) || !ancoraRegge(ancora, fonte) || !eventoRegge(evento, ancora)) { scartati++; continue; }
     viste.add(chiave);
     eventi.push({ data, evento, ancora, anno });
   }
@@ -78,8 +105,8 @@ export function vocaboliAncorati(grezzo, a) {
   let scartati = 0;
   for (const x of Array.isArray(grezzo?.vocaboli) ? grezzo.vocaboli : []) {
     const parola = pulisci(x?.parola, 80), traduzione = pulisci(x?.traduzione, 80), chiave = piega(parola);
-    if (!parola || !traduzione || chiave === piega(traduzione) || viste.has(chiave) || vocaboli.length >= MAX_VOCABOLI ||
-        !inTrascrizione(parola, a.trascrizione) || !inTrascrizione(traduzione, a.trascrizione)) { scartati++; continue; }
+    if (!parola || traduzione.length < 3 || chiave === piega(traduzione) || viste.has(chiave) || vocaboli.length >= MAX_VOCABOLI ||
+        !inTrascrizione(parola, a.trascrizione) || !inTrascrizione(traduzione, a.trascrizione) || !vicine(parola, traduzione, a.trascrizione)) { scartati++; continue; }
     viste.add(chiave);
     vocaboli.push({ parola, traduzione });
   }

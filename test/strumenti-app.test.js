@@ -127,3 +127,20 @@ test("messaggi del microfono nella lingua giusta (riusano quelli dell'interrogaz
   assert.match(run(`messaggioVoce("language-not-supported")`), /l'italiano/);
   assert.match(run(`messaggioVoce("not-allowed", "es-ES")`), /microfono/i);
 });
+
+test("revisione: una lettera di differenza solo per parole lunghe (almeno 6 lettere)", () => {
+  const ok = (a, d) => json(`confrontaFrase(${J(a)}, ${J(d)})`).parole.every((p) => p.ok);
+  assert.equal(ok("casa", "cosa"), false);
+  assert.equal(ok("pero", "perro"), false);
+  assert.equal(ok("hola", "hora"), false);
+  assert.equal(ok("colour", "color"), true);
+  assert.equal(ok("favourite", "favorite"), true);
+  // una parola attesa che diventa due (I'm → i am): giusta solo se ci sono tutte e due
+  assert.deepEqual(json(`confrontaFrase("I'm happy", "am happy")`).parole.map((p) => p.ok), [false, true]);
+});
+
+test("revisione: «educazione fisica» è motoria, non scienze", () => {
+  assert.equal(run(`slugMateria("Educazione fisica")[0]`), "motoria");
+  assert.equal(run(`slugMateria("Fisica")[0]`), "scienze");
+  assert.equal(json(`strumentoDi("Educazione fisica")`), null);
+});

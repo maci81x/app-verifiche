@@ -113,3 +113,35 @@ test("prompt degli strumenti: chiede di copiare dal materiale, niente aggiunte, 
     assert.doesNotMatch(p, /\balunn[ae]\b|ragazza/);
   }
 });
+
+test("revisione: giorno e mese non sono l'anno; «prima di Cristo» e «av. Cr.»", () => {
+  assert.equal(annoDi("24 agosto 79 d.C."), 79);
+  assert.equal(annoDi("15 marzo 44 a.C."), -44);
+  assert.equal(annoDi("1° gennaio 1948"), 1948);
+  assert.equal(annoDi("509 prima di Cristo"), -509);
+  assert.equal(annoDi("509 av. Cr."), -509);
+  assert.equal(annoDi("12 ottobre 1492"), 1492);
+});
+
+test("revisione: parola e traduzione vicine (stessa riga o entro 80 caratteri), niente traduzioni di 1-2 lettere", () => {
+  const a = { materia: "Inglese", titolo: "x", concetti: [],
+    trascrizione: "dog = cane\ncat - gatto\nI have a horse.\n" + "x".repeat(100) + "\nIl cavallo corre.\nsun = il\nmela: apple" };
+  const r = vocaboliAncorati({ lingua: "en-GB", vocaboli: [
+    { parola: "dog", traduzione: "cane" }, { parola: "cat", traduzione: "gatto" },
+    { parola: "horse", traduzione: "cavallo" },   // lontane e su righe diverse
+    { parola: "sun", traduzione: "il" },          // traduzione di 2 lettere
+    { parola: "apple", traduzione: "mela" },      // ordine inverso, stessa riga
+  ], frasi: [] }, a);
+  assert.deepEqual(r.vocaboli.map((v) => v.parola), ["dog", "cat", "apple"]);
+  assert.equal(r.scartati, 2);
+});
+
+test("revisione: l'evento deve reggere sulla sua frase (parole in comune), se no si scarta", () => {
+  const r = dateAncorate({ eventi: [
+    { data: "1492", evento: "Colombo arriva in America", ancora: "Nel 1492 Cristoforo Colombo arriva in America" },
+    { data: "1492", evento: "Cade Costantinopoli", ancora: "Nel 1492 Cristoforo Colombo arriva in America" },
+    { data: "476 d.C.", evento: "Fine dell'Impero d'Occidente", ancora: "Nel 476 d.C. cade l'Impero romano d'Occidente" },
+  ] }, STORIA);
+  assert.deepEqual(r.eventi.map((e) => e.evento), ["Colombo arriva in America", "Fine dell'Impero d'Occidente"]);
+  assert.equal(r.scartati, 1);
+});

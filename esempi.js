@@ -21,6 +21,9 @@ function passiVisibili(passi, g) {
 const scalinoDopo = (g, giusto) => (giusto ? g + 1 : Math.max(0, g - 1));
 const esempiFiniti = (g) => g >= GRADINI_ESEMPI.length;
 const serveAltroEsempio = (stato) => stato.i >= stato.lista.length;
+// Ogni rifornimento è una chiamata che conta come aiuto: al massimo due per sessione.
+const MAX_RIFORNIMENTI = 2;
+const puoRifornire = (stato) => (stato.rifornimenti || 0) < MAX_RIFORNIMENTI;
 const MSG_SCALINO_PRIMA = "Torni allo scalino prima, con un esempio nuovo.";
 
 // I passi della soluzione: il controllo finale («Controllo: …», «Verifica: …») non è un passo da ritirare.
@@ -63,7 +66,7 @@ async function apriEsempi() {
   try {
     const lista = (await chiediEsempi()).slice(0, 4);
     if (lista.length < 2) throw new Error("nessun_verificato");
-    esempi = { lista, g: 0, i: 0, provati: [] };
+    esempi = { lista, g: 0, i: 0, provati: [], rifornimenti: 0 };
     disegnaEsempio();
   } catch (e) { errore(box, messaggioModello(e, "Non sono riuscito a preparare esempi con i conti giusti. Riprova fra un momento.")); }
   attesa($("stato-esempi"), null); esempiOccupato = false;
@@ -71,13 +74,23 @@ async function apriEsempi() {
 // Allo scalino g con l'esempio dopo; se gli esempi sono finiti se ne chiedono altri, con la stessa verifica dei conti.
 async function vaiAScalino(g) {
   if (esempiOccupato) return;
+  const prima = { g: esempi.g, i: esempi.i };
   esempi.g = g; esempi.i++;
   if (serveAltroEsempio(esempi)) {
-    esempiOccupato = true;
-    attesa($("stato-esempi"), ["Preparo un altro esempio", "Rifaccio i conti"]);
-    try { esempi.lista.push(...(await chiediEsempi())); } catch (e) { /* sotto: messaggio */ }
-    attesa($("stato-esempi"), null); esempiOccupato = false;
-    if (serveAltroEsempio(esempi)) { esempi.i--; errore($("es-esito") || $("cp-esempi"), "Non sono riuscito a preparare un altro esempio con i conti giusti. Riprova fra un momento."); return; }
+    let err = null;
+    if (puoRifornire(esempi)) {
+      esempiOccupato = true; esempi.rifornimenti = (esempi.rifornimenti || 0) + 1;
+      attesa($("stato-esempi"), ["Preparo un altro esempio", "Rifaccio i conti"]);
+      try { esempi.lista.push(...(await chiediEsempi())); } catch (e) { err = e; }
+      attesa($("stato-esempi"), null); esempiOccupato = false;
+    }
+    if (serveAltroEsempio(esempi)) {
+      Object.assign(esempi, prima); // si resta dov'era: scalino ed esempio
+      errore($("es-esito") || $("cp-esempi"), !puoRifornire(esempi) && !err
+        ? "Per questo esercizio gli esempi sono finiti. Rileggi i passi qui sopra, poi riprova con un altro esercizio."
+        : messaggioModello(err, "Non sono riuscito a preparare un altro esempio con i conti giusti. Riprova fra un momento."));
+      return;
+    }
   }
   disegnaEsempio();
 }
