@@ -359,7 +359,9 @@ test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri
   assert.equal(motivoGemello(rotto, PAOLO), "conto");
   const corto = copia(GIULIA); corto.passi = corto.passi.slice(0, 4);
   assert.equal(motivoGemello(corto, PAOLO), "passi");
-  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "30 - 9 = 21" }], risultato: { valore: "21", unita: "€" }, verifica: { spiegazione: "", controlli: [{ testo: "", calcolo: "6 + 9 + 6 = 21" }] } }, PAOLO), null); // la variante può avere un passo in più
+  // La variante può avere un passo in più. (Prima la prova usava «6 + 9 + 6 = 21», che conta il 6 due volte senza il totale:
+  // dal 17 novembre 2026 una verifica così si scarta, e la prova usa una verifica coerente.)
+  assert.equal(motivoGemello({ ...copia(GIULIA), tipo: "variante", passi: [...copia(GIULIA).passi, { titolo: "In più", calcolo: "15 + 15 = 30" }] }, PAOLO), null);
   const strano = copia(GIULIA); strano.passi[4].calcolo = "16 : 3 = 5,33"; strano.passi[5].calcolo = "5,33 × 10 = 53,3"; strano.risultato.valore = "53,3";
   assert.equal(motivoGemello(strano, PAOLO), "numeri");
   assert.equal(motivoGemello({ ...copia(GIULIA), testo: PAOLO.testo }, PAOLO), "contesto");
@@ -614,4 +616,49 @@ test("verifica: ordinali non sono frazioni, legami del testo e controlli al cont
   // «un terzo» e «tre quarti» restano frazioni-parola: 3 e 4 sono dati.
   const t = gemelloDa("Un rettangolo ha il perimetro di 56 cm e la base è il triplo dell'altezza. Calcola l'area.", ["56 : 2 = 28", "28 : 4 = 7", "7 × 3 = 21", "21 × 7 = 147"], "147", "", ["2 × (21 + 7) = 56", "7 × 3 = 21", "21 × 7 = 147"]);
   t.materia = "geometria"; assert.deepEqual(controllaCompito(t), { ok: true });
+});
+
+test("in avanti: l'ultimo controllo fatto di soli dati che arriva allo stesso numero vale come «… = 5 × 6» (Greta)", () => {
+  const T = "Greta prepara delle pizzette per il banchetto di beneficenza della scuola. Nella prima ora vende 1/3 delle pizzette più 2 pizzette. Nella seconda ora vende 1/3 delle pizzette rimaste più altre 2 pizzette. Alla fine le restano 5 vassoi, ognuno con 6 pizzette. Quante pizzette aveva preparato?";
+  const P = ["5 × 6 = 30", "30 + 2 = 32", "1 − 1/3 = 3/3 − 1/3 = 2/3", "32 : 2 × 3 = 16 × 3 = 48", "48 + 2 = 50", "50 : 2 × 3 = 25 × 3 = 75"];
+  assert.deepEqual(controllaCompito(gemelloDa(T, P, "75", "", ["75 : 3 + 2 = 25 + 2 = 27", "75 − 27 = 48", "48 : 3 + 2 = 16 + 2 = 18", "48 − 18 = 30", "5 × 6 = 30"])), { ok: true });
+  // Con un risultato sbagliato la catena non arriva a 30: resta scartata.
+  assert.equal(controllaCompito(gemelloDa(T, ["5 × 6 + 51 = 81"], "81", "", ["81 : 3 + 2 = 27 + 2 = 29", "81 − 29 = 52", "52 − 22 = 30", "5 × 6 = 30"])).motivo, "verifica");
+  // Il «più 2» usato una volta di troppo resta scartato anche così (caso H).
+  assert.equal(controllaCompito(gemelloDa("Luca regala 1/3 delle figurine più 2. Le restanti le mette in 4 bustine da 6. Quante ne aveva?", ["30 × 2 = 60"], "60", "", ["60 : 3 + 2 = 22", "22 + 2 = 24", "4 × 6 = 24"])).motivo, "verifica");
+});
+
+// Revisione avversaria del 17 novembre 2026: verifiche sbagliate da scartare e verifiche giuste da tenere.
+test("revisione avversaria: numeri inventati, dati ignorati o riusati scartati; perimetri, età, parti frazione accettati", () => {
+  const LH = "Luca regala 1/3 delle figurine più 2. Gli restano 24 figurine. Quante ne aveva?";
+  const T = "Marco spende 1/4 dei suoi soldi per un libro e poi 150 € per una felpa. Gli restano 300 €. Quanti soldi aveva?";
+  const A = "Anna ha letto la metà del libro. Mancano 120 pagine. Quante pagine ha il libro?";
+  const G = "Giulia ha 30 €. Spende 1/5 dei soldi per un libro e poi 6 € per un gelato. Quanto le resta?";
+  const M = "Marta spende la terza parte dei suoi soldi e le restano 40 €. Quanto aveva?";
+  const caso = (testo, valore, controlli, materia = "matematica") => controllaCompito({ ...gemelloDa(testo, [valore + " × 1 = " + valore], valore, "", controlli), materia });
+  for (const [nome, testo, valore, controlli, materia] of [
+    ["W1 dato riusato messo per primo", LH, "60", ["2 + 2 + 60 : 3 = 24"]],
+    ["W9 ignora il «più 2»", LH, "72", ["24 × 3 = 72"]],
+    ["W2 numero inventato", LH, "60", ["24 × 2 + 12 = 60"]],
+    ["W3 numero inventato", LH, "60", ["24 + 2 + 34 = 60"]],
+    ["W11 150 tre volte", T, "750", ["150 + 150 + 150 + 300 = 750"]],
+    ["W10 controlli inutili", T, "750", ["100 + 50 = 150", "140 + 10 = 150", "150 + 150 + 150 + 300 = 750"]],
+    ["W8 «la metà del libro» non è un legame", A, "360", ["120 × 2 = 240", "240 + 120 = 360"]],
+    ["W13 «la terza parte» è una frazione", M, "70", ["40 + 30 = 70"]],
+    ["W14 un lato tre volte", "Un rettangolo ha la base di 12 cm e l'altezza di 5 cm. Calcola il perimetro.", "46", ["12 + 12 + 12 + 5 + 5 = 46"], "geometria"],
+  ]) assert.equal(caso(testo, valore, controlli, materia).motivo, "verifica", nome);
+  for (const [nome, testo, valore, controlli, materia] of [
+    ["C1 il triplo dei suoi anni", "Marco ha 12 anni. Il padre ha il triplo dei suoi anni. Quanti anni hanno in tutto?", "48", ["12 × 3 + 12 = 48"]],
+    ["C2 perimetro", "Un rettangolo ha la base di 12 cm e l'altezza di 5 cm. Calcola il perimetro.", "34", ["12 + 5 + 12 + 5 = 34"], "geometria"],
+    ["C9 isoscele", "Un triangolo isoscele ha la base di 10 cm e ciascun lato obliquo di 13 cm. Calcola il perimetro.", "36", ["10 + 13 + 13 = 36"], "geometria"],
+    ["C3 altezza doppia", "Un rettangolo ha la base di 8 cm e l'altezza doppia della base. Calcola il perimetro.", "48", ["(8 + 8 × 2) × 2 = 48"], "geometria"],
+    ["C20 base doppia del lato", "Un quadrato ha il lato di 7 cm. Un rettangolo ha la base doppia del lato del quadrato e l'altezza di 7 cm. Calcola il perimetro del rettangolo.", "42", ["14 + 7 + 14 + 7 = 42", "7 × 2 = 14"], "geometria"],
+    ["C5 4 anni in più", "Luca ha 10 anni e la sorella ha 4 anni in più. Quanto fa la somma delle loro età?", "24", ["4 + 10 + 10 = 24"]],
+    ["C5b in un altro ordine", "Luca ha 10 anni e la sorella ha 4 anni in più. Quanto fa la somma delle loro età?", "24", ["10 + 4 + 10 = 24"]],
+    ["C14 1/5 di 30", G, "18", ["18 + 6 + 30 : 5 = 30"]],
+    ["C16 il secondo 6 è 1/5 di 30", G, "18", ["18 + 6 = 24", "24 + 6 = 30"]],
+    ["C4 quaderni e penne", "Compra 3 quaderni da 2 € e 2 penne da 3 €. Quanto spende?", "12", ["2 × 3 + 3 × 2 = 12"]],
+    ["C21 la terza parte", M, "60", ["40 : 2 × 3 = 60"]],
+    ["Sara: denominatore comune", "Sara legge un libro. Il primo giorno legge 1/4 del libro e il secondo giorno legge 1/6 del libro. Poi legge 60 pagine e le restano ancora 80 pagine da leggere. Quante pagine ha il libro?", "240", ["240 : 12 × 5 = 100", "100 + 60 + 80 = 240"]],
+  ]) assert.deepEqual(caso(testo, valore, controlli, materia), { ok: true }, nome);
 });
