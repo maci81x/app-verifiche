@@ -8,7 +8,7 @@ Lo schema di riferimento è `20261030160000_spiegazioni.sql`: copia quello.
 - Crealo con `env -u SUPABASE_ACCESS_TOKEN supabase migration new nome_in_snake_case`. Mai inventare il timestamp.
 - Solo aggiunte: tabelle, colonne con default, indici, policy, revoke. Niente `drop`, niente rename,
   niente vincoli nuovi su colonne che hanno già righe.
-- In testa un commento: issue, cosa salva, chi scrive (app con i permessi della ragazza o Edge Function).
+- In testa un commento: issue, cosa salva, chi scrive (app con i permessi di chi studia o Edge Function).
 - La migration la applica Roby. Chi scrive codice non fa `db push` e non usa `apply_migration`.
 
 ## 2. La tabella
@@ -18,7 +18,7 @@ Lo schema di riferimento è `20261030160000_spiegazioni.sql`: copia quello.
 - `studente_id uuid not null default auth.uid()`.
 - Chiave esterna **composta** verso il genitore: `foreign key (argomento_id, studente_id) references
   public.argomenti (id, studente_id) on delete cascade`. Così il database rifiuta il collegamento
-  a un argomento di un'altra ragazza (le policy controllano solo `studente_id`).
+  a un argomento di un altro profilo (le policy controllano solo `studente_id`).
 - Se la tabella farà da genitore ad altre: `unique (id, studente_id)`.
 - Una riga per argomento o concetto (cache rigenerabile, es. "5 cose da sapere"):
   `unique (argomento_id, studente_id)`; la rigenerazione è un upsert su quel vincolo.
@@ -32,7 +32,7 @@ Lo schema di riferimento è `20261030160000_spiegazioni.sql`: copia quello.
   `create index diari_argomento on public.diari (argomento_id, studente_id);`.
   Un `unique (argomento_id, studente_id)` vale già come indice.
 - Nome: `tabella_scopo` (`domande_sessione`, `sessioni_storico`).
-- L'elenco della ragazza: indice su `(studente_id, <colonna di ordinamento> desc)`.
+- L'elenco di chi studia: indice su `(studente_id, <colonna di ordinamento> desc)`.
 - Niente indici "per sicurezza": ogni indice rallenta le scritture.
 
 ## 4. RLS e permessi
@@ -59,10 +59,10 @@ grant select, insert, update, delete on public.diari to authenticated;
 
 - `auth.uid()` sempre dentro `(select ...)`: si calcola una volta per query, non per riga.
 - Sempre `to authenticated` più il confronto con `studente_id`. Mai `auth.role()`, mai
-  `user_metadata` (la ragazza lo può scrivere). Il ruolo vive in `app_metadata`.
+  `user_metadata` (chi studia lo può scrivere). Il ruolo vive in `app_metadata`.
 - Update sempre con `using` **e** `with check`.
 - Il genitore legge e non scrive: nessuna policy di scrittura per lui.
-- Dati solo della ragazza (come le foto in `fonti`): `leggi` con `studente_id = (select auth.uid())`
+- Dati solo di chi studia (come le foto in `fonti`): `leggi` con `studente_id = (select auth.uid())`
   invece di `app.posso_leggere`.
 - Tabella scritta solo dal server (come `report`): solo la policy `leggi`, nessun grant di scrittura.
 - I grant espliciti servono: i default del progetto oggi danno tutto anche ad `anon`, e Supabase
@@ -95,7 +95,7 @@ grant select, insert, update, delete on public.diari to authenticated;
 
 In `test/db/rls.test.js` una `prova(...)` per ogni tabella nuova, copiando quella di `spiegazioni`:
 
-- la ragazza crea, legge, rigenera (upsert), il check sul JSON blocca un valore sbagliato;
+- chi studia crea, legge, rigenera (upsert), il check sul JSON blocca un valore sbagliato;
 - la sorella: conta 0, insert sull'argomento dell'altra → `foreign_key_violation`,
   insert a nome dell'altra → `insufficient_privilege`, update e delete toccano 0 righe;
 - il genitore legge e non modifica; l'anonimo → `insufficient_privilege`;
