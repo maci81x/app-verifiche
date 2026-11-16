@@ -72,8 +72,8 @@ import {
   PROMPT_TRASCRIZIONE, PROMPT_TRASCRIZIONE_AGGIUNTA, promptConcetti, promptConcettiNuovi, promptDomande, promptCorrezione,
   promptMappa, promptSintesi, DOMANDE_DA_STAMPARE, DOMANDE_PER_CONCETTO,
   promptRicercaSpiegazione, promptSpiegazione, promptRicercaArricchisci, promptArricchisci,
-  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi,
-  promptCompito, promptCompitoDomanda, promptGemelli, promptSmista,
+  PROMPT_TRASCRIZIONE_ESERCIZI, promptEserciziTipi, promptEserciziGenera, promptCorrezioneEsercizi, promptSmista,
+  promptCompito, promptCompitoDomanda, promptGemelli,
 } from "../_shared/prompt.js";
 import { tipiAncorati } from "../_shared/esercizi.js";
 import { correggiPacchetto, conAnalisi, TIPI_ERRORE } from "../_shared/correzione.js";
@@ -82,6 +82,7 @@ import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRis
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta } from "../_shared/web.js";
 import { concettiAncorati } from "../_shared/concetti.js";
 import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO, diverseDa, unaApertaNuova } from "../_shared/domande.js";
+import { smistamento, breviArgomenti, oggiValido, MAX_FOTO, MAX_TESTO_FOTO, MAX_ARGOMENTI } from "../_shared/smista.js";
 import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
   correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
   rispostaColRisultato, rispondiSenzaRisultato, AVVISO_BLOCCATA } from "../_shared/compito.js";
@@ -90,7 +91,6 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
-import { smistamento, breviArgomenti, oggiValido, MAX_FOTO, MAX_TESTO_FOTO, MAX_ARGOMENTI } from "../_shared/smista.js";
 
 const MODELLO = Deno.env.get("CLAUDE_MODEL") ?? "claude-opus-5-5";
 const MAX_IMMAGINI = 4;
@@ -632,6 +632,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (b.azione === "smista") {
+      const tr = b.trascrizioni, ar = b.argomenti ?? [];
+      if (!Array.isArray(tr) || !tr.length || tr.length > MAX_FOTO || !tr.every((x) => typeof x === "string") ||
+          !Array.isArray(ar) || ar.length > MAX_ARGOMENTI ||
+          !ar.every((a: any) => a && typeof a.id === "string" && UUID.test(a.id) && testo(a.materia).trim() && testo(a.titolo).trim()) ||
+          !oggiValido(b.oggi))
+        return json({ errore: "richiesta non valida" }, 400);
+      const trascrizioni = tr.map((x: string) => x.slice(0, MAX_TESTO_FOTO));
+      if (!trascrizioni.some((x: string) => x.trim())) return json({ errore: "nessun testo da leggere" }, 422);
+      const argomenti = ar.map((a: any) => ({ id: a.id, materia: testoBreve(a.materia, 60).trim(), titolo: testoBreve(a.titolo, 200).trim() }));
+      const brevi = breviArgomenti(argomenti);
+      const elenco = argomenti.map((a: any, i: number) => ({ breve: brevi[i], materia: a.materia, titolo: a.titolo }));
+      const r = await chiedi(promptSmista({ oggi: b.oggi, trascrizioni, argomenti: elenco }), schemaSmista(brevi), [], "low");
+      return json(smistamento(r, trascrizioni, argomenti, b.oggi));
+    }
+
     if (b.azione === "compito") {
       const imm = Array.isArray(b.immagini) ? b.immagini : [];
       const scritto = testoBreve(b.testo, 6000).trim();
@@ -802,22 +818,6 @@ Deno.serve(async (req) => {
       const tipico = domanda && !esito.giusto ? erroreTipicoDi({ classe: null, testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) : null;
       if (!tipico) return json(esito);
       return json({ ...esito, ...erroreTipicoDi({ classe: await classeDi(req, io.sub), testo: domanda, risposta: testoBreve(b.risposta, 60), giusto: false }) });
-    }
-
-    if (b.azione === "smista") {
-      const tr = b.trascrizioni, ar = b.argomenti ?? [];
-      if (!Array.isArray(tr) || !tr.length || tr.length > MAX_FOTO || !tr.every((x) => typeof x === "string") ||
-          !Array.isArray(ar) || ar.length > MAX_ARGOMENTI ||
-          !ar.every((a: any) => a && typeof a.id === "string" && UUID.test(a.id) && testo(a.materia).trim() && testo(a.titolo).trim()) ||
-          !oggiValido(b.oggi))
-        return json({ errore: "richiesta non valida" }, 400);
-      const trascrizioni = tr.map((x: string) => x.slice(0, MAX_TESTO_FOTO));
-      if (!trascrizioni.some((x: string) => x.trim())) return json({ errore: "nessun testo da leggere" }, 422);
-      const argomenti = ar.map((a: any) => ({ id: a.id, materia: testoBreve(a.materia, 60).trim(), titolo: testoBreve(a.titolo, 200).trim() }));
-      const brevi = breviArgomenti(argomenti);
-      const elenco = argomenti.map((a: any, i: number) => ({ breve: brevi[i], materia: a.materia, titolo: a.titolo }));
-      const r = await chiedi(promptSmista({ oggi: b.oggi, trascrizioni, argomenti: elenco }), schemaSmista(brevi), [], "low");
-      return json(smistamento(r, trascrizioni, argomenti, b.oggi));
     }
 
     if (b.azione === "domande") {

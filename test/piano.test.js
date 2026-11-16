@@ -31,10 +31,11 @@ test("nessuna scadenza: i dovuti, i rossi prima, un verde al volo, 4-6 punti", (
   assert.equal(p.punti.at(-1).motivo, "al volo");
   assert.equal(p.prossima, null);
   assert.deepEqual(p.scadenze, []);
-  // senza misura: 2 minuti a punto (valore dichiarato nel codice), quindi 5 punti = 10 minuti
-  assert.equal(p.secondi_punto, 120);
+  // senza risposte misurate: 5 punti e nessun minuto (niente numeri inventati)
+  assert.equal(p.secondi_punto, null);
   assert.equal(p.punti.length, 5);
-  assert.equal(p.minuti, 10);
+  assert.equal(p.minuti, null);
+  assert.ok(p.parti.every((x) => x.minuti === null));
 });
 
 test("una scadenza fra 1 giorno: quasi tutto su quell'argomento, verde compreso", () => {
@@ -59,11 +60,14 @@ test("due scadenze: minuti divisi in proporzione alla vicinanza", () => {
   assert.ok(n("A") > n("B"), "storia " + n("A") + ", scienze " + n("B"));
   assert.ok(n("B") >= 1);
   assert.equal(p.punti.length, 6); // 600 / 100 secondi
-  // minuti = punti × secondi misurati, per materia e in totale
-  const st = p.parti.find((x) => x.materia === "storia"), sc = p.parti.find((x) => x.materia === "scienze");
-  assert.equal(st.minuti, Math.round(st.punti * 100 / 60));
-  assert.equal(sc.minuti, Math.round(sc.punti * 100 / 60));
+  // minuti = punti × secondi misurati; quelli per materia sommano al totale mostrato
   assert.equal(p.minuti, 10);
+  assert.equal(p.parti.reduce((t, x) => t + x.minuti, 0), p.minuti);
+  // 5 punti a 75 s = 6,25 → 6 minuti; storia 3 e scienze 2 arrotondati a testa darebbero 4 + 3 = 7
+  const q = piano(TUTTI.filter((x) => ["s1", "s2", "s3", "c1", "c2"].includes(x.concetto_id)), [], OGGI, 75);
+  assert.equal(q.punti.length, 5);
+  assert.equal(q.minuti, Math.round(q.punti.length * 75 / 60));
+  assert.equal(q.parti.reduce((t, x) => t + x.minuti, 0), q.minuti);
 });
 
 test("tutto verde: un piano lo stesso, solo verdi da rivedere al volo", () => {
@@ -82,7 +86,7 @@ test("tutto verde: un piano lo stesso, solo verdi da rivedere al volo", () => {
 test("niente punti: piano vuoto, zero minuti", () => {
   const p = piano([], [scad("storia", "2026-11-18")], OGGI);
   assert.deepEqual(p.punti, []);
-  assert.equal(p.minuti, 0);
+  assert.equal(p.minuti, null);
   assert.equal(p.prossima.giorni, 2);
 });
 
@@ -105,8 +109,8 @@ test("scadenze passate o lontane non pesano; una verifica oggi sì", () => {
 });
 
 test("durata media misurata: dai secondi delle risposte, senza valori assurdi", () => {
-  assert.equal(run("secondiPerPunto([])"), 120);
-  assert.equal(run("secondiPerPunto([30, 40])"), 120); // troppo poche per fidarsi
+  assert.equal(run("secondiPerPunto([])"), null);
+  assert.equal(run("secondiPerPunto([30, 40])"), null); // troppo poche per fidarsi: nessun minuto
   assert.equal(run("secondiPerPunto([30, 40, 50, 60, 70, null, 5000, 0])"), 50);
 });
 
@@ -117,16 +121,28 @@ const nuovo = (prima, esito, sic) => json(`nuovoStatoRipasso(${JSON.stringify(pr
 test("esito buono: intervallo × facilità; scarso: intervallo 1; medio: intervallo uguale", () => {
   const a = nuovo(null, 9, null);
   assert.deepEqual([a.intervallo_giorni, a.prossima, a.facilita, a.ultimo_esito], [3, "2026-11-19", 2.6, 9]);
-  const b = nuovo(a, 10, "ci");
-  assert.deepEqual([b.intervallo_giorni, b.prossima, b.ultima_sicurezza], [8, "2026-11-24", "ci"]);
+  const b = json(`nuovoStatoRipasso(${JSON.stringify(a)}, 10, "ci", "2026-11-19")`); // il giorno in cui era dovuto
+  assert.deepEqual([b.intervallo_giorni, b.prossima, b.ultima_sicurezza], [8, "2026-11-27", "ci"]);
   const c = nuovo(b, 3, "forse");
-  assert.deepEqual([c.intervallo_giorni, c.prossima, c.facilita], [1, "2026-11-17", 2.5]);
+  assert.deepEqual([c.intervallo_giorni, c.prossima], [1, "2026-11-17"]);
+  assert.equal(nuovo({ intervallo_giorni: 3, facilita: 2.7, prossima: OGGI }, 3, null).facilita, 2.5);
   const d = nuovo({ intervallo_giorni: 4, facilita: 2.2 }, 6, null);
   assert.deepEqual([d.intervallo_giorni, d.facilita, d.prossima], [4, 2.2, "2026-11-20"]);
   // la facilità resta fra 1,3 e 3
   assert.equal(nuovo({ intervallo_giorni: 1, facilita: 1.3 }, 0, null).facilita, 1.3);
   assert.equal(nuovo({ intervallo_giorni: 1, facilita: 3 }, 10, null).facilita, 3);
   assert.equal(nuovo(null, 7.26, null).ultimo_esito, 7.3);
+});
+
+test("due prove sullo stesso concetto nello stesso giorno non allungano l'intervallo due volte", () => {
+  const a = nuovo({ intervallo_giorni: 3, facilita: 2.5, prossima: OGGI }, 10, null);
+  assert.deepEqual([a.intervallo_giorni, a.prossima], [8, "2026-11-24"]);
+  const b = nuovo(a, 10, "forse"); // seconda prova, oggi: prossima è già dopo oggi
+  assert.deepEqual([b.intervallo_giorni, b.prossima, b.facilita, b.ultimo_esito, b.ultima_sicurezza], [8, "2026-11-24", a.facilita, 10, "forse"]);
+  const m = nuovo(a, 6, null);
+  assert.deepEqual([m.intervallo_giorni, m.prossima, m.facilita], [8, "2026-11-24", a.facilita]);
+  const c = nuovo(a, 2, null); // ma una prova andata male riporta a domani
+  assert.deepEqual([c.intervallo_giorni, c.prossima, c.ultimo_esito], [1, "2026-11-17", 2]);
 });
 
 test("sbagliato dato come «Ci prendo»: domani e prima di tutto", () => {
@@ -141,7 +157,9 @@ test("sicurezza per concetto: un «Ci prendo» sbagliato vince sulle altre rispo
   const domande = [{ id: "d1", concetto_id: "x" }, { id: "d2", concetto_id: "x" }, { id: "d3", concetto_id: "y" }, { id: "d4", concetto_id: "z" }];
   const risposte = { d1: { sicurezza: "forse" }, d2: { sicurezza: "ci" }, d3: { sicurezza: "ci" }, d4: {} };
   const per = { d1: { punti: 9 }, d2: { punti: 2 }, d3: { punti: 10 }, d4: { punti: 4 } };
-  assert.deepEqual(json(`sicurezzePerConcetto(${JSON.stringify(domande)}, ${JSON.stringify(risposte)}, ${JSON.stringify(per)})`), { x: "ci", y: "ci" });
+  // il «Ci prendo» sbagliato porta con sé i punti di quella risposta, non la media del concetto
+  assert.deepEqual(json(`sicurezzePerConcetto(${JSON.stringify(domande)}, ${JSON.stringify(risposte)}, ${JSON.stringify(per)})`),
+    { x: { sicurezza: "ci", esito: 2 }, y: { sicurezza: "ci" } });
 });
 
 test("scrittura in ripasso_stato: upsert sulla chiave, una riga per concetto; se la tabella manca non si rompe niente", async () => {
@@ -149,7 +167,7 @@ test("scrittura in ripasso_stato: upsert sulla chiave, una riga per concetto; se
   const finto = (errore) => ({ from: (t) => ({ upsert: async (righe, opz) => { chiamate.push({ t, righe, opz }); return { error: errore }; } }) });
   run(`statiRipasso = { a: { concetto_id: "a", intervallo_giorni: 3, facilita: 2.6, prossima: "2026-11-16" } }`);
   ctx.mock = finto(null);
-  const ok = await run(`salvaRipassoStato(mock, [{ concetto_id: "a", media: 9 }, { concetto_id: "b", media: 3 }], { b: "ci" }, "${OGGI}")`);
+  const ok = await run(`salvaRipassoStato(mock, [{ concetto_id: "a", media: 9 }, { concetto_id: "b", media: 3 }], { b: { sicurezza: "ci" } }, "${OGGI}")`);
   assert.equal(ok, true);
   assert.equal(chiamate.length, 1);
   assert.equal(chiamate[0].t, "ripasso_stato");
@@ -159,8 +177,16 @@ test("scrittura in ripasso_stato: upsert sulla chiave, una riga per concetto; se
   assert.deepEqual([b.concetto_id, b.intervallo_giorni, b.ultima_sicurezza, b.ultimo_esito], ["b", 1, "ci", 3]);
   assert.ok(b.aggiornato);
   assert.equal(run("statiRipasso.b.prossima"), "2026-11-17"); // il piano di domani lo vede subito
+  // «Ci prendo» con 0 punti in un concetto con media 6,7: priorità massima lo stesso
+  chiamate.length = 0;
+  await run(`salvaRipassoStato(mock, [{ concetto_id: "z", media: 6.7 }], { z: { sicurezza: "ci", esito: 0 } }, "${OGGI}")`);
+  const z = chiamate[0].righe[0];
+  assert.deepEqual([z.ultimo_esito, z.ultima_sicurezza, z.intervallo_giorni], [0, "ci", 1]);
+  assert.equal(run(`prioritaMassima(statiRipasso.z)`), true);
+  // se la scrittura non riesce la cache locale resta com'era
   ctx.mock = finto({ code: "PGRST205", message: "Could not find the table" });
-  assert.equal(await run(`salvaRipassoStato(mock, [{ concetto_id: "a", media: 9 }], {}, "${OGGI}")`), false);
+  assert.equal(await run(`salvaRipassoStato(mock, [{ concetto_id: "n", media: 9 }], {}, "${OGGI}")`), false);
+  assert.equal(run(`statiRipasso.n`), undefined);
   ctx.mock = { from: () => ({ upsert: async () => { throw new Error("rete"); } }) };
   assert.equal(await run(`salvaRipassoStato(mock, [{ concetto_id: "a", media: 9 }], {}, "${OGGI}")`), false);
   assert.equal(await run(`salvaRipassoStato(mock, [], {}, "${OGGI}")`), true);
@@ -194,7 +220,15 @@ test("frasi di Oggi: scadenza, cosa si fa, stato vuoto (voce #17, niente numeri 
   const r = run(`rigaPiano(${JSON.stringify(p)})`);
   assert.match(r, /^Oggi \d+ minut[io] di storia e \d+ di scienze\.$/);
   const vuoto = piano(TUTTI, [], OGGI);
-  assert.equal(run(`rigaPiano(${JSON.stringify(vuoto)})`), "Nessuna verifica in vista. Segna una data, o fai i 10 minuti per non dimenticare.");
+  assert.equal(run(`rigaPiano(${JSON.stringify(piano(TUTTI, [], OGGI, 120))})`), "Nessuna verifica in vista. Segna una data, o fai i 10 minuti per non dimenticare.");
+  // senza misure si contano i punti, mai i minuti
+  assert.equal(run(`rigaPiano(${JSON.stringify(vuoto)})`), "Nessuna verifica in vista. Segna una data, o fai i 5 punti per non dimenticare.");
+  const senza = run(`htmlPiano(${JSON.stringify(vuoto)})`);
+  assert.match(senza, /I tuoi 5 punti di oggi/);
+  assert.match(senza, /Parti con i 5 punti/);
+  assert.doesNotMatch(senza, /minut/);
+  const due = piano(TUTTI, [scad("scienze", "2026-11-20"), scad("storia", "2026-11-17", "A")], OGGI);
+  assert.match(run(`rigaPiano(${JSON.stringify(due)})`), /^Oggi \d punti di storia e \d di scienze\.$/);
   const html = run(`htmlPiano(${JSON.stringify(p)})`);
   assert.match(html, /I tuoi 10 minuti di oggi/);
   assert.match(html, /Parti con i 10 minuti/);

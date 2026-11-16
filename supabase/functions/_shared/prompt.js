@@ -435,7 +435,7 @@ export function promptGemelli(dati) {
 // La data non la chiediamo: la ricava smista.js dalla frase copiata.
 export function promptSmista(dati) {
   return [
-    "Sei un insegnante di scuola media italiana e aiuti un'alunna a mettere in ordine quello che ha fatto oggi a scuola. Oggi è " + dati.oggi + ".",
+    "Sei un insegnante di scuola media italiana e aiuti chi studia a mettere in ordine quello che ha fatto oggi a scuola. Oggi è " + dati.oggi + ".",
     "Ogni foto è già trascritta. Per ogni foto (foto = il suo numero) scegli la materia e l'argomento:",
     "- se parla di un argomento già in libreria, argomento = il suo id breve (a1, a2...);\n- se è un argomento nuovo, argomento = \"nuovo\", nuovo_titolo = un titolo breve preso da quello che c'è scritto, materia = la materia della scuola media;\n- se è solo una pagina di diario (compiti, avvisi, date) e non contiene niente da studiare, argomento = \"nessuno\".",
     "confidenza da 0 a 1: quanto sei sicuro della scelta. Bassa se la foto è poco leggibile o potrebbe andare in più argomenti.",

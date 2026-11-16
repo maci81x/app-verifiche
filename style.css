@@ -98,7 +98,7 @@ details.extra summary{cursor:pointer;font-weight:700;font-size:1rem;list-style:n
 details.extra summary::-webkit-details-marker{display:none}
 details.extra summary::before{content:"+";color:var(--inchiostro);font-size:1.2rem;font-weight:700}
 details.extra[open] summary::before{content:"−"}
-textarea,input[type=text],input[type=password]{width:100%;border:1.5px solid var(--bordo);border-radius:14px;padding:13px 14px;font:inherit;background:var(--carta);color:var(--inchiostro);box-sizing:border-box;min-height:48px}
+textarea,input[type=text],input[type=password],input[type=date],select{width:100%;border:1.5px solid var(--bordo);border-radius:14px;padding:13px 14px;font:inherit;background:var(--carta);color:var(--inchiostro);box-sizing:border-box;min-height:48px}
 textarea{min-height:96px;resize:vertical}
 .etichetta{display:block;font-size:.95rem;color:var(--inchiostro);margin:14px 0 6px;font-weight:700}
 .riga-campi{display:flex;gap:12px;flex-wrap:wrap}
@@ -889,6 +889,28 @@ button.piano-parti:focus-visible{outline:3px solid #F2F2EE;outline-offset:3px}
 .barra-pronto i{display:block;height:100%;background:var(--verde)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .piano{background:#0B0B0E;border:1px solid var(--bordo)}}
 :root[data-theme="dark"] .piano{background:#0B0B0E;border:1px solid var(--bordo)}
+/* Il diario di ogni giorno (issue #19) */
+.miniature.griglia{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.miniature.griglia img{width:100%;height:auto;aspect-ratio:1}
+button.link.link-in-riga{padding:10px 0;display:inline;text-align:left}
+#dg-a-mano{margin-top:6px}
+#dg-a-mano .livelli{margin-top:14px}
+.righe-smista{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bordo)}
+.riga-smista{border-bottom:1px solid var(--bordo)}
+.riga-smista-btn{display:flex;gap:14px;align-items:center;width:100%;background:none;border:0;padding:12px 0;text-align:left;color:var(--inchiostro);font:inherit;cursor:pointer;min-height:44px}
+.riga-smista-btn img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--bordo);flex:none}
+.riga-smista-testo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.riga-smista-testo b{font-weight:700;overflow-wrap:anywhere}
+.riga-smista-testo small{color:var(--inchiostro-2);font-size:.92rem}
+.cambia{padding:0 0 14px}
+.card-data{background:var(--giallo-bg);color:var(--inchiostro);border-radius:20px;padding:16px;margin-top:18px}
+.card-data p{margin:0 0 6px}
+.card-data .aiuto{margin:0}
+.card-data .bottoni{margin-top:12px}
+.serie-diario{color:var(--inchiostro-2);font-size:.95rem;margin:0 0 6px}
+.date-diario{list-style:none;margin:6px 0 0;padding:0;border-top:1px solid var(--bordo)}
+.date-diario li{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--bordo);padding:8px 0}
+#diario-oggi .avviso{margin:8px 0 10px}
 /* Hub «Cosa facciamo adesso?» e ripasso guidato (issue #21) */
 .cosa-facciamo{font:800 1.5rem/1.05 var(--display);letter-spacing:-.03em;margin:0 0 6px}
 .consiglio{margin:0 0 16px;color:var(--inchiostro-2);font-size:1.02rem;line-height:1.45}

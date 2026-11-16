@@ -22,6 +22,7 @@ const ASSETS = [
   '/app-verifiche/invalsi.js?v=23',
   '/app-verifiche/esempi.js?v=23',
   '/app-verifiche/esame.js?v=23',
+  '/app-verifiche/diario.js?v=23',
   '/app-verifiche/italia-mappa.js?v=23',
   '/app-verifiche/geografia.js?v=23',
   '/app-verifiche/piano.js?v=23',

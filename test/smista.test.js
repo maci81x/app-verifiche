@@ -132,3 +132,40 @@ test("risposta vuota o rotta del modello: righe vuote, nessuna scadenza", () => 
   assert.equal(r.foto.length, 3);
   assert.deepEqual(r.scadenze, []);
 });
+
+/* ---------------------------------------------------------------- prompt */
+import { promptSmista } from "../supabase/functions/_shared/prompt.js";
+
+test("prompt di smista: oggi, id brevi, foto numerate, frase copiata parola per parola, niente date dedotte", () => {
+  const p = promptSmista({
+    oggi: OGGI,
+    trascrizioni: ["Pagina di storia", "Verifica di matematica giovedì 19"],
+    argomenti: [{ breve: "a1", materia: "Storia", titolo: "La Rivoluzione francese" }],
+  });
+  assert.match(p, /Oggi è 2026-11-15\./);
+  assert.match(p, /"breve":"a1"/);
+  assert.doesNotMatch(p, /a0000000-/); // gli uuid non arrivano al modello
+  assert.match(p, /Foto 1:\nPagina di storia/);
+  assert.match(p, /Foto 2:\nVerifica di matematica giovedì 19/);
+  assert.match(p, /argomento = "nuovo"/);
+  assert.match(p, /argomento = "nessuno"/);
+  assert.match(p, /copiata parola per parola dalla trascrizione/);
+  assert.match(p, /Non dedurre una data, non completarla e non correggerla/);
+  // La data la calcola smista.js, non il modello: nello schema di risposta non c'è.
+  assert.doesNotMatch(p.slice(p.lastIndexOf("Rispondi solo con JSON")), /"data"/);
+  // Voce di #17: nessun genere per chi studia.
+  assert.doesNotMatch(p, /\balunn[ae]\b|un'alunna|\bragazza\b/);
+});
+
+test("testo_letto: la frase copiata deve essere una sottostringa vera, non una parafrasi", () => {
+  const tr = ["Lunedì: compiti pag. 12. Interrogazione di storia lunedì prossimo, ripassare cap. 3."];
+  assert.equal(lettaDavvero("Interrogazione di storia lunedì prossimo", tr), true);
+  assert.equal(lettaDavvero("interrogazione di storia, lunedì prossimo", tr), true); // punteggiatura e maiuscole non contano
+  assert.equal(lettaDavvero("Interrogazione storia lunedì prossimo", tr), false);   // parola saltata
+  assert.equal(lettaDavvero("Interrogazione di storia martedì prossimo", tr), false); // giorno cambiato
+  assert.equal(lettaDavvero("Interrogazione di storia lunedì prossimo", ["Interrogazione di storia", "lunedì prossimo"]), false); // fra due foto no
+  // Nello smistamento la frase non letta fa scartare la scadenza anche se la data sarebbe valida.
+  const r = smistamento({ foto: [], scadenze: [{ foto: 1, materia: "Storia", tipo: "orale", testo_letto: "Interrogazione di storia giovedì 19" }] }, tr, [], OGGI);
+  assert.deepEqual(r.scadenze, []);
+  assert.equal(r.scartate, 1);
+});
