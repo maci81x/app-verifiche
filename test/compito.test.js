@@ -368,7 +368,8 @@ test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri
   const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: GIULIA.testo.replace("Giulia spende", "Marco usa").replace("paghetta", "mancia") }] }, PAOLO);
   assert.deepEqual(r.gemelli.map((g) => g.tipo), ["vicino", "lontano"]);
   assert.equal(r.scartati, 1);
-  assert.deepEqual(Object.values(r.motivi), [1]); // perché è stato scartato: si legge nei log e nella risposta
+  assert.deepEqual(Object.values(r.motivi), [1]);
+  assert.equal(r.scarti.length, 1); // il gemello scartato con il suo motivo, per gli account di prova // perché è stato scartato: si legge nei log e nella risposta
   assert.deepEqual(r.mancano, ["variante"]);
   assert.deepEqual(TIPI_GEMELLI, ["vicino", "lontano", "variante"]);
 });
@@ -477,4 +478,95 @@ test("tutor: con la soluzione bloccata risponde con una domanda o un indizio e c
   assert.match(aperta, /conto o un ragionamento sbagliato[^.]*errore tipico/);
   assert.match(aperta, /al massimo una domanda/i);
   assert.match(aperta, /prossimo passo/);
+});
+
+// Gemello «variante» vero (16 novembre 2026), scartato sempre al controllo della verifica: il dato del testo
+// (125 litri × 4 ore) è in un controllo a parte, il cui risultato (500) entra nella somma che arriva al risultato.
+const AMIR = {
+  materia: "matematica", soluzione_libro: "",
+  testo: "Amir e la sua famiglia svuotano la piscina del giardino. Il primo giorno tolgono 1/4 dell'acqua. Il secondo giorno tolgono 1/6 dell'acqua. Il terzo giorno usano una pompa che toglie 125 litri all'ora e la tengono accesa per 4 ore. Nella piscina restano ancora 200 litri. Quanti litri d'acqua conteneva la piscina piena?",
+  passi: ["1/4 + 1/6 = 3/12 + 2/12 = 5/12", "1 − 5/12 = 12/12 − 5/12 = 7/12", "125 × 4 = 500", "500 + 200 = 700", "700 : 7 = 100", "100 × 12 = 1200"].map((calcolo) => ({ calcolo })),
+  risultato: { valore: "1200", unita: "litri" },
+  verifica: { spiegazione: "", controlli: ["1200 : 4 = 300", "1200 : 6 = 200", "125 × 4 = 500", "300 + 200 + 500 + 200 = 1200"].map((calcolo) => ({ testo: "", calcolo })) },
+};
+test("verifica all'indietro a catena: i dati possono stare nei controlli che portano alla somma finale", () => {
+  assert.deepEqual(controllaCompito(AMIR), { ok: true });
+  // Senza il controllo della pompa la somma usa un solo dato vero (200): resta scartata.
+  const senzaPompa = copia(AMIR); senzaPompa.verifica.controlli.splice(2, 1);
+  assert.equal(controllaCompito(senzaPompa).motivo, "verifica");
+  // Un conto sbagliato in un controllo della catena scarta tutto, come prima.
+  const rotto = copia(AMIR); rotto.verifica.controlli[2].calcolo = "125 × 4 = 600";
+  assert.equal(controllaCompito(rotto).motivo, "verifica");
+  // Un controllo legato che non usa dati veri non basta: 300 + 200 + 500 + 200 con 250 × 2 = 500 (250 e 2 non sono nel testo).
+  const finto = copia(AMIR); finto.verifica.controlli[2].calcolo = "250 × 2 = 500";
+  assert.equal(controllaCompito(finto).motivo, "verifica");
+});
+
+// Altri due gemelli «variante» veri scartati a torto (16 novembre 2026).
+const gemelloDa = (testo, passi, valore, unita, controlli) => ({ materia: "matematica", soluzione_libro: "", testo,
+  passi: passi.map((calcolo) => ({ calcolo })), risultato: { valore, unita }, verifica: { spiegazione: "", controlli: controlli.map((calcolo) => ({ testo: "", calcolo })) } });
+test("«la metà» vale il dato 2 anche con la lettera accentata (verifica di Amira)", () => {
+  const amira = gemelloDa("Amira legge un romanzo in quattro giorni. Il primo giorno legge 1/4 delle pagine, il secondo giorno 1/5 delle pagine. Il terzo giorno legge 88 pagine. Il quarto giorno legge le pagine che restano: sono la metà di quelle lette il terzo giorno. Quante pagine ha il romanzo?",
+    ["1/4 + 1/5 = 5/20 + 4/20 = 9/20", "1 - 9/20 = 20/20 - 9/20 = 11/20", "88 : 2 = 44", "88 + 44 = 132", "132 : 11 = 12", "12 × 20 = 240"], "240", "pagine",
+    ["240 : 4 = 60", "240 : 5 = 48", "88 : 2 = 44", "60 + 48 + 88 + 44 = 240"]);
+  assert.deepEqual(controllaCompito(amira), { ok: true });
+  // La versione vera usava «44 × 2 = 88» (dalla parte verso un dato): dopo la revisione non vale più, perché quel verso
+  // lascia passare risultati sbagliati. Si scarta e si rigenera.
+  const alContrario = copia(amira); alContrario.verifica.controlli[2].calcolo = "44 × 2 = 88";
+  assert.equal(controllaCompito(alContrario).motivo, "verifica");
+  const senzaMeta = copia(amira); senzaMeta.testo = senzaMeta.testo.replace("sono la metà di quelle lette il terzo giorno", "sono quelle che restano");
+  assert.equal(controllaCompito(senzaMeta).motivo, "verifica"); // senza «metà» il 2 non è un dato: resta scartata
+});
+test("verifica in avanti che arriva a un prodotto di dati del testo («24 = 4 × 6»: 4 bustine da 6)", () => {
+  const tommaso = gemelloDa("Tommaso ha una collezione di figurine. Ne regala 1/3 a un amico più altre 2 figurine. Poi regala alla sorella 1/4 delle figurine rimaste più altre 3 figurine. Le figurine che gli restano le mette in 4 bustine, con 6 figurine in ogni bustina. Quante figurine aveva Tommaso all'inizio?",
+    ["4 × 6 = 24", "24 + 3 = 27", "1 − 1/4 = 4/4 − 1/4 = 3/4", "27 : 3 × 4 = 9 × 4 = 36", "36 + 2 = 38", "38 : 2 × 3 = 19 × 3 = 57"], "57", "figurine",
+    ["57 : 3 + 2 = 19 + 2 = 21", "57 − 21 = 36", "36 : 4 + 3 = 9 + 3 = 12", "36 − 12 = 24 = 4 × 6"]);
+  assert.deepEqual(controllaCompito(tommaso), { ok: true });
+  const davide = gemelloDa("Davide ha una cisterna piena d'acqua per bagnare l'orto. Il primo giorno usa 2/5 dell'acqua più 10 litri. Il secondo giorno usa 1/4 dell'acqua rimasta più altri 10 litri. Con l'acqua che resta riempie esattamente 10 taniche da 5 litri ciascuna. Quanti litri d'acqua conteneva la cisterna?",
+    ["10 × 5 = 50", "50 + 10 = 60", "1 − 1/4 = 4/4 − 1/4 = 3/4", "60 : 3 × 4 = 20 × 4 = 80", "80 + 10 = 90", "90 : 3 × 5 = 30 × 5 = 150"], "150", "litri",
+    ["2/5 × 150 + 10 = 60 + 10 = 70", "150 − 70 = 80", "80 : 4 + 10 = 20 + 10 = 30", "80 − 30 = 50 = 10 × 5"]);
+  assert.deepEqual(controllaCompito(davide), { ok: true });
+  // Arrivare a un prodotto con un numero che nel testo non c'è (8) non vale.
+  const finto = copia(tommaso); finto.verifica.controlli[3].calcolo = "36 − 12 = 24 = 3 × 8";
+  assert.equal(controllaCompito(finto).motivo, "verifica");
+  // Un conto sbagliato resta sbagliato.
+  const rotto = copia(tommaso); rotto.verifica.controlli[3].calcolo = "36 − 12 = 24 = 4 × 7";
+  assert.equal(controllaCompito(rotto).motivo, "verifica");
+});
+
+test("catena: niente verso «dalla parte al dato» («75 − 45 = 30»), sì alle frazioni usate nei controlli legati", () => {
+  const marta = gemelloDa("Marta fa un viaggio in bicicletta di più giorni. Il primo giorno percorre 1/4 del percorso totale e il secondo giorno 2/6 del percorso totale. Il terzo giorno percorre 30 km in più dei chilometri che le restano alla fine. Alla fine le restano ancora 45 km per arrivare. Quanto è lungo tutto il percorso?",
+    ["1/4 + 1/3 = 3/12 + 4/12 = 7/12", "1 − 7/12 = 12/12 − 7/12 = 5/12", "45 + 30 = 75", "75 + 45 = 120", "120 : 5 = 24", "24 × 12 = 288"], "288", "km",
+    ["288 : 4 × 1 = 72", "288 : 6 × 2 = 96", "75 − 45 = 30", "72 + 96 + 75 + 45 = 288"]);
+  assert.equal(controllaCompito(marta).motivo, "verifica"); // il 75 non arriva da un conto con i dati: scartata
+  const giusta = copia(marta); giusta.verifica.controlli[2].calcolo = "45 + 30 = 75";
+  assert.deepEqual(controllaCompito(giusta), { ok: true });
+  const sofia = gemelloDa("Sofia legge un romanzo in quattro giorni. Il primo giorno legge 1/3 delle pagine, il secondo giorno 1/4 delle pagine, il terzo giorno 50 pagine. Il quarto giorno legge le pagine che restano: sono i 4/5 di quelle lette il terzo giorno. Quante pagine ha il romanzo?",
+    ["1/3 + 1/4 = 4/12 + 3/12 = 7/12", "1 - 7/12 = 12/12 - 7/12 = 5/12", "50 : 5 × 4 = 40", "50 + 40 = 90", "90 : 5 = 18", "18 × 12 = 216"], "216", "pagine",
+    ["216 : 3 = 72", "216 : 4 = 54", "72 + 54 + 50 + 40 = 216"]);
+  // Le 40 pagine non sono controllate da nessun conto con i dati: verifica incompleta, scartata.
+  assert.equal(controllaCompito(sofia).motivo, "verifica");
+  // Con il controllo «4/5 di 50» la verifica è completa.
+  const completa = copia(sofia); completa.verifica.controlli.splice(2, 0, { testo: "", calcolo: "50 : 5 × 4 = 40" });
+  assert.deepEqual(controllaCompito(completa), { ok: true });
+});
+
+test("prompt dei gemelli: ogni parte che non è un dato del testo si ricava con un controllo", () => {
+  const p = promptGemelli({ classe: "2", compito: PAOLO, tipi: ["variante"] });
+  assert.match(p, /ogni parte che non è un dato del testo/i);
+});
+
+// Le finte trovate dalla revisione indipendente: con la prima versione della catena passavano, ora no.
+test("revisione: la catena non accetta risultati sbagliati", () => {
+  const T = "Marco spende 1/4 dei suoi soldi per un libro e poi 150 € per una felpa. Gli restano 300 €. Quanti soldi aveva?";
+  const m = (valore, controlli) => gemelloDa(T, ["450 + 450 = " + valore], valore, "€", controlli);
+  assert.equal(controllaCompito(m("900", ["450 - 150 = 300", "450 + 450 = 900"])).motivo, "verifica");                  // A: dalla parte al dato
+  assert.equal(controllaCompito(m("900", ["150 + 300 = 450", "450 + 450 = 900"])).motivo, "verifica");                  // B: nessuna frazione
+  const c = gemelloDa(T, ["200 + 150 + 450 = 800"], "800", "€", ["800 : 4 = 200", "450 - 150 = 300", "200 + 150 + 450 = 800"]);
+  assert.equal(controllaCompito(c).motivo, "verifica");                                                                  // C: parte scoperta
+  const d = gemelloDa("Luca regala 1/3 delle figurine più 2. Le restanti le mette in 4 bustine da 6. Quante ne aveva?", ["36 + 24 = 60"], "60", "figurine", ["60 - 36 = 24 = 4 × 6"]);
+  assert.equal(controllaCompito(d).motivo, "verifica");                                                                  // D: il prodotto vale un dato solo
+  // Il compito vero di Marco (600) con la catena si accetta ancora.
+  const vero = gemelloDa(T, ["150 + 300 = 450", "1 - 1/4 = 3/4", "450 : 3 × 4 = 600"], "600", "€", ["600 : 4 = 150", "150 + 300 = 450", "150 + 450 = 600"]);
+  assert.deepEqual(controllaCompito(vero), { ok: true });
 });

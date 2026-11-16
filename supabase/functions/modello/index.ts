@@ -911,11 +911,12 @@ async function gestisci(req: Request): Promise<Response> {
           const tutti = [...esito.gemelli, ...di_nuovo.gemelli.filter((g) => esito.mancano.includes(g.tipo))];
           const motivi: Record<string, number> = { ...esito.motivi };
           for (const [k, n] of Object.entries(di_nuovo.motivi)) motivi[k] = (motivi[k] || 0) + Number(n);
-          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, motivi, mancano: [] };
+          esito = { gemelli: TIPI_GEMELLI.map((t) => tutti.find((g) => g.tipo === t)).filter(Boolean), scartati: esito.scartati + di_nuovo.scartati, motivi, scarti: [...esito.scarti, ...di_nuovo.scarti], mancano: [] };
         }
         if (!esito.gemelli.length) return json({ errore: "nessun_gemello", scartati: esito.scartati }, 422);
         if (esito.scartati) console.log("gemelli scartati:", JSON.stringify(esito.motivi));
-        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati, motivi: esito.motivi };
+        // Agli account di prova anche i gemelli scartati, per capire perché.
+        const fuori = { gemelli: esito.gemelli, scartati: esito.scartati, motivi: esito.motivi, ...(richiesta.getStore()?.prova ? { scarti: esito.scarti } : {}) };
         riuscito = true;
         return json(fuori);
       } finally { if (!riuscito) await restituisciAiuto(io.sub); }

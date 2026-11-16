@@ -82,7 +82,8 @@ export function controllaCompito(c) {
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
   // Anche le parole-numero sono dati: «il triplo dell'altezza» è un 3 da rispettare.
-  for (const [re, n] of [[/\b(doppi[oa]|metà)\b/i, 2], [/\b(tripl[oa]|terz[oa])\b/i, 3], [/\b(quadrupl[oa]|quart[oa])\b/i, 4]]) if (re.test(consegna)) dati.add(n);
+  // Confini di parola con le lettere accentate: \b non vede la «à» di «metà» (16 novembre 2026).
+  for (const [re, n] of [[/(?<!\p{L})(doppi[oa]|metà)(?!\p{L})/iu, 2], [/(?<!\p{L})(tripl[oa]|terz[oa])(?!\p{L})/iu, 3], [/(?<!\p{L})(quadrupl[oa]|quart[oa])(?!\p{L})/iu, 4]]) if (re.test(consegna)) dati.add(n);
   // Se il testo ha frazioni, usarne una (o il suo denominatore) vale come un dato in più: «10 × 7 = 70» per
   // «spende 1/4 e restano 10 €» non rimette niente della frazione e non basta.
   const denominatori = new Set(frazioni.map((f) => Number(f.split("/")[1])));
@@ -109,17 +110,44 @@ export function controllaCompito(c) {
     return new Set([...datiIn(s), ...legati.map((k) => finali[k]), ...[...legati, ...relazioni].flatMap((k) => [...datiIn(sinistre[k])])]
       .filter((n) => dati.has(n))).size >= quanti;
   };
+  // All'indietro a catena (gemelli «variante», 16 novembre 2026). Una parte della somma finale può venire da un
+  // controllo «pulito» che arriva a lei con soli dati e frazioni del testo («125 × 4 = 500»). La catena vale solo se,
+  // riscritta in una riga sola mettendo il conto al posto della parte («300 + 200 + (125 × 4) + 200»), passa la stessa
+  // regola di prima: così non accetta niente che scritto in una riga sarebbe stato scartato. In più, se il testo ha
+  // frazioni, la catena ne deve usare una (anche nelle parti ricavate dal risultato, «1200 : 6 = 200»).
+  const numFrazioni = new Set(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
+  const pulito = (sx, ammessi) => numeriIn(sx).every((n) => n === 0 || n === 1 || dati.has(n) || numFrazioni.has(n) || ammessi.some((a) => coincide(n, String(a))));
+  const tokenDi = (n) => new RegExp("(?<![\\d.,])" + String(n).replace(".", ",?\\.?") + "(?![\\d.,])", "g");
+  const conCatena = (s, i) => {
+    const ricavate = [...operandi(s)].filter((n) => !dati.has(n) && !numFrazioni.has(n));
+    const altri = controlli.map((_, k) => k).filter((k) => k !== i);
+    const dalRisultato = altri.filter((k) => haValore(sinistre[k]) && [...operandi(s)].some((n) => coincide(finali[k], String(n))) && pulito(sinistre[k], [valore]));
+    let riga = s, sostituite = 0;
+    for (const n of ricavate) {
+      const k = altri.find((x) => !haValore(sinistre[x]) && coincide(finali[x], String(n)) && pulito(sinistre[x], []));
+      if (k === undefined) continue;
+      riga = riga.replace(tokenDi(n), "(" + sinistre[k] + ")"); sostituite++;
+    }
+    if (!sostituite || haValore(riga)) return false;
+    if (frazioni.length && ![riga, ...dalRisultato.map((k) => sinistre[k])].some(usaFrazione)) return false;
+    return contaDati(riga) >= quanti;
+  };
   const indietro = sinistre.some((s, i) => coincide(finale(controlli[i]), valore) && !haValore(s) &&
-    (dati.size ? contaDati(s) >= quanti || conMisure(s, i) : conFrazione(s)));
+    (dati.size ? contaDati(s) >= quanti || conMisure(s, i) || conCatena(s, i) : conFrazione(s)));
   // In avanti: il risultato entra davvero nel primo conto (cambiandolo, cambia il conto), ogni controllo
   // riparte da dove è arrivato il precedente, l'ultimo arriva a un dato del testo.
   const ultimo = finale(controlli[controlli.length - 1]);
+  // L'ultimo controllo arriva a un dato del testo, o a un conto fatto solo di dati del testo («24 = 4 × 6»: 4 bustine da 6).
+  const pezzoFinale = senzaUnita(conPer(controlli[controlli.length - 1])).split("=").pop();
+  const numeriFinali = numeriIn(pezzoFinale.replace(/\d+\s*\/\s*\d+/g, " "));
+  const arrivo = dati.has(ultimo) || (numeriFinali.length >= 2 && numeriFinali.every((n) => dati.has(n)));
   const primo = senzaUnita(conPer(controlli[0])).split("=")[0];
   const conta = valutaSicuro;
   const spostato = primo.replace(new RegExp("(?<![\\d.,])" + String(valore).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d.,])", "g"), String(valutaSicuro(valore) + 1));
   const avanti = !indietro && haValore(sinistre[0]) && conta(spostato) !== null && conta(primo) !== null && Math.abs(conta(spostato) - conta(primo)) > 1e-9 &&
     sinistre.every((s, i) => i === 0 || numeriIn(s).some((n) => coincide(n, String(finale(controlli[i - 1]))))) &&
-    dati.has(ultimo) && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ultimo]).size >= quanti : true);
+    // Arrivare a un dato, o a un prodotto di dati, vale un dato solo: gli altri devono stare nei controlli.
+    arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...(dati.has(ultimo) ? [ultimo] : [])]).size + (dati.has(ultimo) ? 0 : 1) >= quanti : true);
   if (!(indietro || avanti)) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
@@ -271,10 +299,10 @@ export function motivoGemello(g, c) {
 }
 // I gemelli buoni, uno per tipo, nell'ordine vicino, lontano, variante; quanti scartati e i tipi mancanti.
 export function pulisciGemelli(r, c) {
-  const buoni = new Map(), motivi = {}; let scartati = 0;
+  const buoni = new Map(), motivi = {}, scarti = []; let scartati = 0;
   for (const g of Array.isArray(r?.gemelli) ? r.gemelli : []) {
     const motivo = motivoGemello(g, c);
-    if (motivo) { scartati++; motivi[motivo] = (motivi[motivo] || 0) + 1; continue; } // non rispetta le regole: si scarta (e si rigenera)
+    if (motivo) { scartati++; motivi[motivo] = (motivi[motivo] || 0) + 1; scarti.push({ motivo, gemello: g }); continue; } // non rispetta le regole: si scarta (e si rigenera)
     if (buoni.has(g.tipo)) continue;                     // un doppione buono non è uno scarto
     buoni.set(g.tipo, {
       tipo: g.tipo, testo: testo(g.testo, 1500),
@@ -283,5 +311,5 @@ export function pulisciGemelli(r, c) {
       verifica: { spiegazione: testo(g.verifica?.spiegazione, 600), controlli: controlliDi(g.verifica) },
     });
   }
-  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, motivi, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
+  return { gemelli: TIPI_GEMELLI.filter((t) => buoni.has(t)).map((t) => buoni.get(t)), scartati, motivi, scarti, mancano: TIPI_GEMELLI.filter((t) => !buoni.has(t)) };
 }
