@@ -124,7 +124,9 @@ export function idYoutube(url) {
   const id = u.pathname === "/watch" ? u.searchParams.get("v") : (/^\/(?:shorts|embed|live)\/([^/]+)/.exec(u.pathname) || [])[1];
   return /^[A-Za-z0-9_-]{11}$/.test(id || "") ? id : null;
 }
-const sitoVideo = (url) => (dominioConsentito(url, ["youtube.com"]) ? "YouTube" : dominioConsentito(url, ["raiplay.it"]) ? "RaiPlay" : "Rai Scuola");
+const sitoVideo = (url) => (dominioConsentito(url, ["youtube.com"]) ? "YouTube" : "Rai Scuola");
+// La durata deve comparire intera nel testo: 6:40 non combacia dentro 16:40 o 6:40:10, 8 min non dentro 18 minuti.
+const dentroIntera = (d, testo) => new RegExp("(?<![\\d:.,])" + d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\d:])", "i").test(testo);
 
 // "6:40", "1:02:00", "8 minuti", "8 min" → minuti; null se non si legge.
 function minuti(durata) {
@@ -137,7 +139,7 @@ function minuti(durata) {
 
 export function promptRicercaVideo({ materia, argomento, classe, concetti }) {
   return [
-    "Cerca su YouTube e su Rai Scuola o RaiPlay (al massimo tre ricerche) 3 o 4 video brevi, al massimo " + MAX_MINUTI_VIDEO + " minuti, in italiano, che spiegano bene questo argomento a ragazz* di " + etaDaClasse(classe) + " anni.",
+    "Cerca su YouTube e su Rai Scuola (al massimo tre ricerche) 3 o 4 video brevi, al massimo " + MAX_MINUTI_VIDEO + " minuti, in italiano, che spiegano bene questo argomento a ragazz* di " + etaDaClasse(classe) + " anni.",
     "Materia: " + materia + ". Argomento: " + argomento + "." + ((concetti || []).length ? "\nPunti: " + concetti.join("; ") + "." : ""),
     "Preferisci canali di scuola, di divulgazione o di insegnanti. Niente video per adulti, niente pubblicità, niente video lunghi.",
     "Per ogni video scrivi il titolo, il canale e la durata solo se li leggi nei risultati, citando la pagina del video (non una pagina di elenco o di canale).",
@@ -165,7 +167,7 @@ export function videoScelti(grezza, fonti, ricerca) {
     const f = fontiScelte([g && g.fonte], fonti)[0];
     if (!f || visti.has(f.url) || video.length >= MAX_VIDEO) continue;
     const d = pulito(g.durata), c = pulito(g.canale).slice(0, 80);
-    const durata = d && nella.includes(d.toLowerCase()) && minuti(d) !== null ? d : "";
+    const durata = d && minuti(d) !== null && dentroIntera(d, nella) ? d : "";
     if (durata && minuti(durata) > MAX_MINUTI_VIDEO) continue;
     visti.add(f.url);
     const id = idYoutube(f.url);

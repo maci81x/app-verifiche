@@ -25,12 +25,32 @@ test("lezione: schede nell'ordine fisso, fonte appunti, ancora vera tenuta", () 
 });
 
 test("lezione: un'ancora che non sta negli appunti si toglie (la scheda resta) e si conta", () => {
-  const l = pulisciLezione({ schede: [...BASE.slice(0, 2), scheda("regola", { ancora: "Nel 1492 Colombo scoprì l'America con tre caravelle" }), ...BASE.slice(3)] }, STORIA);
-  assert.equal(l.schede[2].ancora, "");
+  const l = pulisciLezione({ schede: [...BASE.slice(0, 3), scheda("regola", { ancora: "Nel 1492 Colombo scoprì l'America con tre caravelle" }), ...BASE.slice(3)] }, STORIA);
+  assert.equal(l.schede[3].tipo, "regola");
+  assert.equal(l.schede[3].ancora, "");
   assert.equal(l.scartate, 1);
   // data cambiata: non regge
-  const d = pulisciLezione({ schede: [...BASE.slice(0, 2), scheda("regola", { ancora: "Nel 486 Odoacre depose l'ultimo imperatore d'Occidente" }), ...BASE.slice(3)] }, STORIA);
-  assert.equal(d.schede[2].ancora, "");
+  const d = pulisciLezione({ schede: [...BASE.slice(0, 3), scheda("regola", { ancora: "Nel 486 Odoacre depose l'ultimo imperatore d'Occidente" }), ...BASE.slice(3)] }, STORIA);
+  assert.equal(d.schede[3].ancora, "");
+});
+
+test("lezione: almeno 5 schede e una regola con la frase vera del quaderno, altrimenti null", () => {
+  assert.equal(MIN_SCHEDE, 5);
+  assert.equal(pulisciLezione({ schede: BASE.slice(0, 4) }, STORIA), null);
+  // la sola regola ha un'ancora che non regge: niente lezione
+  assert.equal(pulisciLezione({ schede: [BASE[0], BASE[1], scheda("regola", { ancora: "Nel 1492 Colombo scoprì l'America con tre caravelle" }), BASE[3], BASE[4]] }, STORIA), null);
+  assert.equal(pulisciLezione({ schede: [BASE[0], BASE[1], scheda("regola"), BASE[3], BASE[4]] }, STORIA), null);
+});
+
+test("lezione: un conto scritto nel testo o nel titolo si ricalcola; se non torna la scheda cade", () => {
+  const sei = (s) => pulisciLezione({ schede: [BASE[0], BASE[1], BASE[2], scheda("esempio"), s, BASE[4]] }, STORIA);
+  assert.equal(sei(scheda("esempio", { testo: "Fai il conto: 12 × 3 = 35. Facile." })).schede.length, 5);
+  assert.equal(sei(scheda("esempio", { titolo: "12 × 3 = 35" })).schede.length, 5);
+  assert.equal(sei(scheda("esempio", { testo: "Fai il conto: 12 × 3 = 36. Facile." })).schede.length, 6);
+  // le equazioni con la x non sono conti da ricalcolare
+  assert.equal(sei(scheda("esempio", { testo: "Risolvi 3x + 2 = 11: togli 2 da tutte e due le parti." })).schede.length, 6);
+  // date e numeri senza uguale restano
+  assert.equal(sei(scheda("esempio", { testo: "La peste durò dal 1347 al 1351, cioè 4 anni." })).schede.length, 6);
 });
 
 test("lezione: un conto che non torna fa cadere la scheda; quelli giusti restano", () => {
@@ -84,6 +104,7 @@ test("prompt della lezione: appunti, struttura fissa, frase copiata, niente pers
   assert.match(p, /copiata/);
   assert.match(p, /linea_tempo/);
   assert.match(p, /mai persone/i);
+  assert.match(p, /solo in calcoli/i);
 });
 
 /* ------------------------------------------------------------------ video */
@@ -137,6 +158,16 @@ test("video: fonti solo dai siti di video; durata e canale solo se la ricerca li
   assert.deepEqual(videoScelti(null, fonti, ricerca), []);
   // lo stesso video scelto due volte vale uno
   assert.equal(videoScelti({ video: [{ fonte: 1, durata: "", canale: "" }, { fonte: 1, durata: "", canale: "" }] }, fonti, ricerca).length, 1);
+});
+
+test("video: la durata deve comparire intera nei risultati (6:40 non è 16:40, 8 min non è 18 minuti)", () => {
+  const fonti = [{ titolo: "A", url: "https://www.youtube.com/watch?v=AAAAAAAAAAA" }];
+  const con = (durata, ricerca) => videoScelti({ video: [{ fonte: 1, durata, canale: "" }] }, fonti, ricerca)[0].durata;
+  assert.equal(con("6:40", "Video di 16:40 minuti."), "");
+  assert.equal(con("6:40", "Video, durata 6:40."), "6:40");
+  assert.equal(con("8 min", "Dura 18 minuti."), "");
+  assert.equal(con("8 min", "Dura 8 min circa."), "8 min");
+  assert.equal(con("1:20", "durata 1:20:00"), "");
 });
 
 test("prompt dei video: brevi, in italiano, adatti all'età; la scelta è per numero", () => {

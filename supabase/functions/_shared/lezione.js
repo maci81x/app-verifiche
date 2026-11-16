@@ -12,7 +12,7 @@ import { contestoClasse } from "./classe.js";
 // frase del quaderno, (4) un esempio svolto, (5) «Ora tocca a te». Esempi e nomi possono essere più d'uno.
 export const TIPI_SCHEDA = ["domanda", "nomi", "regola", "esempio", "tocca"];
 export const FIGURE_LEZIONE = ["nessuna", "geometria", "linea_tempo", "frecce", "gruppi"];
-export const MIN_SCHEDE = 4, MAX_SCHEDE = 7;
+export const MIN_SCHEDE = 5, MAX_SCHEDE = 7;
 const MAX_CALCOLI = 4, MAX_EVENTI = 6, MAX_PASSI = 6, MAX_GRUPPI = 3, MAX_VOCI = 5, MAX_ETICHETTA = 60;
 const MAX_APPUNTI = 60_000;
 
@@ -28,11 +28,21 @@ export function promptLezione({ classe, materia, titolo, trascrizione, concetti 
     "Da 5 a 7 schede, una idea per scheda, in quest'ordine di tipo: domanda (un problema o una domanda vera che incuriosisce, legata all'argomento), nomi (i nomi delle cose: le parole nuove, ognuna spiegata in breve), regola (la regola o l'idea centrale), esempio (un esempio svolto passo per passo), tocca (Ora tocca a te: una domanda o un piccolo esercizio da provare da sol*). Puoi mettere due schede nomi o due schede esempio.",
     "titolo: al massimo sei parole. testo: 2-5 frasi corte, una cosa per frase, seconda persona, forme neutre di genere, niente elenchi tecnici. Tutto quello che scrivi deve stare negli appunti: non aggiungere date, nomi o numeri che negli appunti non ci sono.",
     "ancora: la frase degli appunti che regge la scheda, copiata carattere per carattere dagli appunti (numeri compresi). Nella scheda regola è obbligatoria; nelle altre mettila solo se c'è una frase degli appunti che dice proprio quello, altrimenti stringa vuota.",
+    "I conti (con l'uguale e i numeri) vanno solo in calcoli, mai nel titolo o nel testo.",
     "calcoli: solo in matematica e scienze con i numeri, i conti dell'esempio come catene di uguali con soli numeri (+ − × : / ^ √ e parentesi, decimali con la virgola), ogni uguale vero: il server li ricalcola e una scheda con un conto sbagliato viene scartata. Nelle altre materie lista vuota.",
     "figura: al massimo una per scheda, solo dove aiuta davvero, altrimenti tipo nessuna. geometria (solo matematica): forma fra " + Object.keys(FORME).join(", ") + " e misure con i numeri scritti nel testo della scheda. linea_tempo (storia): eventi con anno (numero intero, negativo per avanti Cristo) ed etichetta brevissima, solo anni scritti negli appunti. frecce: passi in ordine (cause ed effetti, fasi di un ciclo, passaggi di un procedimento), etichette brevissime. gruppi: 2 o 3 gruppi con titolo e voci (classificazioni). Mai persone, volti, luoghi o paesaggi disegnati: solo schemi.",
     "Gli appunti:\n" + String(trascrizione || "").slice(0, MAX_APPUNTI),
     'Rispondi solo con JSON: {"schede":[{"tipo":"domanda","titolo":"","testo":"","ancora":"","calcoli":[],"figura":{"tipo":"nessuna","forma":"nessuna","misure":[],"eventi":[],"passi":[],"gruppi":[]}}]}',
   ].filter(Boolean).join("\n\n");
+}
+
+// Uguaglianze di soli numeri scritte nel testo («12 × 3 = 36»): si ricalcolano come i calcoli.
+// Non si guarda quella che segue una lettera o un operatore («3x + 2 = 11» è un'equazione, non un conto);
+// i due punti prima di un numero sono punteggiatura («Fai il conto: 12 × 3 = 36»).
+// ponytail: niente unità di misura qui («8 cm × 5 cm = 40 cm²» sfugge); il prompt chiede i conti solo in calcoli.
+const UGUAGLIANZA = /\d[\d\s.,+\-−×*·:÷/^()√²³]*=[\d\s.,+\-−×*·:÷/^()√²³=]*\d/g;
+function contiNelTesto(t) {
+  return [...String(t).matchAll(UGUAGLIANZA)].filter((m) => !/[\p{L}+\-−×*·÷/^=(]$/u.test(t.slice(0, m.index).trimEnd())).map((m) => m[0]);
 }
 
 // Figura della scheda: { tipo, ... } pulita, o null. Conta in scarti gli eventi con anni inventati.
@@ -77,13 +87,15 @@ export function pulisciLezione(r, argomento) {
     const tipo = s && TIPI_SCHEDA.includes(s.tipo) ? s.tipo : null, titolo = testo(s && s.titolo, 80), corpo = testo(s && s.testo, 900);
     if (!tipo || !titolo || !corpo) { scarti.n++; continue; }
     const calcoli = lista(s.calcoli, MAX_CALCOLI, 300);
-    if (calcoli.some((c) => !contoTorna(c))) { scarti.n++; continue; } // un esempio con un conto sbagliato non si mostra
+    // un esempio con un conto sbagliato non si mostra, nemmeno se il conto è scritto nel testo o nel titolo
+    if ([...calcoli, ...contiNelTesto(titolo), ...contiNelTesto(corpo)].some((c) => !contoTorna(c))) { scarti.n++; continue; }
     let ancora = testo(s.ancora, 400);
     if (ancora && !ancoraRegge(ancora, fonte)) { ancora = ""; scarti.n++; }
     const figura = figuraPulita(s.figura, corpo + " " + calcoli.join(" "), anni, scarti);
     buone.push({ tipo, titolo, testo: corpo, ancora, calcoli, figura, fonte: "appunti" });
   }
-  if (buone.length < MIN_SCHEDE) return null;
+  // Servono abbastanza schede e la regola con la frase vera del quaderno: senza, si riprova.
+  if (buone.length < MIN_SCHEDE || !buone.some((s) => s.tipo === "regola" && s.ancora)) return null;
   // Ordine fisso per tipo (stabile); con troppe schede si tolgono quelle in mezzo, l'ultima resta.
   const ordinate = buone.map((s, i) => [s, i]).sort((a, b) => TIPI_SCHEDA.indexOf(a[0].tipo) - TIPI_SCHEDA.indexOf(b[0].tipo) || a[1] - b[1]).map((x) => x[0]);
   const schede = ordinate.length > MAX_SCHEDE ? [...ordinate.slice(0, MAX_SCHEDE - 1), ordinate[ordinate.length - 1]] : ordinate;

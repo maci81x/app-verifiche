@@ -18,6 +18,8 @@ const REGOLA = { tipo: "regola", titolo: "La fine dell'impero", testo: "Nel 476 
 test("frasi: una per volta, con la punteggiatura", () => {
   assert.deepEqual(json(`frasiDi("Prima frase. Seconda? Terza senza punto")`), ["Prima frase.", "Seconda?", "Terza senza punto"]);
   assert.deepEqual(json(`frasiDi("")`), []);
+  assert.deepEqual(json(`frasiDi("Roma nasce nel 753 a.C. Poi cresce. Nel 490 a.C. c'è Maratona.")`), ["Roma nasce nel 753 a.C. Poi cresce.", "Nel 490 a.C. c'è Maratona."]);
+  assert.deepEqual(json(`frasiDi("Erano 1.000 soldati. Nel sec. XV cambia tutto.")`), ["Erano 1.000 soldati.", "Nel sec. XV cambia tutto."]);
 });
 
 test("scheda: ogni pezzo letto a voce ha il suo posto nella scheda; la frase del quaderno è evidenziata", () => {
@@ -59,7 +61,7 @@ test("video: anteprima da toccare (niente iframe e niente autoplay subito), «da
   const rai = run(`htmlVideo({ titolo: "Odoacre", url: "https://www.raiscuola.rai.it/x", sito: "Rai Scuola", embed: "", anteprima: "", durata: "", canale: "" }, 1)`);
   assert.match(rai, /Guarda su Rai Scuola/);
   assert.match(rai, /rel="noopener noreferrer"/);
-  assert.match(rai, /Rai Scuola<\/p>/, "niente durata o canale inventati");
+  assert.match(rai, /Rai Scuola: durata non indicata<\/p>/, "niente durata o canale inventati");
   assert.doesNotMatch(run(`htmlVideo({ titolo: "x", url: "javascript:alert(1)", sito: "Rai Scuola", embed: "", anteprima: "", durata: "", canale: "" }, 0)`), /href/);
 });
 

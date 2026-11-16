@@ -12,7 +12,18 @@ const chiaveVideoLezione = (id) => "verifiche-lezione-video-" + id;
 const videoAccesi = (id) => leggiLocale(chiaveVideoSpenti(id), false) !== true;
 
 // Frasi di un testo, con la punteggiatura: ognuna si legge e si evidenzia da sola.
-const frasiDi = (t) => (String(t || "").match(/[^.!?]+(?:[.!?]+|$)/g) || []).map((f) => f.trim()).filter(Boolean);
+// Si spezza solo su un punto seguito da uno spazio (1.000 resta intero), mai dopo un'abbreviazione (490 a.C., sec. XV).
+const ABBREVIAZIONE = /(?:^|[\s(])(?:a\.\s?C|d\.\s?C|sec|secc|ca|pag|pagg|cap|es|fig|vol|nn?)$/i;
+function frasiDi(t) {
+  const s = String(t || ""), frasi = [];
+  let da = 0;
+  for (const m of s.matchAll(/[.!?]+(?=\s|$)/g)) {
+    if (m[0] === "." && ABBREVIAZIONE.test(s.slice(da, m.index))) continue;
+    frasi.push(s.slice(da, m.index + m[0].length).trim()); da = m.index + m[0].length;
+  }
+  frasi.push(s.slice(da).trim());
+  return frasi.filter(Boolean);
+}
 const annoIt = (n) => (n < 0 ? -n + " a.C." : String(n));
 // I conti letti a voce: i simboli diventano parole.
 const contoAVoce = (c) => String(c).replace(/[×*·]/g, " per ").replace(/[:÷]/g, " diviso ").replace(/=/g, " uguale ").replace(/\//g, " fratto ").replace(/−/g, " meno ");
@@ -89,7 +100,7 @@ function htmlScheda(s) {
 
 const PLAY = '<svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="28" fill="#1A1A1E" fill-opacity=".8"/><path d="M22 17l18 11-18 11z" fill="#fff"/></svg>';
 function htmlVideo(v, k) {
-  const info = [v.canale, v.durata].filter(Boolean).join(", ");
+  const info = [v.canale, v.durata || "durata non indicata"].filter(Boolean).join(", ");
   return '<li class="lz-video">' +
     (v.embed ? '<button type="button" class="lz-anteprima" data-video="' + k + '" aria-label="' + esc("Guarda il video: " + v.titolo) + '">' +
       (v.anteprima ? '<img src="' + esc(v.anteprima) + '" alt="" loading="lazy" onerror="this.remove()">' : "") + PLAY + "</button>" : "") +
@@ -101,7 +112,10 @@ const lezioneValida = (x) => !!x && Array.isArray(x.schede) && x.schede.length >
 
 /* ---- vista ---- */
 
-let lezione = null, lezioneOccupata = false, voceLz = 0;
+// Richieste in corso per argomento: un doppio tocco non paga due aiuti, un altro argomento non resta bloccato.
+let lezione = null, voceLz = 0;
+const lezioniInCorso = new Set(), videoInCorso = new Set();
+const eQuesta = (a) => !!lezione && lezione.a.id === a.id;
 
 function apriLezione(a, daCapo = false) {
   fermaLezione();
@@ -113,20 +127,20 @@ function apriLezione(a, daCapo = false) {
   caricaLezione(a);
 }
 async function caricaLezione(a) {
-  if (lezioneOccupata) return;
-  lezioneOccupata = true;
+  if (lezioniInCorso.has(a.id)) return;
+  lezioniInCorso.add(a.id);
   attesa($("stato-lezione"), ["Rileggo i tuoi appunti", "Preparo le schede", "Ricontrollo frasi e conti"]);
   try {
     const r = await modello({ azione: "lezione", argomento_id: a.id });
-    if (!lezione || lezione.a.id !== a.id) return; // nel frattempo si è usciti
+    if (!eQuesta(a)) return; // nel frattempo si è passati ad altro
     lezione.schede = r.schede;
     salvaLocale(chiaveLezione(a.id), { aggiornato: a.aggiornato, schede: r.schede });
     mostraScheda(0);
   } catch (e) {
-    errore($("err-lezione"), e.message === "nessun_testo" ? "In questo argomento non ci sono appunti da spiegare. Aggiungi le foto, poi riprova."
+    if (eQuesta(a)) errore($("err-lezione"), e.message === "nessun_testo" ? "In questo argomento non ci sono appunti da spiegare. Aggiungi le foto, poi riprova."
       : e.message === "nessuna_lezione" ? "Non sono riuscito a preparare schede fedeli ai tuoi appunti. Riprova fra un momento."
       : messaggioModello(e, "Non sono riuscito a preparare le schede. Controlla la connessione e riprova."));
-  } finally { attesa($("stato-lezione"), null); lezioneOccupata = false; }
+  } finally { lezioniInCorso.delete(a.id); if (eQuesta(a)) attesa($("stato-lezione"), null); }
 }
 
 function mostraScheda(i) {
@@ -138,6 +152,8 @@ function mostraScheda(i) {
   $("lz-conta").textContent = "Scheda " + (i + 1) + " di " + n;
   $("lz-scheda").innerHTML = htmlScheda(s);
   $("lz-fine").hidden = !ultima;
+  if (!ultima) fermaVideo();
+  $("btn-lz-ascolta").hidden = !(typeof window !== "undefined" && window.speechSynthesis); // senza voce nel browser, niente «Ascolta»
   $("btn-lz-indietro").hidden = i === 0;
   // All'ultima scheda l'azione principale è «Mettiti alla prova»: «Fine» diventa secondario.
   $("btn-lz-avanti").textContent = ultima ? "Fine" : "Avanti";
@@ -159,24 +175,28 @@ function mostraFine() {
   if (!lezione.video) caricaVideo(a);
 }
 async function caricaVideo(a) {
+  if (videoInCorso.has(a.id)) return;
+  videoInCorso.add(a.id);
   lezione.video = "carico";
   $("lz-video-lista").innerHTML = ""; errore($("err-lz-video"), "");
-  attesa($("stato-lz-video"), ["Cerco due video brevi su YouTube e Rai"]);
+  attesa($("stato-lz-video"), ["Cerco due video su YouTube e Rai Scuola"]);
   try {
     const r = await modello({ azione: "video", argomento_id: a.id });
-    if (!lezione || lezione.a.id !== a.id) return;
-    salvaLocale(chiaveVideoLezione(a.id), { aggiornato: a.aggiornato, video: r.video });
+    if (!eQuesta(a)) return;
+    // Una lista vuota non è definitiva: la prossima volta si cerca di nuovo.
+    if (r.video.length) salvaLocale(chiaveVideoLezione(a.id), { aggiornato: a.aggiornato, video: r.video });
     disegnaVideo(r.video);
   } catch (e) {
-    if (lezione) lezione.video = null;
+    if (!eQuesta(a)) return;
+    lezione.video = null;
     errore($("err-lz-video"), e.message === "web_non_disponibile" ? "La ricerca dei video adesso non funziona. Riprova più tardi."
       : messaggioModello(e, "Non sono riuscito a cercare i video. Riprova fra un momento."));
-  } finally { attesa($("stato-lz-video"), null); }
+  } finally { videoInCorso.delete(a.id); if (eQuesta(a)) attesa($("stato-lz-video"), null); }
 }
 function disegnaVideo(video) {
   lezione.video = video;
   $("lz-video-lista").innerHTML = video.length ? video.map(htmlVideo).join("")
-    : '<li class="aiuto">Non ho trovato video brevi adatti a questo argomento. Le schede bastano: rileggile a voce.</li>';
+    : '<li class="aiuto">Non ho trovato video adatti a questo argomento. Le schede bastano: rileggile a voce.</li>';
 }
 // Il video si carica solo quando lo tocchi, e parte solo con il suo tasto play: niente riproduzione automatica.
 function apriVideo(btn) {
@@ -196,7 +216,12 @@ function fermaVoceLezione() {
   document.querySelectorAll("#lz-scheda .letta").forEach((el) => el.classList.remove("letta"));
   const b = $("btn-lz-ascolta"); if (b) { b.textContent = "Ascolta"; b.setAttribute("aria-pressed", "false"); }
 }
-function fermaLezione() { if (lezione) lezione.ascolto = false; fermaVoceLezione(); }
+// Un video aperto si ferma ridisegnando l'anteprima al suo posto (l'iframe sparisce e con lui l'audio).
+function fermaVideo() {
+  const lista = $("lz-video-lista");
+  if (lista && lista.querySelector(".lz-player") && lezione && Array.isArray(lezione.video)) disegnaVideo(lezione.video);
+}
+function fermaLezione() { if (lezione) lezione.ascolto = false; fermaVoceLezione(); fermaVideo(); }
 function leggiScheda() {
   if (!window.speechSynthesis || !lezione) return;
   fermaVoceLezione();

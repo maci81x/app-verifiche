@@ -47,9 +47,11 @@
 //      dagli argomenti salvati (solo 3ª, 422 solo_terza; 422 pochi_argomenti con meno di due materie). Conta come un aiuto.
 // POST { azione: "lezione", argomento_id } → { schede: [{ tipo, titolo, testo, ancora, calcoli, figura, fonte: "appunti" }], scartate }
 //      Mini-lezione a schede dagli appunti (issue #23, _shared/lezione.js): ancore filtrate, conti ricalcolati,
-//      anni della linea del tempo presi dagli appunti. Con poche schede buone si chiede una seconda volta, poi 422 nessuna_lezione.
+//      anni della linea del tempo presi dagli appunti. Servono 5 schede e una regola con la frase del quaderno:
+//      altrimenti si chiede una seconda volta, poi 422 nessuna_lezione. Conta come un aiuto (restituito se non riesce).
 // POST { azione: "video", argomento_id } → { video: [{ titolo, url, sito, embed, anteprima, durata, canale }] }
-//      Due video brevi cercati solo su YouTube e Rai (DOMINI_VIDEO); durata e canale solo se la ricerca li dice.
+//      Due video brevi cercati solo su YouTube e Rai Scuola (DOMINI_VIDEO); durata e canale solo se la ricerca li dice.
+//      Conta come un aiuto; restituito se non arriva nessun video.
 // POST { azione: "gemelli", compito } → { gemelli: [{ tipo: vicino|lontano|variante, testo, passi, risultato }], scartati }
 //      Stessi passi, contesto diverso, ogni conto ricalcolato e numeri intermedi adatti; quelli che non tornano
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
@@ -943,11 +945,16 @@ Deno.serve(async (req) => {
       const concetti = [...(a.concetti || [])].sort((x: any, y: any) => x.ordine - y.ordine);
       // Le ancore dei concetti e dei tipi di esercizio sono già state controllate sugli appunti: valgono come fonte.
       const fonte = { trascrizione: a.trascrizione, concetti: [...concetti, ...(a.esercizi_tipi || [])] };
-      const prompt = promptLezione({ classe: await classeDi(req, io.sub), materia: a.materia, titolo: a.titolo, trascrizione: a.trascrizione, concetti });
-      let l = pulisciLezione(await chiedi(prompt, SCHEMA_LEZIONE), fonte);
-      if (!l) l = pulisciLezione(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente troppe schede non andavano. Copia le frasi dagli appunti e rifai i conti uno per uno.", SCHEMA_LEZIONE), fonte);
-      if (!l) return json({ errore: "nessuna_lezione" }, 422);
-      return json(l);
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const prompt = promptLezione({ classe: await classeDi(req, io.sub), materia: a.materia, titolo: a.titolo, trascrizione: a.trascrizione, concetti });
+        let l = pulisciLezione(await chiedi(prompt, SCHEMA_LEZIONE), fonte);
+        if (!l) l = pulisciLezione(await chiedi(prompt + "\n\nAttenzione: nel tentativo precedente troppe schede non andavano, o mancava la scheda regola con la frase copiata dagli appunti. Copia le frasi dagli appunti, metti i conti solo in calcoli e rifalli uno per uno.", SCHEMA_LEZIONE), fonte);
+        if (!l) return json({ errore: "nessuna_lezione" }, 422);
+        riuscito = true;
+        return json(l);
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
     if (b.azione === "video") {
@@ -959,11 +966,18 @@ Deno.serve(async (req) => {
       ]);
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
-      const dati = { materia: a.materia, argomento: a.titolo, classe, concetti: (a.concetti || []).map((c: any) => c.titolo).slice(0, 12) };
-      const { fonti, ricerca } = await cercaSulWeb(promptRicercaVideo(dati), DOMINI_VIDEO);
-      if (!fonti.length) return json({ video: [] });
-      const r = await chiedi(promptVideo({ ...dati, ricerca, fonti }), SCHEMA_VIDEO);
-      return json({ video: videoScelti(r, fonti, ricerca) });
+      if (!(await prenotaAiuto(io.sub))) return json({ errore: "limite_giornaliero" }, 429);
+      let riuscito = false;
+      try {
+        const dati = { materia: a.materia, argomento: a.titolo, classe, concetti: (a.concetti || []).map((c: any) => c.titolo).slice(0, 12) };
+        const { fonti, ricerca } = await cercaSulWeb(promptRicercaVideo(dati), DOMINI_VIDEO);
+        // Una ricerca andata a vuoto non consuma l'aiuto.
+        if (!fonti.length) return json({ video: [] });
+        const r = await chiedi(promptVideo({ ...dati, ricerca, fonti }), SCHEMA_VIDEO);
+        const video = videoScelti(r, fonti, ricerca);
+        riuscito = video.length > 0;
+        return json({ video });
+      } finally { if (!riuscito) await restituisciAiuto(io.sub); }
     }
 
     return json({ errore: "azione sconosciuta" }, 400);
