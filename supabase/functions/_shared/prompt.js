@@ -82,6 +82,15 @@ export function promptConcettiNuovi(titoliEsistenti, testo, pagine = 1, opzioni 
 // caratteri, cioè a 4-5 pagine: un capitolo intero (20-30 pagine) ne occupa circa 100.000
 // e così viene letto tutto (issue #10). Il filtro di ancoraggio lavora comunque su tutto.
 export const MAX_MATERIALE = 120_000;
+// Prompt caching (branch ottimizzazione): quello che sta prima di questo segno è uguale da una chiamata
+// all'altra (il materiale, l'esercizio già spiegato) e la funzione modello lo legge dalla cache; il segno
+// non arriva mai al modello.
+export const FINE_PARTE_FISSA = "\n\n§FINE_PARTE_FISSA§\n\n";
+// Solo il primo segno conta: un testo di chi studia che lo contenesse per caso non tronca il prompt.
+export function dividiPerCache(prompt) {
+  const i = prompt.indexOf(FINE_PARTE_FISSA);
+  return i < 0 ? { fisso: prompt, resto: null } : { fisso: prompt.slice(0, i), resto: prompt.slice(i + FINE_PARTE_FISSA.length) };
+}
 
 // Verifica da stampare (ticket #3, 30 ottobre 2026): il numero di domande si sceglie.
 // Le miste tengono la proporzione chiuse/aperte del livello, riscalata al numero scelto.
@@ -141,6 +150,7 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
     : "È la simulazione di una verifica scritta: domande formulate come su un foglio, autonome e precise, che si capiscono senza che nessuno le spieghi a voce.";
   const g = (gia || []).slice(0, 24);
   return [
+    "Materiale trascritto:\n" + materiale.map((a) => "[" + a.titolo + "]\n" + (a.trascrizione || "")).join("\n\n").slice(0, MAX_MATERIALE) + FINE_PARTE_FISSA +
     "Sei un insegnante di scuola media italiana. Prepari una prova di livello " + livello + " per " + chiStudia(classe) + ".",
     perLaClasse(classe, (materiale[0] || {}).materia, materiale.map((a) => a.titolo + " " + (a.trascrizione || "")).join(" ")),
     voce,
@@ -151,7 +161,7 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
     "Per le chiuse: quattro opzioni plausibili, una sola corretta; le opzioni sbagliate sono confusioni tipiche di chi studia questo argomento (date o termini vicini, causa scambiata con effetto), così una risposta sbagliata dice che cosa va chiarito. Per le aperte: la risposta attesa e gli elementi che devono comparire.",
     "Concetti:\n" + JSON.stringify(contesto),
     g.length ? ("Queste domande le ha già fatte: non riproporle uguali. Cambia angolazione, taglio e formulazione, pur restando sugli stessi concetti.\n" + JSON.stringify(g)) : "",
-    "Materiale trascritto:\n" + materiale.map((a) => "[" + a.titolo + "]\n" + (a.trascrizione || "")).join("\n\n").slice(0, MAX_MATERIALE),
+    "Il materiale trascritto è all'inizio, prima di queste istruzioni.",
     'Rispondi solo con JSON: {"domande":[{"id":"d1","concetto_id":"c1","tipo":"chiusa","testo":"","opzioni":["","","",""],"corretta":0,"ancora":""},{"id":"d2","concetto_id":"c2","tipo":"aperta","testo":"","risposta_attesa":"","elementi":[""],"ancora":""}]}',
   ].filter(Boolean).join("\n\n");
 }
@@ -161,9 +171,9 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
 export function promptCorrezione(modalita, pacchetto, classe, materia = "") {
   return [
     "Correggi le risposte aperte di " + chiStudia(classe) + " con questa rubrica, su ogni risposta:",
-    perLaClasse(classe, materia, pacchetto.map((x) => x.domanda).join(" ")) + "\nLa rubrica non cambia con la classe: cambia solo il modo di scrivere il commento.",
     "completezza da 0 a 4 (quanti elementi attesi ci sono), correttezza da 0 a 4 (errori di fatto), linguaggio da 0 a 2 (termini della materia o parafrasi vaghe).",
-    "Il totale è la somma, da 0 a 10. Aggiungi un commento di una riga, concreto, rivolto a chi studia (tu, forme neutre di genere), che dica cosa manca. Non penalizzare l'ortografia.",
+    "Il totale è la somma, da 0 a 10. Aggiungi un commento di una riga, concreto, rivolto a chi studia (tu, forme neutre di genere), che dica cosa manca. Non penalizzare l'ortografia." + FINE_PARTE_FISSA +
+    perLaClasse(classe, materia, pacchetto.map((x) => x.domanda).join(" ")) + "\nLa rubrica non cambia con la classe: cambia solo il modo di scrivere il commento.",
     modalita === "orale" ? "Le risposte sono state dettate a voce: ignora ripetizioni, esitazioni, frasi lasciate a metà e riprese, e valuta solo il contenuto." : "",
     JSON.stringify(pacchetto),
     'Rispondi solo con JSON: {"valutazioni":[{"id":"d2","completezza":3,"correttezza":4,"linguaggio":1,"totale":8,"commento":""}]}',
@@ -435,7 +445,7 @@ export function promptCompitoDomanda(dati) {
     "L'esercizio e la spiegazione già data:\n" + JSON.stringify({
       testo: c.testo, cerca: c.cerca, passi: (c.passi || []).map((p, i) => ({ numero: i + 1, titolo: p.titolo, spiegazione: p.spiegazione, calcolo: p.calcolo })),
       strategia: c.strategia, risultato: c.risultato, verifica: c.verifica, trucco: c.trucco,
-    }),
+    }) + FINE_PARTE_FISSA,
     (dati.cronologia || []).length ? "Messaggi di prima (io = chi studia, app = tu):\n" + dati.cronologia.map((m) => m.chi + ": " + m.testo).join("\n") : "",
     dati.bloccata ? "La soluzione completa non è ancora sbloccata: chi studia non ha ancora provato a rispondere. Non scrivere il risultato finale (" + ((c.risultato || {}).valore || "") + ") in nessun campo, né un conto che ci arriva: aiuta con una domanda o un indizio sul passo che serve e chiudi dicendo cosa provare adesso." : "",
     "Domanda: " + dati.domanda,

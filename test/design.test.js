@@ -139,3 +139,8 @@ test("barra in basso bilanciata: due voci per lato, fotocamera al centro esatto"
   assert.match(barra, /<span>Profilo<\/span>/);
   assert.match(css, /\.barra-basso\{[^}]*grid-template-columns:1fr 1fr 84px 1fr 1fr/);
 });
+
+test("la versione nelle Impostazioni è quella della cache", () => {
+  const v = Number(leggi("sw.js").match(/app-verifiche-v(\d+)/)[1]);
+  assert.match(html, new RegExp("10\\+ versione " + v + "\\."));
+});

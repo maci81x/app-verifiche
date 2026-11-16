@@ -368,6 +368,7 @@ test("gemelli: stessi passi, contesto diverso, ogni conto ricalcolato; gli altri
   const r = pulisciGemelli({ gemelli: [GIULIA, rotto, { ...copia(GIULIA), tipo: "lontano", testo: GIULIA.testo.replace("Giulia spende", "Marco usa").replace("paghetta", "mancia") }] }, PAOLO);
   assert.deepEqual(r.gemelli.map((g) => g.tipo), ["vicino", "lontano"]);
   assert.equal(r.scartati, 1);
+  assert.deepEqual(Object.values(r.motivi), [1]); // perché è stato scartato: si legge nei log e nella risposta
   assert.deepEqual(r.mancano, ["variante"]);
   assert.deepEqual(TIPI_GEMELLI, ["vicino", "lontano", "variante"]);
 });
