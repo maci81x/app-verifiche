@@ -93,8 +93,9 @@ function prova(nome, corpo) {
 
 prova("una sorella non vede niente dell'altra", `
   ${come(BEA)}
-  ${['argomenti', 'concetti', 'fonti', 'sessioni', 'domande', 'risposte', 'pin_profili', 'report']
+  ${['argomenti', 'concetti', 'fonti', 'sessioni', 'domande', 'risposte', 'report']
     .map((t) => verifica(`${conta(t)} = 0`, `Bea vede righe di Anna in ${t}`)).join('\n')}
+  ${vieta(`perform * from pin_profili`, 'insufficient_privilege', 'Bea legge la tabella dei PIN')}
   ${verifica(`(select array_agg(id) from studenti) = array['${BEA}'::uuid]`, 'Bea vede il profilo di Anna')}
   ${verifica(`${conta('storage.objects')} = 0`, 'Bea vede le foto di Anna nello storage')}
   ${come(ANNA)}
@@ -164,16 +165,18 @@ prova('svuota la memoria di chi chiama e di nessun altro', `
     .map((t) => verifica(`${conta(t)} = 0`, `restano righe in ${t}`)).join('\n')}
 `);
 
-prova("PIN: si imposta, si verifica, l'hash non si legge", `
+// imposta_pin e verifica_pin sono del vecchio accesso: dalla revisione 20261116 nessun ruolo dell'API le chiama.
+prova("PIN: l'hash non si legge, le vecchie funzioni non si chiamano più", `
   ${come(ANNA)}
-  ${verifica(`verifica_pin('0000')`, 'senza PIN il profilo dovrebbe essere aperto')}
-  select imposta_pin('2468');
-  ${verifica(`verifica_pin('2468')`, 'il PIN giusto non viene accettato')}
-  ${verifica(`not verifica_pin('1357')`, 'il PIN sbagliato viene accettato')}
-  ${verifica(`${conta('pin_profili')} = 0`, "l'hash del PIN è leggibile")}
-  ${vieta(`perform imposta_pin('12')`, 'raise_exception', 'accettato un PIN di due cifre')}
-  ${come(BEA)}
-  ${verifica(`verifica_pin('0000')`, 'il PIN di Anna blocca anche Bea')}
+  ${vieta(`perform * from pin_profili`, 'insufficient_privilege', "l'hash del PIN è leggibile")}
+  ${vieta(`perform imposta_pin('2468')`, 'insufficient_privilege', 'Anna si cambia il codice senza il genitore')}
+  ${vieta(`perform verifica_pin('2468')`, 'insufficient_privilege', 'Anna prova codici con verifica_pin')}
+`);
+
+prova('nessuno svuota una tabella con TRUNCATE, che scavalca le policy', `
+  ${come(ANNA)}
+  ${['argomenti', 'concetti', 'sessioni', 'domande', 'risposte', 'mappe', 'spiegazioni', 'esercizi_tipi', 'studenti']
+    .map((t) => vieta(`truncate ${t} cascade`, 'insufficient_privilege', `Anna svuota ${t} di tutte`)).join('\n')}
 `);
 
 prova('una domanda chiusa senza opzioni valide non entra', `
