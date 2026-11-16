@@ -7,6 +7,8 @@
 // POST { azione: "domande", argomenti: [uuid], ripasso?, livello, tipo, modalita, quante?, concetto_id? } → { domande, scartate }
 //      concetti: [uuid] (o concetto_id): solo quei concetti; con uno solo, prova lampo di 3 domande.
 //      quante (10, 15 o 20) solo per la verifica da stampare; senza, il numero dipende dal livello.
+//      una_aperta: true, con un concetto solo (ripasso guidato, issue #21): una domanda aperta su quel
+//      concetto, formulata in modo diverso da diverse_da: [testi] → { domande: [una], scartate }.
 //      Materiale, concetti e domande già fatte si leggono dal database con i permessi
 //      della studentessa: il filtro di ancoraggio lavora su quelli, non su quello che manda il browser.
 // POST { azione: "correggi", modalita, pacchetto: [{ id, domanda, risposta_attesa, elementi, risposta_alunna }] } → { valutazioni }
@@ -87,7 +89,7 @@ import { costruisciMappa, MAX_NODI, agganciMappa, arricchisciMappa, sintesiDaRis
 import { strumentoRicerca, fontiCitate, testoRicerca, spiegazioneDaRisposta, DOMINI_CONSENTITI, DOMINI_VIDEO, promptRicercaVideo, promptVideo, videoScelti } from "../_shared/web.js";
 import { promptLezione, pulisciLezione, FIGURE_LEZIONE, TIPI_SCHEDA } from "../_shared/lezione.js";
 import { concettiAncorati } from "../_shared/concetti.js";
-import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO } from "../_shared/domande.js";
+import { preparaPool, tieniAncorate, sceltaLampo, MIN_LAMPO, diverseDa, unaApertaNuova } from "../_shared/domande.js";
 import { smistamento, breviArgomenti, oggiValido, MAX_FOTO, MAX_TESTO_FOTO, MAX_ARGOMENTI } from "../_shared/smista.js";
 import { controllaCompito, pulisciCompito, pulisciRisposta, calcoliCheNonTornano, cronologiaPulita, eMatematica, indiziSenzaRisultato,
   correggiProvaTu, contaAiuti, rimborsoAiuti, giornoRoma, pulisciGemelli, TIPI_GEMELLI,
@@ -858,7 +860,9 @@ Deno.serve(async (req) => {
         : (Array.isArray(grezzi) && grezzi.length >= 1 && grezzi.length <= MAX_CONCETTI_SCELTI &&
            grezzi.every((x: unknown) => typeof x === "string" && UUID.test(x)) ? new Set(grezzi as string[]) : false);
       const soloConcetto = !!filtro && filtro.size === 1;
-      if (!ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita) ||
+      const unaAperta = b.una_aperta === true ? { diverse: diverseDa(b.diverse_da) } : null;
+      if ((unaAperta && (!soloConcetto || b.tipo !== "aperte")) ||
+          !ids.length || !LIVELLI.includes(b.livello) || !TIPI.includes(b.tipo) || !MODALITA.includes(b.modalita) ||
           (b.quante != null && !DOMANDE_DA_STAMPARE.includes(b.quante)) || filtro === false ||
           (filtro && (b.ripasso || b.quante != null)))
         return json({ errore: "richiesta non valida" }, 400);
@@ -886,9 +890,13 @@ Deno.serve(async (req) => {
 
       const r = await chiedi(promptDomande({
         livello: b.livello, tipo: b.tipo, modalita: b.modalita, ripasso: !!b.ripasso, contesto, gia, materiale: argomenti,
-        quante: b.quante, soloConcetto, classe: await classeDi(req, io.sub),
+        quante: b.quante, soloConcetto, classe: await classeDi(req, io.sub), unaAperta,
       }), SCHEMA_DOMANDE);
       const tenute = tieniAncorate(r.domande as unknown[], indice, argomenti);
+      if (unaAperta) {
+        const d = unaApertaNuova(tenute.domande, unaAperta.diverse);
+        return d ? json({ domande: [d], scartate: tenute.scartate }) : json({ errore: "nessuna_ancorata", scartate: tenute.scartate }, 422);
+      }
       // Il modello a volte ne scrive una in più: la prova lampo resta di tre, scelte per tipo.
       if (soloConcetto && tenute.domande.length < MIN_LAMPO) return json({ errore: "nessuna_ancorata", scartate: tenute.scartate }, 422);
       const esito = soloConcetto

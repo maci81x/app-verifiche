@@ -469,3 +469,17 @@ prova('giorni_diario: un giorno per data, la ragazza scrive i suoi, il genitore 
   select svuota_memoria();
   ${verifica(`${conta('giorni_diario')} = 0`, 'svuota_memoria lascia i giorni')}
 `);
+
+// ---------------------------------------------------------------- ripasso guidato (issue #21)
+prova("sessioni: il tipo 'ripasso' entra, un tipo sconosciuto no, le policy restano quelle", `
+  ${come(ANNA)}
+  insert into sessioni (argomento_id, titolo, materia, livello, tipo, modalita, indice, voto)
+    values ('${ARG}', 'La peste del Trecento', 'storia', 'medio', 'ripasso', 'scritta', 60, 6);
+  ${verifica(`(select count(*) = 1 from sessioni where tipo = 'ripasso')`, 'il ripasso non si salva')}
+  ${vieta(`insert into sessioni (titolo, materia, livello, tipo, modalita) values ('x', 'storia', 'medio', 'boh', 'scritta')`,
+    'check_violation', 'tipo sconosciuto')}
+  ${come(BEA)}
+  ${verifica(`(select count(*) = 0 from sessioni where tipo = 'ripasso')`, 'Bea vede il ripasso di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`(select count(*) = 1 from sessioni where tipo = 'ripasso')`, 'il genitore non vede il ripasso della figlia')}
+`);

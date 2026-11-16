@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
 <div class="wrap">
@@ -460,6 +460,14 @@
   <div id="stato-es"></div>
 </section>
 
+<!-- ============ RIPASSO GUIDATO (issue #21) ============ -->
+<section id="v-guidato" hidden>
+  <div class="rg-barra"><span id="rg-conta"></span><span class="barra-pronto" aria-hidden="true"><i id="rg-prog"></i></span></div>
+  <div id="rg-passo" aria-live="polite"></div>
+  <div id="err-rg"></div>
+  <div id="stato-rg"></div>
+</section>
+
 <!-- ============ SCHEDA ARGOMENTO ============ -->
 <section id="v-scheda" hidden>
   <h2 id="t-scheda" class="solo-lettore"></h2>
@@ -467,9 +475,15 @@
     <span class="copertina" id="cop-scheda" aria-hidden="true"></span>
     <div><p class="arg-materia" id="mat-scheda"></p><p class="arg-stato" id="meta-scheda"></p></div>
   </div>
+  <h3 class="cosa-facciamo">Cosa facciamo adesso?</h3>
+  <p class="consiglio" id="consiglio-scheda" hidden></p>
   <div class="scelte" id="scelte-scheda"></div>
   <button class="azione" id="btn-esercizi" hidden>Preparami degli esercizi</button>
   <p class="link-riga"><button type="button" class="link" id="btn-lezione">Spiegamelo a schede</button><button type="button" class="link" id="btn-mappa">Apri la mappa</button></p>
+  <div class="altro-modo" id="altro-modo">
+    <p class="occhiello">Per ripassare in un altro modo</p>
+    <p class="link-riga"><button type="button" class="link" id="btn-mappa">Mappa</button><button type="button" class="link" id="btn-altro-stampa">Stampa</button></p>
+  </div>
   <details class="sezione" id="sez-punti"><summary id="sum-punti">I punti</summary><div id="stato-concetti-scheda"></div></details>
   <details class="sezione"><summary>Le foto</summary>
     <div class="miniature" id="foto-scheda"></div>
@@ -703,26 +717,27 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=26"></script>
-<script src="app.js?v=26"></script>
-<script src="libreria.js?v=26"></script>
-<script src="stampa.js?v=26"></script>
-<script src="aiuto.js?v=26"></script>
-<script src="mappa-card.js?v=26"></script>
-<script src="figure.js?v=26"></script>
-<script src="formule.js?v=26"></script>
-<script src="esercizi.js?v=26"></script>
-<script src="prova-esercizi.js?v=26"></script>
-<script src="compito.js?v=26"></script>
-<script src="classe-app.js?v=26"></script>
-<script src="poesia.js?v=26"></script>
-<script src="invalsi.js?v=26"></script>
-<script src="esempi.js?v=26"></script>
-<script src="esame.js?v=26"></script>
-<script src="italia-mappa.js?v=26"></script>
-<script src="geografia.js?v=26"></script>
-<script src="lezione.js?v=26"></script>
-<script src="diario.js?v=26"></script>
-<script src="piano.js?v=26"></script>
+<script src="semaforo.js?v=27"></script>
+<script src="app.js?v=27"></script>
+<script src="libreria.js?v=27"></script>
+<script src="stampa.js?v=27"></script>
+<script src="aiuto.js?v=27"></script>
+<script src="mappa-card.js?v=27"></script>
+<script src="figure.js?v=27"></script>
+<script src="formule.js?v=27"></script>
+<script src="esercizi.js?v=27"></script>
+<script src="prova-esercizi.js?v=27"></script>
+<script src="compito.js?v=27"></script>
+<script src="classe-app.js?v=27"></script>
+<script src="poesia.js?v=27"></script>
+<script src="invalsi.js?v=27"></script>
+<script src="esempi.js?v=27"></script>
+<script src="esame.js?v=27"></script>
+<script src="italia-mappa.js?v=27"></script>
+<script src="geografia.js?v=27"></script>
+<script src="lezione.js?v=27"></script>
+<script src="diario.js?v=27"></script>
+<script src="piano.js?v=27"></script>
+<script src="ripasso.js?v=27"></script>
 </body>
 </html>

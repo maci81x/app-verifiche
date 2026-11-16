@@ -141,3 +141,33 @@ test("prova lampo: per le miste due chiuse e una aperta scelte per tipo, id rinu
   assert.equal(sceltaLampo([d("d1", "aperta"), d("d2", "aperta"), d("d3", "chiusa")], "miste").length, 3);
   assert.deepEqual(sceltaLampo([d("d1", "chiusa"), d("d2", "chiusa"), d("d3", "chiusa"), d("d4", "chiusa")], "chiuse").map((x) => x.id), ["d1", "d2", "d3"]);
 });
+
+test("ripasso guidato (issue #21): una domanda aperta sul concetto, formulata diversamente da quelle date", async () => {
+  const { promptDomande } = await import("../supabase/functions/_shared/prompt.js");
+  const base = { livello: "medio", tipo: "aperte", modalita: "scritta", ripasso: false, contesto: [], gia: [], materiale: [ARG], soloConcetto: true };
+  const p = promptDomande({ ...base, unaAperta: { diverse: ["Com'è fatto un sonetto?"] } });
+  assert.match(p, /Una domanda aperta su questo concetto/);
+  assert.match(p, /formulazione diversa da queste[\s\S]*"Com'è fatto un sonetto\?"/);
+  assert.doesNotMatch(p, /Prova lampo/);
+  assert.doesNotMatch(promptDomande({ ...base, unaAperta: { diverse: [] } }), /formulazione diversa da queste/);
+});
+
+test("ripasso guidato: delle domande arrivate tiene la prima aperta che non ripete quelle già fatte", async () => {
+  const { unaApertaNuova, diverseDa } = await import("../supabase/functions/_shared/domande.js");
+  const d = (id, tipo, testo) => ({ id, tipo, testo });
+  const arrivate = [d("d1", "chiusa", "Quanti versi?"), d("d2", "aperta", "Com'è fatto un sonetto? "), d("d3", "aperta", "Spiega la struttura del sonetto.")];
+  assert.equal(unaApertaNuova(arrivate, ["com'è fatto un sonetto?"]).testo, "Spiega la struttura del sonetto.");
+  const prima = unaApertaNuova(arrivate, []);
+  assert.deepEqual([prima.tipo, prima.testo, prima.id], ["aperta", "Com'è fatto un sonetto? ", "d1"]); // rinumerata: una domanda sola
+  assert.equal(unaApertaNuova([d("d1", "chiusa", "x")], []), null);
+  assert.deepEqual(diverseDa([" a ", "", 3, "b".repeat(500)]), ["a", "b".repeat(400)]);
+  assert.deepEqual(diverseDa("no"), []);
+  assert.equal(diverseDa(Array.from({ length: 30 }, (_, i) => "q" + i)).length, 10);
+});
+
+test("ripasso guidato: con un concetto solo il taglio non chiede di collegare due concetti", async () => {
+  const { promptDomande } = await import("../supabase/functions/_shared/prompt.js");
+  const p = promptDomande({ livello: "medio", tipo: "aperte", modalita: "scritta", ripasso: false, contesto: [], gia: [], materiale: [ARG], soloConcetto: true, unaAperta: { diverse: [] } });
+  assert.doesNotMatch(p, /collegare due concetti/);
+  assert.match(p, /spiegare il concetto con parole proprie/);
+});
