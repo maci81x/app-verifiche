@@ -12,7 +12,7 @@
 
 /* =================================================================== parti pure */
 
-const RG_PUNTI = 5;            // «Dieci minuti»: 5 punti a 2 minuti (come il piano senza misure)
+const RG_PUNTI = 5;            // 5 punti a 2 minuti, come il piano senza misure
 const RG_BUONO = 8, RG_SCARSO = 5; // come statoDaMedia
 const GIORNI_CALENDARIO = 7;   // una verifica o interrogazione entro una settimana entra nel consiglio
 const NUMERI_IT = ["zero", "un", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci"];
@@ -101,15 +101,17 @@ function riepilogoRipasso({ fatti, prima, titoli, inizio, fine }) {
   const sicuri = [...new Set((fatti || []).filter((f) => f.tipo === "prova" && f.sicurezza === "ci" && f.punti < RG_SCARSO).map((f) => f.concetto_id))]
     .map((id) => "«" + ((titoli || {})[id] || "") + "»");
   return {
-    minuti: Math.max(1, Math.round((fine - inizio) / 60000)), punti,
+    minuti: punti.length ? Math.max(1, Math.round((fine - inizio) / 60000)) : Math.round((fine - inizio) / 60000), punti,
     complimento: sistemato ? "«" + sistemato.titolo + "» era da ripassare, adesso lo sai." : null,
     sicuri: sicuri.length ? "Su " + elencoTitoli(sicuri) + " eri a colpo sicuro, ma non ci hai preso: domani " +
       (sicuri.length === 1 ? "lo rivediamo per primo." : "li rivediamo per primi.") : null,
   };
 }
-// «Domani, 8 minuti: A, B e C.» dal piano del giorno dopo.
+// Senza punti fatti (tutti saltati) niente minuti: non ha ripassato niente.
+const rigaMinuti = (r) => (r.punti.length ? "Hai ripassato per " + minutiIt(r.minuti) + "." : "");
+// «Domani, 8 minuti: A, B e C.» dal piano del giorno dopo (senza misure: «Domani, 5 punti: …»).
 function rigaDomani(p) {
-  return p && p.punti.length ? "Domani, " + minutiIt(p.minuti) + ": " + elencoTitoli(p.punti.map((x) => x.titolo)) + "." : "";
+  return p && p.punti.length ? "Domani, " + quantoIt(p) + ": " + elencoTitoli(p.punti.map((x) => x.titolo)) + "." : "";
 }
 
 /* =================================================================== nel browser */
@@ -204,7 +206,8 @@ function disegnaDomanda(p) {
         '<button type="button" data-sicurezza="' + k + '" aria-pressed="false">' + t + "</button>").join("") + "</div>" : "") +
     '<div id="rg-rispondi"' + (p.tipo === "prova" ? " hidden" : "") + ">" +
     '<textarea id="rg-risposta" aria-labelledby="rg-domanda" placeholder="' + (p.tipo === "parole" ? "Spiegalo come lo diresti tu" : "Scrivi quello che ti ricordi") + '"></textarea>' +
-    (Riconoscimento ? '<button type="button" class="minore" data-azione="voce">Rispondi a voce</button>' : "") +
+    (Riconoscimento ? '<p class="rg-voce" id="rg-voce" role="status" hidden>Ti ascolto. Parla pure, quello che dici compare qui sopra.</p>' +
+      '<button type="button" class="minore" data-azione="voce">Rispondi a voce</button>' : "") +
     '<button type="button" class="azione" data-azione="fatto">Fatto</button>' +
     '<button type="button" class="link" data-azione="non-ricordo">Non mi ricordo</button></div>';
   p._inizio = Date.now();
@@ -213,10 +216,10 @@ function disegnaDomanda(p) {
 
 async function rispondiAVoce(btn) {
   if (ascoltatore) { ascoltatore.stop(); return; } // secondo tocco: ho finito
-  btn.textContent = "Ho finito di parlare";
+  btn.textContent = "Ho finito di parlare"; $("rg-voce").hidden = false;
   const detto = await ascolta(3500, "rg-risposta");
   fermaVoce();
-  btn.textContent = "Rispondi a voce";
+  btn.textContent = "Rispondi a voce"; if ($("rg-voce")) $("rg-voce").hidden = true;
   if (detto === null) errore($("err-rg"), messaggioVoce(erroreVoce));
   else if (detto) $("rg-risposta").value = detto;
 }
@@ -243,9 +246,14 @@ async function correggiPasso(p, testo) {
     domanda: d, testo, commento: es.commento, rubrica: es.rubrica || null, secondi };
   rg.fatti.push(f);
   // Solo la prima prova dice quanto ricordava: è quella che decide quando rivedere il punto.
-  if (p.tipo === "prova") salvaRipassoStato(sb, [{ concetto_id: p.concetto_id, media: es.punti }], { [p.concetto_id]: rg.sicurezza }, giornoDi(new Date()));
+  if (p.tipo === "prova") salvaPrimaProva(sb, p.concetto_id, es.punti, rg.sicurezza, giornoDi(new Date()));
   rg.coda = dopoEsito(rg.coda, rg.i, es.punti);
   disegnaEsitoPasso(p, f, c);
+}
+
+// In ripasso_stato con la sicurezza detta prima di rispondere (salvaRipassoStato vuole { [id]: { sicurezza } }).
+function salvaPrimaProva(client, id, punti, sicurezza, oggi) {
+  return salvaRipassoStato(client, [{ concetto_id: id, media: punti }], { [id]: { sicurezza } }, oggi);
 }
 
 function disegnaEsitoPasso(p, f, c) {
@@ -282,7 +290,7 @@ async function fineRipasso() {
   const domani = giornoPiu(giornoDi(new Date()), 1);
   const pd = pianoDelGiorno(puntiDelPiano(argomenti, statiRipasso), datiPiano.scadenze, domani, secondiPerPunto(datiPiano.secondi));
   const riga = rigaDomani(pd);
-  $("rg-passo").innerHTML = '<h2 class="rg-fine">Per oggi basta.</h2><p class="rg-minuti">Hai ripassato per ' + minutiIt(r.minuti) + ".</p>" +
+  $("rg-passo").innerHTML = '<h2 class="rg-fine">Per oggi basta.</h2>' + (rigaMinuti(r) ? '<p class="rg-minuti">' + rigaMinuti(r) + "</p>" : '<p class="rg-minuti">Oggi nessun punto: li abbiamo saltati tutti. Riprova quando vuoi.</p>') +
     (r.complimento ? '<p class="rg-complimento">' + esc(r.complimento) + "</p>" : "") +
     (r.punti.length ? '<ul class="rg-elenco">' + r.punti.map((p) => "<li><b>" + esc(p.titolo) + '</b><span class="rg-stati"><small>prima</small>' +
       htmlStato(p.prima) + "<small>adesso</small>" + htmlStato(p.dopo) + "</span></li>").join("") + "</ul>" : "") +
@@ -300,7 +308,7 @@ async function fineRipasso() {
 // migration che ammette il tipo): il ripasso a schermo resta, gli stati dei punti si scrivono lo stesso.
 async function salvaRipassoGuidato(s, r) {
   if (!s.fatti.length) return true;
-  let ok = true;
+  let ok = true, creata = null;
   try {
     await Promise.all(r.punti.map((p) => { const c = s.conc[p.concetto_id].c;
       return sb.from("concetti").update({ media: c.media, stato: c.stato, tentativi: c.tentativi }).eq("id", c.id); }));
@@ -313,6 +321,7 @@ async function salvaRipassoGuidato(s, r) {
       n_domande: s.fatti.length, n_errori: s.fatti.filter((f) => f.punti < RG_BUONO).length, scartate: 0,
     }).select("id").single();
     if (error) throw error;
+    creata = ses.id;
     const { data: ds, error: e2 } = await sb.from("domande").insert(s.fatti.map((f, i) => {
       const { c, a } = s.conc[f.concetto_id];
       return { sessione_id: ses.id, argomento_id: a.id, concetto_id: c.id, concetto_titolo: c.titolo, ordine: i + 1, tipo: "aperta", livello: "medio",
@@ -328,6 +337,8 @@ async function salvaRipassoGuidato(s, r) {
   } catch (e) {
     console.warn("ripasso non salvato:", e && (e.message || e.code));
     ok = false;
+    // Niente sessione a metà nei Risultati: domande e risposte vanno via in cascata.
+    if (creata) try { await sb.from("sessioni").delete().eq("id", creata); } catch (e2) { /* resta, la si vede incompleta */ }
   }
   caricaLibreria(); // stati e Risultati aggiornati per quando torna a Oggi
   return ok;

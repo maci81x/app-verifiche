@@ -128,7 +128,7 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
   // Ripasso guidato (issue #21): chi studia prova a ricordare prima di rileggere. Due versioni, ne serve una
   // sola: se il filtro di ancoraggio ne scarta una resta l'altra.
   const regole = unaAperta
-    ? "Una domanda aperta su questo concetto, da rispondere con parole proprie in due o tre frasi: chi studia prova a ricordare senza guardare, poi rilegge il quaderno. Scrivine due versioni alternative, diverse fra loro. " + taglio +
+    ? "Una domanda aperta su questo concetto, da rispondere con parole proprie in due o tre frasi: chi studia prova a ricordare senza guardare, poi rilegge il quaderno. Scrivine due versioni alternative, diverse fra loro. Chiedi di spiegare il concetto con parole proprie: che cos'è, come funziona o perché succede, restando su quello che dice il materiale." +
       ((unaAperta.diverse || []).length ? " Usa una formulazione diversa da queste, guardando il concetto da un altro lato:\n" + JSON.stringify(unaAperta.diverse) : "")
     : soloConcetto
     ? "Prova lampo su un concetto solo: " + REGOLE_CONCETTO[tipo] + ". Ogni domanda guarda il concetto da un lato diverso. " + taglio

@@ -53,7 +53,7 @@ test("consiglio: le scelte si ordinano con la consigliata in cima", () => {
   const s = json(`ordineScelte(${J(arg(["verde"]))}, "interroga")`);
   assert.deepEqual(s.map((x) => x.chiave), ["interroga", "verifica", "ripassa"]);
   assert.equal(s[0].consigliata, true);
-  assert.match(s.find((x) => x.chiave === "ripassa").spiega, /Prima provi tu, poi leggiamo cosa c'è sul quaderno/);
+  assert.match(s.find((x) => x.chiave === "ripassa").spiega, /Prima provi tu, poi leggiamo cosa c'è sul quaderno\.$/); // niente minuti fissi (#17)
 });
 
 test("punti del ripasso: al massimo 5, prima i rossi, poi i Quasi, i mai provati, i verdi", () => {
@@ -124,4 +124,46 @@ test("fine sessione: minuti veri, prima e dopo, complimento solo se un rosso è 
 test("fine sessione: la riga di domani viene dal piano", () => {
   assert.equal(run(`rigaDomani({ minuti: 8, punti: [{ titolo: "Arrivo" }, { titolo: "Cause" }, { titolo: "Date" }] })`), "Domani, 8 minuti: Arrivo, Cause e Date.");
   assert.equal(run(`rigaDomani({ minuti: 0, punti: [] })`), "");
+});
+
+test("prima prova: in ripasso_stato vanno la sicurezza detta e l'esito", async () => {
+  run(`statiRipasso = {}`);
+  const scritte = [];
+  ctx.clientFinto = { from: (t) => ({ upsert: async (righe) => { scritte.push([t, righe]); return { error: null }; } }) };
+  assert.equal(await run(`salvaPrimaProva(clientFinto, "c1", 2, "ci", "2026-11-16")`), true);
+  assert.equal(scritte[0][0], "ripasso_stato");
+  assert.equal(scritte[0][1][0].ultima_sicurezza, "ci");
+  assert.equal(scritte[0][1][0].ultimo_esito, 2);
+  assert.equal(scritte[0][1][0].prossima, "2026-11-17");
+});
+
+test("riga di domani senza minuti misurati: i punti, mai «null minuti»", () => {
+  assert.equal(run(`rigaDomani({ minuti: null, punti: [{ titolo: "Arrivo" }, { titolo: "Cause" }] })`), "Domani, 2 punti: Arrivo e Cause.");
+});
+
+test("fine sessione con tutti i punti saltati: nessun minuto inventato", () => {
+  const r = json(`riepilogoRipasso(${J({ fatti: [], prima: {}, titoli: {}, inizio: 0, fine: 20000 })})`);
+  assert.equal(run(`rigaMinuti(${J(r)})`), "");
+  assert.equal(run(`rigaMinuti(${J(fineSessione([{ concetto_id: "a", tipo: "prova", punti: 9 }], {}, 3 * 60000))})`), "Hai ripassato per 3 minuti.");
+});
+
+test("salvataggio che si rompe a metà: la sessione creata si cancella (domande e risposte vanno via in cascata)", async () => {
+  const fatte = [];
+  const tabella = (t) => {
+    const q = { _t: t, insert(r) { fatte.push(["insert", t]); q._ins = r; return q; }, update() { return q; }, delete() { fatte.push(["delete", t]); q._del = true; return q; },
+      eq(k, v) { if (q._del) fatte.push(["eq", t, k, v]); return q; }, select() { return q; },
+      single: async () => ({ data: { id: "S1" }, error: null }),
+      then(ok, ko) {
+        const r = t === "domande" && q._ins ? { data: null, error: { message: "rotto" } } : { data: null, error: null };
+        return Promise.resolve(r).then(ok, ko);
+      } };
+    return q;
+  };
+  ctx.sbFinto = { from: tabella }; run(`sb = sbFinto`); // sb è un let di app.js
+  run(`caricaLibreria = () => {}`);
+  const s = { args: [{ id: "A", titolo: "La peste", materia: "storia" }], conc: { c1: { c: { id: "c1", titolo: "Arrivo", ancora: "nel 1347" }, a: { id: "A", materia: "storia" } } },
+    fatti: [{ concetto_id: "c1", tipo: "prova", punti: 2, domanda: { testo: "Quando?", risposta_attesa: "1347", ancora: "nel 1347" }, testo: "boh", secondi: 5 }] };
+  const r = { punti: [{ concetto_id: "c1", media: 2, dopo: "rosso" }] };
+  assert.equal(await run(`salvaRipassoGuidato(${J(s)}, ${J(r)})`), false);
+  assert.deepEqual(fatte.filter((x) => x[0] !== "insert"), [["delete", "sessioni"], ["eq", "sessioni", "id", "S1"]]);
 });

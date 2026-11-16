@@ -949,3 +949,7 @@ button.link.link-in-riga{padding:10px 0;display:inline;text-align:left}
 .rg-stati .sem{font-size:.86rem}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rg-sicuro button[aria-pressed="true"]{background:var(--evidenziatore);border-color:var(--evidenziatore);color:var(--su-evidenziatore)}}
 :root[data-theme="dark"] .rg-sicuro button[aria-pressed="true"]{background:var(--evidenziatore);border-color:var(--evidenziatore);color:var(--su-evidenziatore)}
+.rg-voce{margin:0;display:flex;align-items:center;gap:10px;font-weight:700}
+.rg-voce::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--rosso);flex:none;animation:onda 1s ease-out infinite}
+.rg-voce[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){.rg-voce::before{animation:none}}

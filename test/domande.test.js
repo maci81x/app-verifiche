@@ -164,3 +164,10 @@ test("ripasso guidato: delle domande arrivate tiene la prima aperta che non ripe
   assert.deepEqual(diverseDa("no"), []);
   assert.equal(diverseDa(Array.from({ length: 30 }, (_, i) => "q" + i)).length, 10);
 });
+
+test("ripasso guidato: con un concetto solo il taglio non chiede di collegare due concetti", async () => {
+  const { promptDomande } = await import("../supabase/functions/_shared/prompt.js");
+  const p = promptDomande({ livello: "medio", tipo: "aperte", modalita: "scritta", ripasso: false, contesto: [], gia: [], materiale: [ARG], soloConcetto: true, unaAperta: { diverse: [] } });
+  assert.doesNotMatch(p, /collegare due concetti/);
+  assert.match(p, /spiegare il concetto con parole proprie/);
+});

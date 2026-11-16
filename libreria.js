@@ -72,7 +72,7 @@ function rigaStatoArgomento(a) {
 const SCELTE = {
   verifica: { titolo: "Fai la verifica", spiega: "Come in classe, scritta. Scegli tu quanto difficile." },
   interroga: { titolo: "Fatti interrogare", spiega: "Ti faccio le domande a voce, come la prof. E ogni tanto ti chiedo «perché?»." },
-  ripassa: { titolo: "Ripassa con me", spiega: "Un punto alla volta. Prima provi tu, poi leggiamo cosa c'è sul quaderno. Dieci minuti." },
+  ripassa: { titolo: "Ripassa con me", spiega: "Un punto alla volta. Prima provi tu, poi leggiamo cosa c'è sul quaderno." },
 };
 function ordineScelte(a, prima = contaStati(a).rosso ? "ripassa" : "verifica") {
   return [prima, ...["verifica", "interroga", "ripassa"].filter((k) => k !== prima)]
