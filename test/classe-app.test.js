@@ -103,3 +103,12 @@ test("INVALSI: numeri negativi scritti con il segno meno tipografico", () => {
   assert.equal(run(`rispostaInvalsiGiusta({ formato: "risposta_breve", risposta: "-3" }, "−3")`), true);
   assert.equal(run(`rispostaInvalsiGiusta({ formato: "risposta_breve", risposta: "−3" }, "3")`), false);
 });
+
+test("consegne generate: le formule LaTeX fra \\( \\) diventano formule, non testo grezzo", () => {
+  const h = run(String.raw`testoConFormule("Calcola \\(\\frac{2}{3} + \\frac{1}{4}\\) <b>")`);
+  assert.doesNotMatch(h.replace(/<[^>]*>/g, ""), /\\frac|\\\(/);
+  assert.match(h, /class="formula"/);
+  assert.match(h, /2\/3 \+ 1\/4/);
+  assert.match(h, /&lt;b&gt;/);
+  assert.equal(run(`testoConFormule("Quanto fa 3 + 4?")`), "Quanto fa 3 + 4?");
+});
