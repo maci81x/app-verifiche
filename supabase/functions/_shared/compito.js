@@ -62,6 +62,10 @@ export function stessoRisultato(libro, risultato) {
 }
 
 // { ok: true } oppure { ok: false, motivo: "passo" (con il numero del passo) | "risultato" | "verifica" | "libro" }.
+// Parole che valgono un numero del testo. Confini di parola con le lettere accentate (\b non vede la «à» di «metà»).
+// «Terzo» e «quarto» contano solo come frazioni («un terzo», «tre quarti»), non come ordinali («il terzo giorno»).
+const PAROLE_NUMERO = [[/(?<!\p{L})(doppi[oa]|metà)(?!\p{L})/iu, 2], [/(?<!\p{L})(tripl[oa]|(?:un|una|due)\s+terz[oi])(?!\p{L})/iu, 3],
+  [/(?<!\p{L})(quadrupl[oa]|(?:un|una|tre)\s+quart[oi])(?!\p{L})/iu, 4]];
 export function controllaCompito(c) {
   const conConto = c.passi.map((p, i) => ({ p, n: i + 1 })).filter((x) => x.p.calcolo);
   if (!conConto.length) return { ok: false, motivo: "passo", passo: 1 };
@@ -82,8 +86,7 @@ export function controllaCompito(c) {
   const frazioni = consegna.match(/\d+\s*\/\s*\d+/g) || [];
   const dati = new Set(numeriIn(consegna.replace(/\d+\s*\/\s*\d+/g, " "), true).filter((n) => n !== 0 && n !== 1 && !coincide(n, valore)));
   // Anche le parole-numero sono dati: «il triplo dell'altezza» è un 3 da rispettare.
-  // Confini di parola con le lettere accentate: \b non vede la «à» di «metà» (16 novembre 2026).
-  for (const [re, n] of [[/(?<!\p{L})(doppi[oa]|metà)(?!\p{L})/iu, 2], [/(?<!\p{L})(tripl[oa]|terz[oa])(?!\p{L})/iu, 3], [/(?<!\p{L})(quadrupl[oa]|quart[oa])(?!\p{L})/iu, 4]]) if (re.test(consegna)) dati.add(n);
+  for (const [re, n] of PAROLE_NUMERO) if (re.test(consegna)) dati.add(n);
   // Se il testo ha frazioni, usarne una (o il suo denominatore) vale come un dato in più: «10 × 7 = 70» per
   // «spende 1/4 e restano 10 €» non rimette niente della frazione e non basta.
   const denominatori = new Set(frazioni.map((f) => Number(f.split("/")[1])));
@@ -118,6 +121,21 @@ export function controllaCompito(c) {
   const numFrazioni = new Set(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
   const pulito = (sx, ammessi) => numeriIn(sx).every((n) => n === 0 || n === 1 || dati.has(n) || numFrazioni.has(n) || ammessi.some((a) => coincide(n, String(a))));
   const tokenDi = (n) => new RegExp("(?<![\\d.,])" + String(n).replace(".", ",?\\.?") + "(?![\\d.,])", "g");
+  // Un controllo «al contrario» con un'operazione sola, dalla parte a un dato con un altro dato («220 + 80 = 300»),
+  // si riscrive come conto che arriva alla parte (220 = 300 − 80) e si sostituisce come gli altri.
+  const alContrario = (n) => {
+    for (const k of controlli.keys()) {
+      if (haValore(sinistre[k]) || !dati.has(finali[k])) continue;
+      const m = senzaUnita(conPer(sinistre[k])).replace(/\s/g, "").replace(/[−–]/g, "-").match(/^(\d+(?:[.,]\d+)?)([-+×x*:])(\d+(?:[.,]\d+)?)$/);
+      if (!m) continue;
+      const [a, op, b] = [Number(m[1].replace(",", ".")), m[2], Number(m[3].replace(",", "."))];
+      const altro = coincide(a, String(n)) ? b : coincide(b, String(n)) && (op === "+" || op === "×" || op === "x" || op === "*") ? a : null;
+      if (altro === null || !(dati.has(altro) || numFrazioni.has(altro))) continue;
+      const inverso = { "+": "-", "-": "+", "×": ":", x: ":", "*": ":", ":": "×" }[op];
+      return finali[k] + " " + inverso + " " + altro;
+    }
+    return null;
+  };
   const conCatena = (s, i) => {
     const ricavate = [...operandi(s)].filter((n) => !dati.has(n) && !numFrazioni.has(n));
     const altri = controlli.map((_, k) => k).filter((k) => k !== i);
@@ -125,8 +143,9 @@ export function controllaCompito(c) {
     let riga = s, sostituite = 0;
     for (const n of ricavate) {
       const k = altri.find((x) => !haValore(sinistre[x]) && coincide(finali[x], String(n)) && pulito(sinistre[x], []));
-      if (k === undefined) continue;
-      riga = riga.replace(tokenDi(n), "(" + sinistre[k] + ")"); sostituite++;
+      const conto = k !== undefined ? sinistre[k] : alContrario(n);
+      if (!conto) continue;
+      riga = riga.replace(tokenDi(n), "(" + conto + ")"); sostituite++;
     }
     if (!sostituite || haValore(riga)) return false;
     if (frazioni.length && ![riga, ...dalRisultato.map((k) => sinistre[k])].some(usaFrazione)) return false;
@@ -148,7 +167,48 @@ export function controllaCompito(c) {
     sinistre.every((s, i) => i === 0 || numeriIn(s).some((n) => coincide(n, String(finale(controlli[i - 1]))))) &&
     // Arrivare a un dato, o a un prodotto di dati, vale un dato solo: gli altri devono stare nei controlli.
     arrivo && (dati.size ? new Set([...sinistre.flatMap((s) => [...datiIn(s)]), ...(dati.has(ultimo) ? [ultimo] : [])]).size + (dati.has(ultimo) ? 0 : 1) >= quanti : true);
+  // Nessun dato del testo si usa più volte di quante compare (17 novembre 2026, caso H della revisione): «60 : 3 + 2 = 22»,
+  // «22 + 2 = 24» usa due volte il «più 2» che nel testo c'è una volta, e arriva a 24 con un risultato sbagliato.
+  // Si contano i primi pezzi dei controlli (gli altri ripetono gli stessi numeri) e, in avanti, l'arrivo. Un dato vale
+  // una volta in più per ogni volta che:
+  //  - compare di nuovo nel testo, anche dentro una frazione («1/4 … più 4»);
+  //  - è anche il risultato di un altro controllo («600 : 4 = 150», poi «150 + 150 + 300»);
+  //  - è anche una frazione del testo del risultato (Giulia: 30 × 1/5 = 6 e il dato 6 €);
+  //  - il testo lega un'altra quantità a lui («la metà di quelle», «30 km in più dei chilometri che le restano») e lui
+  //    sta in un controllo pulito che ricava una parte della somma finale («88 : 2 = 44»).
+  // Il totale ripetuto nello stesso controllo («12 − 12 × 1/4 = 9») conta una volta.
+  const datoRiusato = (inAvanti) => {
+    const conteggio = (lista) => lista.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map());
+    const senzaFrazioni = (x) => String(x).replace(/\d+\s*\/\s*\d+/g, " ");
+    const nelTesto = conteggio(numeriIn(senzaFrazioni(consegna), true));
+    for (const [re, n] of PAROLE_NUMERO) nelTesto.set(n, (nelTesto.get(n) || 0) + (consegna.match(new RegExp(re.source, "giu")) || []).length);
+    const nelleFrazioni = conteggio(frazioni.flatMap((f) => f.split("/").map((x) => Number(x.trim()))));
+    const ultimoK = controlli.length - 1;
+    const ricavati = conteggio(finali.filter((n, k) => n !== null && !(inAvanti && k === ultimoK)));
+    const v = valutaSicuro(valore);
+    const partiDelRisultato = (n) => v === null ? 0 : frazioni.filter((f) => coincide(v * valutaSicuro(f.replace(/\s/g, "")), String(n))).length;
+    // Un legame fra due quantità del testo, non una frazione del totale («1/4 dei suoi soldi» non lo è).
+    const relazione = /(metà|doppi[oa]|tripl[oa])\s+(di|dei|delle|degli|del|della)\b|\d+\s*\/\s*\d+\s+(di|dei|delle|degli|del|della)\s+quell|in (più|meno) (di|dei|delle|degli|del|della)\b/i.test(consegna);
+    const partiFinali = [...operandi(sinistre[ultimoK])];
+    const definizioni = relazione && !inAvanti ? controlli.map((_, k) => k).filter((k) => k !== ultimoK && !haValore(sinistre[k]) &&
+      ((pulito(sinistre[k], []) && partiFinali.some((n) => coincide(finali[k], String(n)))) ||
+      (dati.has(finali[k]) && partiFinali.some((n) => !dati.has(n) && operandi(sinistre[k]).has(n) && pulito(sinistre[k], [n]))))) : [];
+    const pezzi = controlli.map((x) => senzaUnita(conPer(x)).split("=")[0]);
+    const usi = new Map();
+    pezzi.forEach((x) => {
+      const nn = numeriIn(senzaFrazioni(x));
+      new Set(nn).forEach((n) => usi.set(n, (usi.get(n) || 0) + (n === nn[0] ? 1 : nn.filter((m) => m === n).length)));
+    });
+    if (inAvanti) numeriIn(senzaFrazioni(pezzoFinale)).forEach((n) => usi.set(n, (usi.get(n) || 0) + 1));
+    for (const [n, u] of usi) {
+      if (!dati.has(n)) continue;
+      const nelleDefinizioni = definizioni.some((k) => numeriIn(senzaFrazioni(sinistre[k])).includes(n)) ? 1 : 0;
+      if (u > (nelTesto.get(n) || 0) + (nelleFrazioni.get(n) || 0) + (ricavati.get(n) || 0) + partiDelRisultato(n) + nelleDefinizioni) return true;
+    }
+    return false;
+  };
   if (!(indietro || avanti)) return { ok: false, motivo: "verifica" };
+  if (datoRiusato(avanti)) return { ok: false, motivo: "verifica" };
   if (c.soluzione_libro && stessoRisultato(c.soluzione_libro, c.risultato) === false) return { ok: false, motivo: "libro" };
   return { ok: true };
 }
