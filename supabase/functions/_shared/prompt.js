@@ -116,7 +116,7 @@ const REGOLE_CONCETTO = {
   aperte: "tre domande aperte brevi sullo stesso concetto, da rispondere con parole proprie",
 };
 
-export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante, soloConcetto, classe }) {
+export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia, materiale, quante, soloConcetto, classe, unaAperta }) {
   const perLivello = { semplice: 7, medio: 8, difficile: 6 }[livello];
   const taglio = {
     semplice: "Resta sul riconoscimento: definizioni, date, termini, fatti espliciti nel materiale.",
@@ -125,7 +125,12 @@ export function promptDomande({ livello, tipo, modalita, ripasso, contesto, gia,
   }[livello];
   const scelte = DOMANDE_DA_STAMPARE.includes(quante);
   const misto = misteDelLivello(livello, scelte ? quante : null);
-  const regole = soloConcetto
+  // Ripasso guidato (issue #21): chi studia prova a ricordare prima di rileggere. Due versioni, ne serve una
+  // sola: se il filtro di ancoraggio ne scarta una resta l'altra.
+  const regole = unaAperta
+    ? "Una domanda aperta su questo concetto, da rispondere con parole proprie in due o tre frasi: chi studia prova a ricordare senza guardare, poi rilegge il quaderno. Scrivine due versioni alternative, diverse fra loro. " + taglio +
+      ((unaAperta.diverse || []).length ? " Usa una formulazione diversa da queste, guardando il concetto da un altro lato:\n" + JSON.stringify(unaAperta.diverse) : "")
+    : soloConcetto
     ? "Prova lampo su un concetto solo: " + REGOLE_CONCETTO[tipo] + ". Ogni domanda guarda il concetto da un lato diverso. " + taglio
     : (scelte ? quante : perLivello) + " domande: " + (
     tipo === "chiuse" ? "tutte a scelta multipla con quattro opzioni plausibili e una sola corretta"

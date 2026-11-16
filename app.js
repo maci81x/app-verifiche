@@ -361,7 +361,7 @@ function doppioTocco(btn, testoConferma, fn) {
   btn.dataset.c = ""; btn.textContent = btn.dataset.orig; fn();
 }
 
-const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], settimana: ["Settimana", 0] };
+const VISTE = { profili: ["Profilo", 0], codice: ["Codice", 0], impostazioni: ["Impostazioni", 0], libreria: ["Oggi", 0], argomenti: ["Argomenti", 0], materiale: ["Fotografa gli appunti", 1], concetti: ["Punti", 2], scheda: ["Argomento", 0], tipi: ["Tipi di esercizio", 2], esercizi: ["Esercizi", 0], mappa: ["Mappa", 0], stampa: ["Stampa", 0], spiega: ["Spiegamelo meglio", 0], storico: ["Risultati", 0], ripasso: ["Ripasso del quadrimestre", 2], prepara: ["Prima di partire", 2], verifica: ["Verifica", 3], esito: ["Com'è andata", 4], compito: ["Aiutami con un compito", 0], poesia: ["Poesia a memoria", 0], invalsi: ["Allenati per l'INVALSI", 0], esame: ["Esame di terza media", 0], geografia: ["Geografia d'Italia", 0], settimana: ["Settimana", 0], guidato: ["Ripassa con me", 0] };
 // Issue #26: la barra in basso c'è dove si sceglie cosa fare; sparisce dentro i flussi (foto, verifica).
 const CON_BARRA = ["libreria", "argomenti", "storico", "profili", "scheda", "mappa", "esito", "settimana"];
 const SENZA_TESTATA = ["libreria", "profili", "codice"];
@@ -912,7 +912,7 @@ function apriScheda(a) {
   $("meta-scheda").textContent = a.concetti.length ? rigaStatoArgomento(a) : "Ancora nessun punto.";
   $("sum-punti").textContent = a.concetti.length === 1 ? "Il punto" : "I " + a.concetti.length + " punti";
   disegnaCopertina($("cop-scheda"), a); caricaCopertine([a]);
-  disegnaScelte(a);
+  if (typeof disegnaConsiglio === "function") disegnaConsiglio(a); else disegnaScelte(a); // ripasso.js (issue #21)
   const sc = $("stato-concetti-scheda"); sc.innerHTML = "";
   a.concetti.slice().sort((x, y) => (x.media == null ? -1 : x.media) - (y.media == null ? -1 : y.media)).forEach((x) => {
     const d = document.createElement("div"); d.className = "esito-c"; d.dataset.s = x.stato || "mai";
@@ -925,15 +925,15 @@ function apriScheda(a) {
   $("btn-rivedi").hidden = !a.ultima;
   $("btn-rileggi-concetti").hidden = !!a.concetti.length || !a.trascrizione;
   errore($("err-scheda"), "");
-  ["scelte-scheda", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
+  ["scelte-scheda", "consiglio-scheda", "altro-modo", "btn-mappa", "btn-menu-mappa", "btn-studiare", "btn-stampa-verifica"].forEach((id) => { $(id).hidden = false; });
   adattaSchedaEsercizi(a);
   vai("scheda", a.materia, a.titolo);
 }
 
 // Tre card grandi (issue #26): la consigliata gialla e per prima, con «Io farei questo».
-function disegnaScelte(a) {
+function disegnaScelte(a, consigliata) {
   const box = $("scelte-scheda"); box.innerHTML = "";
-  ordineScelte(a).forEach((x) => {
+  ordineScelte(a, consigliata).forEach((x) => {
     const b = document.createElement("button"); b.type = "button"; b.className = "scelta"; b.dataset.scelta = x.chiave;
     if (x.consigliata) b.dataset.consigliata = "1";
     b.innerHTML = (x.consigliata ? '<span class="occhiello">Io farei questo</span>' : "") + "<b>" + esc(x.titolo) + "</b><small>" + esc(x.spiega) + "</small>";
@@ -942,7 +942,8 @@ function disegnaScelte(a) {
   });
 }
 function scegli(chiave) {
-  if (chiave === "ripassa") { apriMappa(corrente, "studiare"); return; }
+  // Ripasso guidato (issue #21); senza ripasso.js, come prima, Cosa studiare.
+  if (chiave === "ripassa") { if (typeof avviaRipassoGuidato !== "function" || !avviaRipassoGuidato(puntiDaRipassare(corrente.concetti))) apriMappa(corrente, "studiare"); return; }
   // La card sceglie il modo solo per questa prova; lo ricorda solo un tocco sui segmenti.
   modalita = chiave === "interroga" ? "orale" : "scritta";
   apriPrepara();
@@ -1192,7 +1193,7 @@ function sparkline(voti) {
 function rigaSessione(x, titolo) {
   const b = document.createElement("button"); b.className = "sessione"; b.type = "button"; tinta(b, x.materia);
   b.innerHTML = '<div class="alto"><span class="tit">' + esc(titolo) + '</span><span class="v" data-s="' + fasciaVoto(x.voto) + '">' + votoIt(Number(x.voto)) + "</span></div>" +
-    '<div class="meta">' + dataOraIt(x.data) + " · " + esc(x.materia) + " · " + (x.percorso === "esercizi" ? "esercizi" : (x.modalita === "orale" ? "interrogazione" : "scritta") + " · livello " + esc(x.livello)) +
+    '<div class="meta">' + dataOraIt(x.data) + " · " + esc(x.materia) + " · " + (x.percorso === "esercizi" ? "esercizi" : x.tipo === "ripasso" ? "ripasso guidato" : (x.modalita === "orale" ? "interrogazione" : "scritta") + " · livello " + esc(x.livello)) +
     " · prontezza " + x.indice + "%" + (x.n_errori ? " · " + x.n_errori + " da rivedere" : " · tutte giuste") + "</div>";
   b.onclick = () => mostraSessione(x);
   return b;
@@ -1251,7 +1252,7 @@ async function mostraSessione(x, daScheda) {
   disegnaQuadrante(x.indice, Number(x.voto));
   $("verdetto-t").textContent = x.titolo;
   $("verdetto-p").textContent = dataOraIt(x.data);
-  $("voto-num").textContent = "prontezza " + x.indice + "% · " + (x.percorso === "esercizi" ? "esercizi" : "livello " + x.livello + " · " + (x.modalita === "orale" ? "interrogazione" : "verifica scritta"));
+  $("voto-num").textContent = "prontezza " + x.indice + "% · " + (x.percorso === "esercizi" ? "esercizi" : x.tipo === "ripasso" ? "ripasso guidato" : "livello " + x.livello + " · " + (x.modalita === "orale" ? "interrogazione" : "verifica scritta"));
   $("riga-scartate").hidden = true;
   // Semaforo di quel giorno, ricostruito dalle risposte.
   const perC = {};
@@ -1677,7 +1678,7 @@ function parla(testo) {
   });
 }
 // Ascolta finché l'alunna non resta zitta per qualche secondo. Restituisce il testo detto.
-function ascolta(silenzioMs) {
+function ascolta(silenzioMs, campo = "risp-aperta") {
   return new Promise((res) => {
     if (!Riconoscimento) return res(null);
     const r = new Riconoscimento();
@@ -1705,7 +1706,7 @@ function ascolta(silenzioMs) {
       ultimoSuono = Date.now();
       const detto = (finale + " " + parziale).trim();
       statoVoce("ascolto", "Ti ascolto", detto);
-      const ta = $("risp-aperta"); if (ta) ta.value = detto;
+      const ta = $(campo); if (ta) ta.value = detto;
       if (/\b(ho finito|basta cosi)$/.test(piatto(detto))) chiudi();
     };
     // "no-speech" e "aborted" sono normali (silenzio, riavvio): si riparte da onend.
@@ -2043,6 +2044,7 @@ function collega() {
   collegaCompito();
   collegaFoto();
   if (typeof collegaPiano === "function") collegaPiano();
+  if (typeof collegaRipasso === "function") collegaRipasso();
 }
 
 // Nuovo materiale da fotografare (gli appunti): il flusso di sempre.

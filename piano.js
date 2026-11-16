@@ -236,7 +236,7 @@ function disegnaPianoOggi() {
   }
   $("frase-oggi").textContent = rigaPiano(piano);
   box.innerHTML = htmlPiano(piano);
-  box.onclick = (e) => { const b = e.target.closest("[data-azione=parti]"); if (b) partiConIlPiano(b); };
+  box.onclick = (e) => { const b = e.target.closest("[data-azione=parti]"); if (b) partiConIlPiano(); };
   const daVoto = s ? punti.filter((p) => (s.argomento_id ? p.argomento_id === s.argomento_id : piattaMateria(p.materia) === piattaMateria(s.materia))) : [];
   const v = votoSeFosseOggi(daVoto.some((p) => p.media != null) ? daVoto : punti);
   const fila = giorniDiFila(giorniDiStudio(), giornoDi(new Date()));
@@ -246,15 +246,9 @@ function disegnaPianoOggi() {
   return true;
 }
 
-// «Parti»: una prova sui punti del piano, come «Ripassa i rossi».
-function partiConIlPiano(btn) {
-  const ids = new Set(pianoOggi.punti.map((p) => p.concetto_id));
-  const args = argomenti.filter((a) => (a.concetti || []).some((c) => ids.has(c.id)));
-  if (!args.length) return;
-  modo = args.length > 1 ? "ripasso" : "argomento";
-  if (args.length === 1) corrente = args[0];
-  const concetti = pianoOggi.punti.map((p) => ({ id: p.concetto_id, titolo: p.titolo }));
-  preparaVerifica(args, btn, $("stato-lib"), $("avviso-db"), concetti.length === 1 ? { concetto: concetti[0] } : { concetti });
+// «Parti»: il ripasso guidato sui punti del piano (ripasso.js, issue #21).
+function partiConIlPiano() {
+  avviaRipassoGuidato(pianoOggi.punti.map((p) => p.concetto_id));
 }
 
 // Dopo una prova (salvaProva in app.js): stato di ripasso di ogni concetto.
@@ -290,7 +284,7 @@ function disegnaSettimana() {
   const pi = $("set-piano");
   pi.hidden = !piano.punti.length;
   pi.innerHTML = piano.punti.length ? htmlPiano(piano) : "";
-  pi.onclick = (e) => { const b = e.target.closest("[data-azione=parti]"); if (b) partiConIlPiano(b); };
+  pi.onclick = (e) => { const b = e.target.closest("[data-azione=parti]"); if (b) partiConIlPiano(); };
 }
 
 function collegaPiano() {

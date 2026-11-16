@@ -889,3 +889,41 @@ button.piano-parti:focus-visible{outline:3px solid #F2F2EE;outline-offset:3px}
 .barra-pronto i{display:block;height:100%;background:var(--verde)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .piano{background:#0B0B0E;border:1px solid var(--bordo)}}
 :root[data-theme="dark"] .piano{background:#0B0B0E;border:1px solid var(--bordo)}
+/* Hub «Cosa facciamo adesso?» e ripasso guidato (issue #21) */
+.cosa-facciamo{font:800 1.5rem/1.05 var(--display);letter-spacing:-.03em;margin:0 0 6px}
+.consiglio{margin:0 0 16px;color:var(--inchiostro-2);font-size:1.02rem;line-height:1.45}
+.altro-modo .occhiello{margin:28px 0 0}
+.altro-modo .link-riga{justify-content:flex-start;margin:0}
+.rg-barra{display:flex;align-items:center;gap:12px;margin:4px 0 20px;font-weight:700;font-size:.95rem}
+.rg-barra[hidden]{display:none}
+.rg-barra .barra-pronto{flex:1;margin:0}
+.rg-barra .barra-pronto i{background:var(--inchiostro);transition:width .2s ease-out}
+@media (prefers-reduced-motion:reduce){.rg-barra .barra-pronto i{transition:none}}
+#rg-passo .occhiello:first-child{margin-top:0}
+.rg-domanda{font:800 1.45rem/1.12 var(--display);letter-spacing:-.03em;margin:0 0 20px}
+.rg-sicuro{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
+.rg-sicuro p{flex-basis:100%;margin:0;font-weight:700}
+.rg-sicuro button{flex:1 1 auto;min-height:52px;border-radius:999px;border:1.5px solid var(--inchiostro);background:var(--carta);color:var(--inchiostro);font:700 1rem var(--testo);padding:10px 16px;cursor:pointer}
+.rg-sicuro button[aria-pressed="true"]{background:var(--inchiostro);color:var(--evidenziatore)}
+#rg-rispondi{display:flex;flex-direction:column;gap:12px}
+#rg-rispondi[hidden]{display:none}
+#rg-risposta{min-height:150px;border-radius:20px;font-size:1.06rem;padding:16px}
+#rg-risposta:focus{border-color:var(--inchiostro);outline:none}
+#rg-passo>button,.rg-bottoni button,#rg-rispondi button.azione,#rg-rispondi button.minore{width:100%}
+#rg-passo>button+button{margin-top:12px}
+.rg-bottoni{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+.rg-domanda-fatta{font-weight:700;margin:0 0 6px}
+.rg-mia{margin:0 0 14px;color:var(--inchiostro-2)}
+.rg-sintesi{margin:0;line-height:1.5}
+.rg-fine{font:800 2rem/1 var(--display);letter-spacing:-.03em;margin:8px 0 10px}
+.rg-minuti,.rg-domani{margin:0 0 12px;font-size:1.05rem}
+.rg-domani{margin-top:16px}
+.rg-complimento{margin:0 0 12px;font-weight:700}
+.rg-elenco{list-style:none;margin:16px 0;padding:0}
+.rg-elenco li{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--bordo)}
+.rg-elenco li:last-child{border-bottom:1px solid var(--bordo)}
+.rg-stati{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.rg-stati small{color:var(--inchiostro-2);font-size:.9rem}
+.rg-stati .sem{font-size:.86rem}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .rg-sicuro button[aria-pressed="true"]{background:var(--evidenziatore);border-color:var(--evidenziatore);color:var(--su-evidenziatore)}}
+:root[data-theme="dark"] .rg-sicuro button[aria-pressed="true"]{background:var(--evidenziatore);border-color:var(--evidenziatore);color:var(--su-evidenziatore)}

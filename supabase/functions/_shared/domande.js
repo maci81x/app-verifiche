@@ -79,3 +79,16 @@ export function sceltaLampo(domande, tipo, quante = 3) {
   const resto = domande.filter((d) => !prese.includes(d));
   return [...prese, ...resto].slice(0, quante).map((d, i) => ({ ...d, id: "d" + (i + 1) }));
 }
+
+// Ripasso guidato (issue #21): una domanda aperta per volta su un concetto, formulata in modo
+// diverso da quelle già fatte nella stessa sessione. diverse_da arriva dal client: si tiene solo testo.
+export function diverseDa(v) {
+  return Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().slice(0, 400)).slice(0, 10) : [];
+}
+const piatta = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+// La prima aperta che non ripete una di quelle date, con id d1; null se non ce n'è.
+export function unaApertaNuova(domande, diverse) {
+  const gia = new Set((diverse || []).map(piatta));
+  const d = (domande || []).find((x) => x.tipo === "aperta" && !gia.has(piatta(x.testo)));
+  return d ? { ...d, id: "d1" } : null;
+}

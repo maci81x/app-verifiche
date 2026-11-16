@@ -67,15 +67,14 @@ function rigaStatoArgomento(a) {
   return punti(tot) + ": " + STATI_BARRA.filter((k) => c[k]).map((k) => c[k] + " " + parole[k](c[k])).join(", ");
 }
 
-// Le tre scelte dell'argomento, la consigliata per prima: con dei punti da ripassare «Ripassa con
-// me», altrimenti «Fai la verifica». Le altre restano nel loro ordine.
+// Le tre scelte dell'argomento, la consigliata per prima (consiglioArgomento in ripasso.js; senza,
+// con dei punti da ripassare «Ripassa con me», altrimenti «Fai la verifica»). Le altre restano nel loro ordine.
 const SCELTE = {
-  verifica: { titolo: "Fai la verifica", spiega: "Domande scritte sui tuoi appunti, come in classe." },
-  interroga: { titolo: "Fatti interrogare", spiega: "Ti leggo le domande e rispondi a voce." },
-  ripassa: { titolo: "Ripassa con me", spiega: "Rileggi le frasi del quaderno sui punti più deboli." },
+  verifica: { titolo: "Fai la verifica", spiega: "Come in classe, scritta. Scegli tu quanto difficile." },
+  interroga: { titolo: "Fatti interrogare", spiega: "Ti faccio le domande a voce, come la prof. E ogni tanto ti chiedo «perché?»." },
+  ripassa: { titolo: "Ripassa con me", spiega: "Un punto alla volta. Prima provi tu, poi leggiamo cosa c'è sul quaderno. Dieci minuti." },
 };
-function ordineScelte(a) {
-  const prima = contaStati(a).rosso ? "ripassa" : "verifica";
+function ordineScelte(a, prima = contaStati(a).rosso ? "ripassa" : "verifica") {
   return [prima, ...["verifica", "interroga", "ripassa"].filter((k) => k !== prima)]
     .map((k, i) => ({ chiave: k, titolo: SCELTE[k].titolo, spiega: SCELTE[k].spiega, consigliata: i === 0 }));
 }

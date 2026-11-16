@@ -410,3 +410,17 @@ prova('ripasso_stato: uno per concetto, la ragazza legge e scrive il suo, il gen
   delete from concetti where id = '${CONC}';
   ${verifica(`${conta('ripasso_stato')} = 0`, 'lo stato sopravvive al concetto')}
 `);
+
+// ---------------------------------------------------------------- ripasso guidato (issue #21)
+prova("sessioni: il tipo 'ripasso' entra, un tipo sconosciuto no, le policy restano quelle", `
+  ${come(ANNA)}
+  insert into sessioni (argomento_id, titolo, materia, livello, tipo, modalita, indice, voto)
+    values ('${ARG}', 'La peste del Trecento', 'storia', 'medio', 'ripasso', 'scritta', 60, 6);
+  ${verifica(`(select count(*) = 1 from sessioni where tipo = 'ripasso')`, 'il ripasso non si salva')}
+  ${vieta(`insert into sessioni (titolo, materia, livello, tipo, modalita) values ('x', 'storia', 'medio', 'boh', 'scritta')`,
+    'check_violation', 'tipo sconosciuto')}
+  ${come(BEA)}
+  ${verifica(`(select count(*) = 0 from sessioni where tipo = 'ripasso')`, 'Bea vede il ripasso di Anna')}
+  ${come(GENITORE)}
+  ${verifica(`(select count(*) = 1 from sessioni where tipo = 'ripasso')`, 'il genitore non vede il ripasso della figlia')}
+`);
