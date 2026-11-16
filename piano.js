@@ -13,9 +13,9 @@ const FACILITA_INIZIALE = 2.5, FACILITA_MIN = 1.3, FACILITA_MAX = 3;
 const ESITO_BUONO = 8, ESITO_SCARSO = 5; // come statoDaMedia: verde da 8, rosso sotto 5
 const GIORNI_VERIFICA = 5; // le verifiche entro 5 giorni entrano nel piano, pesate per vicinanza
 const PUNTI_MIN = 4, PUNTI_MAX = 6, SECONDI_OBIETTIVO = 600;
-// ponytail: senza almeno 5 risposte con i secondi misurati si assumono 2 minuti a punto
-// (10 minuti / 5 punti, l'obiettivo della issue #20). Appena ci sono risposte misurate vale la loro media.
-const SECONDI_SENZA_MISURA = 120, MIN_MISURE = 5;
+// Senza almeno 5 risposte con i secondi misurati non si mostrano minuti (regola #17): il piano
+// prende 5 punti, a metà fra 4 e 6, e dice «i tuoi 5 punti».
+const MIN_MISURE = 5, PUNTI_SENZA_MISURA = 5;
 
 const giornoPiu = (g, n) => { const [a, m, d] = g.split("-").map(Number); return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10); };
 const giorniFra = (da, a) => Math.round((Date.parse(a + "T00:00:00Z") - Date.parse(da + "T00:00:00Z")) / 864e5);
@@ -24,35 +24,40 @@ const arrotondaA = (x, cifre) => Math.round(x * 10 ** cifre) / 10 ** cifre;
 const piattaMateria = (m) => String(m || "").trim().toLowerCase();
 
 // Durata media di un punto: la media dei secondi delle risposte (una domanda = un punto),
-// senza le risposte vuote o lasciate aperte per ore.
+// senza le risposte vuote o lasciate aperte per ore. null se le misure sono troppo poche.
 function secondiPerPunto(secondi) {
   const v = (secondi || []).filter((s) => Number.isFinite(s) && s >= 3 && s <= 600);
-  return v.length < MIN_MISURE ? SECONDI_SENZA_MISURA : Math.round(v.reduce((a, b) => a + b, 0) / v.length);
+  return v.length < MIN_MISURE ? null : Math.round(v.reduce((a, b) => a + b, 0) / v.length);
 }
 
 // Stato di ripasso dopo una risposta. esito 0-10, sicurezza 'ci' | 'forse' | 'caso' | null.
 // Buono: intervallo × facilità. Scarso: intervallo 1. In mezzo: stesso intervallo.
+// Prima della data prevista (per esempio una seconda prova lo stesso giorno) l'intervallo non
+// cresce e la facilità non cambia: conta solo una prova andata male, che riporta a domani.
 function nuovoStatoRipasso(prima, esito, sicurezza, oggi) {
+  const fatto = { ultima_sicurezza: sicurezza || null, ultimo_esito: arrotondaA(esito, 1) };
+  const inAnticipo = !!prima && !!prima.prossima && prima.prossima > oggi;
   let intervallo = Number(prima && prima.intervallo_giorni) || 1;
   let facilita = Number(prima && prima.facilita) || FACILITA_INIZIALE;
+  if (inAnticipo && esito >= ESITO_SCARSO) return { prossima: prima.prossima, intervallo_giorni: intervallo, facilita, ...fatto };
   if (esito >= ESITO_BUONO) { intervallo = Math.max(1, Math.round(intervallo * facilita)); facilita += 0.1; }
-  else if (esito < ESITO_SCARSO) { intervallo = 1; facilita -= 0.2; }
+  else if (esito < ESITO_SCARSO) { intervallo = 1; if (!inAnticipo) facilita -= 0.2; }
   intervallo = Math.min(365, intervallo);
   facilita = arrotondaA(Math.min(FACILITA_MAX, Math.max(FACILITA_MIN, facilita)), 2);
-  return { prossima: giornoPiu(oggi, intervallo), intervallo_giorni: intervallo, facilita,
-    ultima_sicurezza: sicurezza || null, ultimo_esito: arrotondaA(esito, 1) };
+  return { prossima: giornoPiu(oggi, intervallo), intervallo_giorni: intervallo, facilita, ...fatto };
 }
 // Sbagliato dato come «Ci prendo»: domani, prima di tutto il resto.
 const prioritaMassima = (s) => !!s && s.ultima_sicurezza === "ci" && s.ultimo_esito != null && s.ultimo_esito < ESITO_SCARSO;
 
-// Sicurezza di ogni concetto in una prova: un «Ci prendo» sbagliato vince, altrimenti l'ultima detta.
+// Sicurezza di ogni concetto in una prova: { sicurezza } dell'ultima risposta detta; un «Ci prendo»
+// sbagliato vince e porta i punti di quella risposta ({ sicurezza: "ci", esito }), che diventano
+// l'esito del concetto al posto della media: così la priorità massima scatta anche con media 6,7.
 function sicurezzePerConcetto(domande, risposte, per) {
-  const fuori = {}, fermi = new Set();
+  const fuori = {};
   (domande || []).forEach((d) => {
-    const s = (risposte[d.id] || {}).sicurezza;
-    if (!s || !d.concetto_id || fermi.has(d.concetto_id)) return;
-    fuori[d.concetto_id] = s;
-    if (s === "ci" && (per[d.id] || {}).punti < ESITO_SCARSO) fermi.add(d.concetto_id);
+    const s = (risposte[d.id] || {}).sicurezza, punti = (per[d.id] || {}).punti;
+    if (!s || !d.concetto_id || (fuori[d.concetto_id] && fuori[d.concetto_id].esito != null)) return;
+    fuori[d.concetto_id] = s === "ci" && punti < ESITO_SCARSO ? { sicurezza: s, esito: punti } : { sicurezza: s };
   });
   return fuori;
 }
@@ -82,9 +87,9 @@ function ripartisci(n, pesi) {
 
 
 // Il piano del giorno. stati: punti (puntiDelPiano); scadenze: righe di `scadenze`; oggi 'YYYY-MM-DD';
-// secondi: durata media misurata di un punto (secondiPerPunto).
+// secondi: durata media misurata di un punto (secondiPerPunto), null senza misure (e allora niente minuti).
 // → { punti: [punto + motivo], minuti, secondi_punto, parti: [{ materia, punti, minuti }], scadenze: vicine, prossima }
-function pianoDelGiorno(stati, scadenze, oggi, secondi = SECONDI_SENZA_MISURA) {
+function pianoDelGiorno(stati, scadenze, oggi, secondi = null) {
   const future = (scadenze || []).map((s) => ({ ...s, giorni: giorniFra(oggi, s.data) })).filter((s) => s.giorni >= 0)
     .sort((x, y) => x.giorni - y.giorni);
   const vicine = future.filter((s) => s.giorni <= GIORNI_VERIFICA);
@@ -95,7 +100,7 @@ function pianoDelGiorno(stati, scadenze, oggi, secondi = SECONDI_SENZA_MISURA) {
     String(x.prossima || "").localeCompare(String(y.prossima || "")) || (y.peso || 2) - (x.peso || 2);
 
   const tutti = (stati || []).slice().sort(ordine);
-  const posti = tutti.length ? Math.min(PUNTI_MAX, Math.max(PUNTI_MIN, Math.round(SECONDI_OBIETTIVO / secondi))) : 0;
+  const posti = !tutti.length ? 0 : secondi ? Math.min(PUNTI_MAX, Math.max(PUNTI_MIN, Math.round(SECONDI_OBIETTIVO / secondi))) : PUNTI_SENZA_MISURA;
   const scelti = [], usati = new Set();
   const prendi = (p, motivo) => { if (scelti.length < posti && !usati.has(p.concetto_id)) { scelti.push({ ...p, motivo }); usati.add(p.concetto_id); } };
   const liberi = (filtro) => tutti.filter((p) => !usati.has(p.concetto_id) && filtro(p));
@@ -117,10 +122,12 @@ function pianoDelGiorno(stati, scadenze, oggi, secondi = SECONDI_SENZA_MISURA) {
 
   const perMateria = {};
   scelti.forEach((p) => { perMateria[p.materia] = (perMateria[p.materia] || 0) + 1; });
-  const parti = Object.entries(perMateria).map(([materia, n]) => ({ materia, punti: n, minuti: Math.max(1, Math.round((n * secondi) / 60)) }))
-    .sort((x, y) => y.punti - x.punti);
-  return { punti: scelti, minuti: scelti.length ? Math.max(1, Math.round((scelti.length * secondi) / 60)) : 0, secondi_punto: secondi,
-    parti, scadenze: vicine, prossima: future[0] || null };
+  // Il totale si arrotonda una volta e si divide fra le materie: le parti sommano a quello che si vede.
+  const minuti = secondi && scelti.length ? Math.max(1, Math.round((scelti.length * secondi) / 60)) : null;
+  const materie = Object.entries(perMateria).sort((x, y) => y[1] - x[1]);
+  const quoteMin = minuti ? ripartisci(minuti, materie.map(([, n]) => n)) : [];
+  const parti = materie.map(([materia, n], i) => ({ materia, punti: n, minuti: minuti ? quoteMin[i] : null }));
+  return { punti: scelti, minuti, secondi_punto: secondi, parti, scadenze: vicine, prossima: future[0] || null };
 }
 
 // Giorni di studio di fila fino a oggi (se oggi non ha ancora studiato, la serie di ieri regge).
@@ -149,10 +156,18 @@ const iMinuti = (n) => (n === 1 ? "il minuto" : (n === 11 || /^8/.test(String(n)
 const materiaIt = (m) => { const t = String(m || "").trim(); return t.charAt(0).toUpperCase() + t.slice(1); };
 const tipoIt = (t) => (t === "orale" ? "Interrogazione" : "Verifica");
 
+// Quanto dura il piano: i minuti misurati o, senza misure, i punti.
+const puntiIt = (n) => n + (n === 1 ? " punto" : " punti");
+const quantoIt = (p) => (p.minuti ? minutiIt(p.minuti) : puntiIt(p.punti.length));
+const iQuanto = (p) => (p.minuti ? iMinuti(p.minuti) : p.punti.length === 1 ? "il punto" : "i " + puntiIt(p.punti.length));
+
 // La riga sotto il saluto: cosa si fa oggi.
 function rigaPiano(p) {
-  if (!p.scadenze.length) return "Nessuna verifica in vista. Segna una data, o fai " + iMinuti(p.minuti) + " per non dimenticare.";
-  const parti = p.parti.map((x, i) => (i === 0 ? minutiIt(x.minuti) + " di " : x.minuti + " di ") + piattaMateria(x.materia));
+  if (!p.scadenze.length) return "Nessuna verifica in vista. Segna una data, o fai " + iQuanto(p) + " per non dimenticare.";
+  const parti = p.parti.filter((x) => !p.minuti || x.minuti).map((x, i) => {
+    const n = p.minuti ? x.minuti : x.punti;
+    return (i === 0 ? (p.minuti ? minutiIt(n) : puntiIt(n)) : n) + " di " + piattaMateria(x.materia);
+  });
   return "Oggi " + (parti.length < 2 ? parti.join("") : parti.slice(0, -1).join(", ") + " e " + parti.at(-1)) + ".";
 }
 
@@ -161,9 +176,10 @@ function htmlPiano(p) {
   const voci = p.punti.map((x) => '<li><span class="sem" data-s="' + x.stato + '"><i aria-hidden="true">' + segnoStato(x.stato) + "</i>" +
     '<span class="solo-lettore">' + esc(parolaStato(x.stato)) + ": </span></span>" +
     '<span class="piano-tit">' + esc(x.titolo) + "<small>" + esc(x.motivo === "al volo" ? "da rivedere al volo" : x.argomento || x.materia) + "</small></span></li>").join("");
-  return '<h2 class="piano-titolo">' + (p.minuti === 1 ? "Il tuo minuto" : "I tuoi " + minutiIt(p.minuti)) + " di oggi</h2>" +
+  const tuoi = p.minuti === 1 ? "Il tuo minuto" : !p.minuti && p.punti.length === 1 ? "Il tuo punto" : "I tuoi " + quantoIt(p);
+  return '<h2 class="piano-titolo">' + tuoi + " di oggi</h2>" +
     '<ul class="piano-punti">' + voci + "</ul>" +
-    '<button type="button" class="piano-parti" data-azione="parti">Parti con ' + iMinuti(p.minuti) + "</button>";
+    '<button type="button" class="piano-parti" data-azione="parti">Parti con ' + iQuanto(p) + "</button>";
 }
 
 // Sette giorni da oggi, con la sigla della materia dove c'è una verifica.
@@ -186,14 +202,18 @@ let pianoOggi = null;
 // non riesce (per esempio la tabella non c'è ancora): la prova resta salvata lo stesso.
 async function salvaRipassoStato(client, concetti, sicurezze, oggi) {
   const ora = new Date().toISOString();
-  const righe = (concetti || []).map((x) => ({ concetto_id: x.concetto_id,
-    ...nuovoStatoRipasso(statiRipasso[x.concetto_id], Number(x.media), (sicurezze || {})[x.concetto_id], oggi), aggiornato: ora }));
+  const righe = (concetti || []).map((x) => {
+    const s = (sicurezze || {})[x.concetto_id] || {};
+    return { concetto_id: x.concetto_id, aggiornato: ora,
+      ...nuovoStatoRipasso(statiRipasso[x.concetto_id], s.esito != null ? Number(s.esito) : Number(x.media), s.sicurezza, oggi) };
+  });
   if (!righe.length) return true;
-  righe.forEach((r) => { statiRipasso[r.concetto_id] = { ...statiRipasso[r.concetto_id], ...r }; });
   try {
     const { error } = await client.from("ripasso_stato").upsert(righe, { onConflict: "concetto_id,studente_id" });
-    return !error;
+    if (error) return false;
   } catch (e) { return false; }
+  righe.forEach((r) => { statiRipasso[r.concetto_id] = { ...statiRipasso[r.concetto_id], ...r }; }); // solo se scritte davvero
+  return true;
 }
 
 // Letture per il piano, in parallelo alla libreria. Una tabella che manca vale come vuota.
@@ -274,7 +294,7 @@ function disegnaSettimana() {
   const box = $("set-arrivo"); box.innerHTML = "";
   const future = datiPiano.scadenze.map((s) => ({ ...s, giorni: giorniFra(oggi, s.data) })).filter((s) => s.giorni >= 0);
   $("set-vuoto").hidden = !!future.length;
-  $("set-vuoto").textContent = piano.minuti ? rigaPiano({ ...piano, scadenze: [] }) : "Nessuna verifica in vista. Fotografa i tuoi appunti: da lì parte il piano.";
+  $("set-vuoto").textContent = piano.punti.length ? rigaPiano({ ...piano, scadenze: [] }) : "Nessuna verifica in vista. Fotografa i tuoi appunti: da lì parte il piano.";
   future.forEach((s) => {
     const arg = argomenti.find((a) => a.id === s.argomento_id);
     const suoi = punti.filter((p) => (s.argomento_id ? p.argomento_id === s.argomento_id : piattaMateria(p.materia) === piattaMateria(s.materia)));
@@ -295,5 +315,5 @@ function disegnaSettimana() {
 
 function collegaPiano() {
   $("link-settimana").addEventListener("click", () => { disegnaSettimana(); vai("settimana"); });
-  $("btn-altri-appunti").addEventListener("click", () => $("btn-nuovo").click()); // il diario (#19) quando ci sarà
+  $("btn-altri-appunti").addEventListener("click", () => (typeof apriDiario === "function" ? apriDiario() : $("btn-nuovo").click())); // il diario (#19)
 }
