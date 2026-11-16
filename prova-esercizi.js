@@ -119,7 +119,7 @@ function htmlRispostaEsercizio(i) {
     '<label class="etichetta" for="ris-es-' + i + '">Il tuo risultato</label>' +
     '<input type="text" id="ris-es-' + i + '" autocomplete="off" placeholder="per esempio 15 cm">' +
     '<details class="passaggi-mia"><summary>Scrivi o fotografa i passaggi (se vuoi)</summary>' +
-    '<textarea id="pas-es-' + i + '" placeholder="Un passaggio per riga, come sul quaderno"></textarea>' +
+    '<textarea id="pas-es-' + i + '" aria-label="I tuoi passaggi" placeholder="Un passaggio per riga, come sul quaderno"></textarea>' +
     '<label class="scatto piccolo" for="foto-es-' + i + '"><span><b>Fotografa il quaderno</b><small>leggo i tuoi passaggi e li scrivo qui sopra</small></span>' +
     '<input type="file" id="foto-es-' + i + '" accept="image/*"></label>' +
     '<div id="stato-foto-es-' + i + '"></div></details>' +

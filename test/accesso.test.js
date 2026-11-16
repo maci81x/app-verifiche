@@ -192,3 +192,25 @@ test("Elimina profilo aperto su questo telefono: l'app smette di usarlo; un 404 
   assert.deepEqual(JSON.parse(amb.memoria["verifiche-profili"]), []);
   assert.match(amb.el("err-imp").innerHTML, /eliminato/);
 });
+
+test("verifica: risposta aperta e scelte hanno come nome la domanda", () => {
+  const amb = ambiente(async () => ({ status: 200, dati: [] }));
+  amb.run(`domande = [{ id: "d1", tipo: "aperta", testo: "Che cos'è la peste?" }, { id: "d2", tipo: "chiusa", testo: "Quando?", opzioni: ["1347", "1492"], corretta: 0 }];
+    idx = 0; risposte = {}; mostraDomanda();`);
+  const ta = amb.el("q-corpo").children[0];
+  assert.equal(ta.tagName, "textarea");
+  assert.equal(ta.attributi["aria-labelledby"], "q-testo");
+  amb.run("idx = 1; mostraDomanda();");
+  const box = amb.el("q-corpo").children[0];
+  assert.equal(box.attributi.role, "radiogroup");
+  assert.equal(box.attributi["aria-labelledby"], "q-testo");
+});
+
+test("peso dei concetti: il lettore di schermo sente quale peso è scelto", () => {
+  const amb = ambiente(async () => ({ status: 200, dati: [] }));
+  amb.run(`corrente = { titolo: "Peste", concetti: [{ id: "c1", titolo: "Contagio", descrizione: "", peso: 2 }] }; mostraConcetti();`);
+  const pesi = () => amb.el("lista-concetti").children[0].children[0].children[1].children;
+  assert.deepEqual(pesi().map((b) => b.attributi["aria-pressed"]), ["false", "true", "false"]);
+  pesi()[2].onclick();
+  assert.deepEqual(pesi().map((b) => b.attributi["aria-pressed"]), ["false", "false", "true"]);
+});

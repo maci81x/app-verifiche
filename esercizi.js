@@ -38,7 +38,7 @@ function htmlEsercizio(e, i) {
     "<li>" + esc(p.testo) + (p.formula ? '<span class="riga-formula">' + formulaHtml(p.formula) + "</span>" : "") + "</li>").join("");
   return '<article class="esercizio">' +
     '<p class="occhiello">Esercizio ' + (i + 1) + ": " + esc(e.tipo) + "</p>" +
-    '<p class="consegna">' + esc(e.testo) + "</p>" +
+    '<p class="consegna">' + testoConFormule(e.testo) + "</p>" +
     (e.dati ? '<p class="dati-es">Dati: ' + esc(e.dati) + "</p>" : "") +
     (e.figura ? '<div class="figura-es">' + svgFigura(e.figura) + "</div>" : "") +
     "<details><summary>Mostra la soluzione</summary>" +
