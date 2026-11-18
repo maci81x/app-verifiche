@@ -24,6 +24,17 @@ export const MODELLO_PER_AZIONE = {
   prova_tu: OPUS, // di solito non chiama il modello (risposta controllata dal server)
 };
 
+// Effort per azione; senza voce nessun effort, cioè il default dell'API. Nel dubbio non si abbassa.
+// trascrivi resta senza effort: con "low" (prova del 19 novembre 2026, stesse 5 foto, 6 giri) le frazioni scritte
+// a mano perdevano le parentesi in 2 giri su 6 e la lettura era più lenta, non più veloce (rapporto nella #29).
+export const EFFORT_PER_AZIONE = {};
+const EFFORT_NOTI = ["low", "medium", "high", "max"];
+// Come modelloPer: richiesto vale solo per gli account di prova e solo verso un effort noto.
+export function effortPer(azione, { prova = false, richiesto = "" } = {}) {
+  if (prova && EFFORT_NOTI.includes(richiesto)) return richiesto;
+  return EFFORT_PER_AZIONE[azione];
+}
+
 // richiesto vale solo per gli account di prova (app_metadata.prova, scritto solo dal server) e solo verso un modello noto.
 export function modelloPer(azione, { prova = false, richiesto = "" } = {}) {
   if (prova && NOTI.includes(richiesto)) return richiesto;

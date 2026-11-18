@@ -81,7 +81,7 @@ function blocchiMappa(trascrizione, nodi, nFoto) {
   // Il modo più fine che dà almeno due blocchi: paragrafi, pagine, foto.
   const perTitolo = (x) => { const t = titoli.filter((y) => y.i <= x.riga).pop(); return t ? "t" + t.i : "t-"; };
   const perPagina = (x) => "p" + paginaDi(x.riga);
-  // La trascrizione non segna dove finisce una foto (si legge a gruppi di quattro): le parti sono
+  // La trascrizione non segna dove finisce una foto (fino alla v33 si leggeva a gruppi di quattro; ora un testo per foto, ma unito in un testo solo): le parti sono
   // tante quante le foto e di lunghezza uguale, ma si chiamano «Parte N», non «Foto N», perché è una stima.
   const perFoto = (x) => "f" + Math.min(nFoto, 1 + Math.floor(x.pos / Math.max(1, piano.length) * nFoto));
   const quanti = (chiave) => new Set(posti.map(chiave)).size;

@@ -10,7 +10,10 @@
 const SB_URL = "https://nnzkmjpylwtinplepxgz.supabase.co";
 const SB_KEY = "sb_publishable_WTCYzSgAc_rVk7r04sdT8w_VFUwzFHJ"; // chiave pubblica: la sicurezza la fanno le policy RLS
 const BUCKET = "fonti";
-const LATO_MAX = 2000, PER_GRUPPO = 4, ATTESA_RIPROVA = 1800;
+// Foto: 1568 px sul lato lungo e JPEG 0,92 (prova del 19 novembre 2026 su 5 foto vere: numeri, frazioni e date
+// uguali a 2000 px; a 0,8 invece le frazioni scritte a mano perdevano le parentesi o cambiavano lettera).
+// La lettura va una foto per chiamata, al massimo LETTURE_INSIEME chiamate insieme.
+const LATO_MAX = 1568, QUALITA_JPEG = 0.92, PER_GRUPPO = 4, LETTURE_INSIEME = 3, ATTESA_RIPROVA = 1800;
 const GRUPPO_ILLEGGIBILE = "[gruppo di foto non leggibile]";
 
 /* =================================================================== logica pura */
@@ -52,6 +55,15 @@ function mescola(n) {
 
 function aGruppi(lista, n = PER_GRUPPO) {
   const g = []; for (let i = 0; i < lista.length; i += n) g.push(lista.slice(i, i + n)); return g;
+}
+
+// fn(x, i) su ogni elemento, al massimo max insieme; i risultati restano nell'ordine della lista.
+async function inParallelo(lista, max, fn) {
+  const out = new Array(lista.length);
+  let prossimo = 0;
+  const lavora = async () => { while (prossimo < lista.length) { const i = prossimo++; out[i] = await fn(lista[i], i); } };
+  await Promise.all(Array.from({ length: Math.min(max, lista.length) }, lavora));
+  return out;
 }
 
 // Pagine del materiale, per decidere quanti concetti chiedere: una per foto,
@@ -798,7 +810,7 @@ function ridimensiona(file) {
       c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
       c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      c.toBlob((b) => res(b || file), "image/jpeg", 0.92);
+      c.toBlob((b) => res(b || file), "image/jpeg", QUALITA_JPEG);
     };
     img.onerror = () => { URL.revokeObjectURL(url); res(file); };
     img.src = url;
@@ -848,24 +860,47 @@ async function conservaFoto(a, blobs, onPasso) {
   return tenute;
 }
 
-// Legge le foto a gruppi di quattro, in sequenza (prototipo). Un gruppo che fallisce
-// due volte diventa "[gruppo di foto non leggibile]" e si va avanti.
-async function trascrivi(blobs, aggiunta, onPasso, esercizi = false) {
-  const testi = [];
-  const gruppi = aGruppi(blobs);
-  for (let n = 0; n < gruppi.length; n++) {
-    const g = gruppi[n];
-    onPasso("Leggo le foto " + (n * PER_GRUPPO + 1) + "-" + (n * PER_GRUPPO + g.length) + " di " + blobs.length);
+// Legge le foto una per chiamata, LETTURE_INSIEME alla volta: un testo per foto, nell'ordine delle pagine.
+// Una foto che fallisce due volte diventa GRUPPO_ILLEGGIBILE e si va avanti; un errore definitivo ferma tutto.
+// onPasso dice quante foto sono lette («Leggo la foto 2 di 4»), onLetta(i) mette la spunta alla foto i.
+async function trascrivi(blobs, aggiunta, onPasso, esercizi = false, onLetta = () => {}) {
+  let lette = 0;
+  const passo = () => onPasso("Leggo la foto " + Math.min(lette + 1, blobs.length) + " di " + blobs.length);
+  passo();
+  return inParallelo(blobs, LETTURE_INSIEME, async (b, i) => {
+    let testo;
     try {
-      const immagini = await Promise.all(g.map(base64));
-      const r = await conRiprova(() => modello({ azione: "trascrivi", immagini, aggiunta, esercizi }));
-      if (r.trascrizione) testi.push(r.trascrizione);
+      const r = await conRiprova(async () => modello({ azione: "trascrivi", immagini: [await base64(b)], aggiunta, esercizi }));
+      testo = r.trascrizione || "";
     } catch (e) {
       if (e instanceof Definitivo) throw e;
-      testi.push(GRUPPO_ILLEGGIBILE);
+      testo = GRUPPO_ILLEGGIBILE;
     }
-  }
-  return testi;
+    lette++;
+    if (testo !== GRUPPO_ILLEGGIBILE) onLetta(i);
+    passo();
+    return testo;
+  });
+}
+// Spunta sulla miniatura i del riquadro id (lettura) e niente «×» mentre si legge.
+function segnaLetta(id, i) { const c = id && $(id), f = c && c.children[i]; if (f) f.dataset.letta = "1"; }
+// inLettura(id, true) toglie le spunte di un giro precedente; alla fine restano, si toglie solo il blocco dei «×».
+function inLettura(id, si) {
+  const c = id && $(id); if (!c) return;
+  if (!si) { delete c.dataset.leggo; return; }
+  c.dataset.leggo = "1"; Array.prototype.forEach.call(c.children, (f) => { delete f.dataset.letta; });
+}
+// Salvataggio e lettura insieme: la lettura non aspetta che le foto siano messe via (conservaFoto non si
+// ferma per una foto non salvata, e la foto si legge lo stesso). Sullo stato si vede la lettura.
+async function salvaELeggi(a, blobs, aggiunta, st, esercizi = false, idMiniature = null) {
+  inLettura(idMiniature, true);
+  try {
+    const [, testi] = await Promise.all([
+      conservaFoto(a, blobs, () => {}),
+      trascrivi(blobs, aggiunta, (t) => passoAttesa(st, t), esercizi, (i) => segnaLetta(idMiniature, i)),
+    ]);
+    return testi;
+  } finally { inLettura(idMiniature, false); }
 }
 
 async function leggiMateriale(manuale) {
@@ -882,8 +917,7 @@ async function leggiMateriale(manuale) {
     if (error) throw error;
     a.concetti = []; a.foto = [];
     if (manuale) await sb.from("fonti").insert({ argomento_id: a.id, tipo: "testo" });
-    await conservaFoto(a, blobs, (t) => passoAttesa(st, t));
-    const testi = (manuale ? [manuale] : []).concat(await trascrivi(blobs, false, (t) => passoAttesa(st, t)));
+    const testi = (manuale ? [manuale] : []).concat(await salvaELeggi(a, blobs, false, st, false, "miniature"));
     a.trascrizione = testi.join("\n\n");
     if (!a.trascrizione.trim() || testi.every((t) => t === GRUPPO_ILLEGGIBILE)) throw new Error("vuoto");
     await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
@@ -1065,8 +1099,7 @@ async function aggiungiFoto(nuove) {
   attesa(st, ["Leggo le nuove pagine"]);
   try {
     const blobs = await Promise.all(nuove.map(ridimensiona));
-    await conservaFoto(a, blobs, (t) => passoAttesa(st, t));
-    const testo = (await trascrivi(blobs, true, (t) => passoAttesa(st, t))).join("\n\n");
+    const testo = (await salvaELeggi(a, blobs, true, st)).join("\n\n");
     if (!testo.trim()) throw new Error("vuoto");
     const nuovi = await aggiungiTesto(a, testo, blobs.length, (t) => passoAttesa(st, t));
     attesa(st, null);

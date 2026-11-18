@@ -113,18 +113,22 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
-import { modelloPer, costoUsd, tettoRaggiunto, consumoAggiornato, TETTO_CHIAMATE } from "../_shared/modelli.js";
+import { modelloPer, effortPer, costoUsd, tettoRaggiunto, consumoAggiornato, TETTO_CHIAMATE } from "../_shared/modelli.js";
 import { dividiPerCache } from "../_shared/prompt.js";
 import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
 // Contesto di una richiesta (AsyncLocalStorage: le richieste in parallelo non si mescolano): quale azione,
 // se l'account è di prova (può chiedere un modello per il confronto) e quanto ha consumato finora.
-type Consumo = { azione: string; prova: boolean; richiesto: string; chiamate: number; input: number; output: number;
+type Consumo = { azione: string; prova: boolean; richiesto: string; effortRichiesto: string; chiamate: number; input: number; output: number;
   cache_scritti: number; cache_letti: number; costo: number; modelli: string[] };
 const richiesta = new AsyncLocalStorage<Consumo>();
 function modelloDellaRichiesta() {
   const c = richiesta.getStore();
   return modelloPer(c?.azione ?? "", { prova: c?.prova, richiesto: c?.richiesto });
+}
+function effortDellaRichiesta() {
+  const c = richiesta.getStore();
+  return effortPer(c?.azione ?? "", { prova: c?.prova, richiesto: c?.effortRichiesto }) as "low" | "medium" | "high" | undefined;
 }
 function registra(modello: string, u: Anthropic.Usage | undefined) {
   const c = richiesta.getStore();
@@ -646,7 +650,7 @@ async function gestisci(req: Request): Promise<Response> {
           !imm.every((x) => typeof x === "string" && x.length > 100 && x.length < MAX_BASE64))
         return json({ errore: `da 1 a ${MAX_IMMAGINI} foto JPEG in base64` }, 400);
       const prompt = b.esercizi ? PROMPT_TRASCRIZIONE_ESERCIZI : (b.aggiunta ? PROMPT_TRASCRIZIONE_AGGIUNTA : PROMPT_TRASCRIZIONE);
-      const r = await chiedi(prompt, SCHEMA_TRASCRIZIONE, imm);
+      const r = await chiedi(prompt, SCHEMA_TRASCRIZIONE, imm, effortDellaRichiesta());
       return json({ trascrizione: testo(r.trascrizione) });
     }
 
@@ -1191,7 +1195,7 @@ Deno.serve(async (req) => {
   const am = data.user.app_metadata ?? {};
   if (tettoRaggiunto(am, giornoRoma())) return json({ errore: "tetto_giornaliero", tetto: TETTO_CHIAMATE }, 429);
   const corpo = await req.clone().json().catch(() => null);
-  const c: Consumo = { azione: String(corpo?.azione ?? ""), prova: am.prova === true, richiesto: String(corpo?.modello_prova ?? ""),
+  const c: Consumo = { azione: String(corpo?.azione ?? ""), prova: am.prova === true, richiesto: String(corpo?.modello_prova ?? ""), effortRichiesto: String(corpo?.effort_prova ?? ""),
     chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0, modelli: [] };
   const risposta = await richiesta.run(c, () => gestisci(req));
   if (!c.chiamate) return risposta;

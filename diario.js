@@ -6,7 +6,7 @@
 // Tabelle scadenze e giorni_diario: migration 20261116061900_scadenze_diario.sql. Finché non c'è,
 // le letture falliscono in silenzio (niente card) e le foto si salvano lo stesso.
 // Script classico caricato dopo esercizi.js: usa $, esc, evidenzia, tinta, vai, attesa, passoAttesa,
-// errore, avviso, modello, conRiprova, messaggioModello, ridimensiona, trascrivi, conservaFoto,
+// errore, avviso, modello, conRiprova, messaggioModello, ridimensiona, trascrivi, segnaLetta, inLettura, conservaFoto,
 // aggiungiTesto, caricaLibreria, lettoVuoto, sb, profilo, argomenti, GRUPPO_ILLEGGIBILE.
 
 /* ---- parti pure ---- */
@@ -179,19 +179,6 @@ function disegnaFotoDiario() {
   $("btn-smista").disabled = !fotoDiario.length;
 }
 
-// Una trascrizione per foto (smista vuole una riga per foto), tre foto alla volta.
-async function trascriviUnaPerUna(blobs, onPasso) {
-  const testi = new Array(blobs.length);
-  let fatte = 0;
-  for (let i = 0; i < blobs.length; i += 3) {
-    await Promise.all(blobs.slice(i, i + 3).map(async (b, j) => {
-      testi[i + j] = (await trascrivi([b], false, () => {})).join("\n\n");
-      fatte++; onPasso("Leggo le foto (" + fatte + " di " + blobs.length + ")");
-    }));
-  }
-  return testi;
-}
-
 async function smistaFoto() {
   const btn = $("btn-smista"), st = $("stato-diario");
   if (!fotoDiario.length) return;
@@ -199,7 +186,11 @@ async function smistaFoto() {
   attesa(st, ["Preparo le foto"]);
   try {
     const blobs = await Promise.all(fotoDiario.map(ridimensiona));
-    const testi = await trascriviUnaPerUna(blobs, (t) => passoAttesa(st, t));
+    // trascrivi dà già un testo per foto (smista vuole una riga per foto), con la spunta sulla miniatura.
+    inLettura("dg-miniature", true);
+    let testi;
+    try { testi = await trascrivi(blobs, false, (t) => passoAttesa(st, t), false, (i) => segnaLetta("dg-miniature", i)); }
+    finally { inLettura("dg-miniature", false); }
     if (lettoVuoto(testi)) throw new Error("vuoto");
     passoAttesa(st, "Metto ogni foto al suo posto");
     const r = await conRiprova(() => modello({

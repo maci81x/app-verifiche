@@ -95,6 +95,10 @@ input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events
 .miniature figure{margin:0;position:relative}
 .miniature img{width:88px;height:88px;object-fit:cover;border-radius:12px;border:1px solid var(--bordo);display:block;background:var(--rialzo)}
 .miniature button{position:absolute;top:-12px;right:-12px;width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--inchiostro);font-size:1rem;line-height:1;cursor:pointer;padding:0;display:grid;place-items:center}
+/* Foto veloci: mentre si legge niente «×», le foto ancora da leggere più chiare, la spunta su quelle lette. */
+.miniature[data-leggo] button{display:none}
+.miniature[data-leggo] figure:not([data-letta]) img{opacity:.5}
+.miniature figure[data-letta]::after{content:"✓";position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;background:var(--verde);color:var(--verde-bg);font-weight:700;font-size:.95rem;display:grid;place-items:center}
 
 details.extra{margin-top:14px;border-top:1px solid var(--bordo);padding-top:12px}
 details.extra summary{cursor:pointer;font-weight:700;font-size:1rem;list-style:none;display:flex;align-items:center;gap:8px;min-height:44px}
