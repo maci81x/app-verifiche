@@ -667,3 +667,78 @@ test("ottimizzazione: consumo di oggi per il genitore, token e costo con al mass
   assert.equal(run(`testoConsumo({ chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0 }, 150)`),
     "Oggi: nessuna richiesta (massimo 150)");
 });
+
+// Foto veloci: foto più leggere, lettura una foto per chiamata con al massimo 3 chiamate insieme, ordine tenuto.
+test("foto ridotte a 1568 px sul lato lungo, JPEG 0,92 (0,8 sbagliava le frazioni scritte a mano)", () => {
+  assert.equal(run("LATO_MAX"), 1568);
+  assert.equal(run("QUALITA_JPEG"), 0.92);
+});
+
+test("inParallelo: risultati nell'ordine della lista e mai più di 3 lavori insieme", async () => {
+  run("var __attivi = 0, __max = 0;");
+  const r = await run(`inParallelo([50, 10, 40, 5, 30, 1, 20], 3, async (ms, i) => {
+    __attivi++; __max = Math.max(__max, __attivi);
+    await new Promise((ok) => setTimeout(ok, ms));
+    __attivi--; return "p" + i;
+  })`);
+  assert.deepEqual(Array.from(r), ["p0", "p1", "p2", "p3", "p4", "p5", "p6"]);
+  assert.equal(run("__max"), 3);
+  assert.deepEqual(Array.from(await run("inParallelo([], 3, async () => 1)")), []);
+});
+
+test("trascrivi: una foto per chiamata, 3 alla volta, testi in ordine, avanzamento vero e spunta per foto", async () => {
+  run(`var __chiamate = [], __attive = 0, __picco = 0, __passi = [], __lette = [];
+    base64 = async (b) => "img" + b;
+    conRiprova = (f) => f();
+    modello = async (c) => {
+      __attive++; __picco = Math.max(__picco, __attive); __chiamate.push(c.immagini);
+      await new Promise((ok) => setTimeout(ok, c.immagini[0] === "img1" ? 40 : 5));
+      __attive--;
+      if (c.immagini[0] === "img3") throw new Error("rete");
+      return { trascrizione: "testo " + c.immagini[0] };
+    };`);
+  const testi = await run(`trascrivi([0, 1, 2, 3, 4], false, (t) => __passi.push(t), false, (i) => __lette.push(i))`);
+  assert.deepEqual(Array.from(testi), ["testo img0", "testo img1", "testo img2", run("GRUPPO_ILLEGGIBILE"), "testo img4"]);
+  assert.ok(run("__chiamate").every((x) => x.length === 1), "una foto per chiamata");
+  assert.equal(run("__picco"), 3);
+  assert.equal(run("__passi")[0], "Leggo la foto 1 di 5");
+  assert.ok(run("__passi").includes("Leggo la foto 5 di 5"));
+  assert.ok(run("__passi").every((p) => /^Leggo la foto [1-5] di 5$/.test(p)), run("__passi").join(" | "));
+  // la spunta arriva solo per le foto lette davvero, nell'ordine in cui finiscono
+  assert.deepEqual(Array.from(run("__lette")).sort(), [0, 1, 2, 4]);
+  assert.notEqual(run("__lette")[0], 1, "la foto lenta non blocca le spunte delle altre");
+});
+
+test("trascrivi: un errore definitivo ferma tutto", async () => {
+  run(`modello = async () => { throw new Definitivo("rate_limited"); };`);
+  await assert.rejects(run(`trascrivi([0, 1], false, () => {})`), (e) => e.message === "rate_limited");
+});
+
+test("salvaELeggi: salvataggio e lettura partono insieme, i testi tornano in ordine", async () => {
+  run(`var __ordine = [];
+    conservaFoto = async (a, blobs) => { __ordine.push("salva:0"); await new Promise((ok) => setTimeout(ok, 30)); __ordine.push("salva:1"); return blobs; };
+    modello = async (c) => { __ordine.push("leggi"); return { trascrizione: "t" + c.immagini[0] }; };
+    base64 = async (b) => b;
+    passoAttesa = () => {};`);
+  const testi = await run(`salvaELeggi({ id: "a" }, ["x", "y"], false, {}, false, null)`);
+  assert.deepEqual(Array.from(testi), ["tx", "ty"]);
+  const o = run("__ordine");
+  assert.ok(o.indexOf("leggi") < o.indexOf("salva:1"), "la lettura non aspetta il salvataggio: " + o.join(","));
+});
+
+test("inParallelo: dopo un errore non parte nessun lavoro nuovo", async () => {
+  run("var __partiti = [];");
+  await assert.rejects(run(`inParallelo([0, 1, 2, 3, 4, 5, 6, 7], 3, async (x) => {
+    __partiti.push(x);
+    if (x === 0) throw new Error("stop");
+    await new Promise((ok) => setTimeout(ok, 10));
+  })`));
+  await new Promise((ok) => setTimeout(ok, 60));
+  assert.deepEqual(Array.from(run("__partiti")), [0, 1, 2]);
+});
+
+test("salvaELeggi: niente testi vuoti fra quelli da unire", async () => {
+  run(`conservaFoto = async (a, b) => b; base64 = async (b) => b;
+    modello = async (c) => ({ trascrizione: c.immagini[0] === "vuota" ? "" : "t" + c.immagini[0] });`);
+  assert.deepEqual(Array.from(await run(`salvaELeggi({ id: "a" }, ["x", "vuota", "y"], false, {}, false, null)`)), ["tx", "ty"]);
+});

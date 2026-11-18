@@ -149,7 +149,8 @@ async function leggiQuaderno(i, files) {
     const testi = await trascrivi(blobs, false, (t) => passoAttesa(st, t), true);
     if (lettoVuoto(testi)) throw new Error("vuoto");
     const area = $("pas-es-" + i);
-    area.value = (area.value ? area.value + "\n" : "") + testi.join("\n");
+    // Nel campo dei passaggi solo quello che si è letto: niente righe vuote né «foto non leggibile».
+    area.value = (area.value ? area.value + "\n" : "") + testi.filter((t) => t && t !== GRUPPO_ILLEGGIBILE).join("\n");
     attesa(st, null);
   } catch (e) {
     attesa(st, null);

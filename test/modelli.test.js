@@ -87,3 +87,23 @@ test("cache dei prompt: la parte fissa resta uguale quando cambiano domanda, ris
   const c = (domanda) => promptCorrezione("scritta", [{ id: "d1", domanda, risposta: "boh" }], "2", "storia");
   assert.equal(fisso(c("Chi era Carlo Magno?")), fisso(c("Che cos'è il feudo?")));
 });
+
+test("effortPer: dalla tabella, se no nessuno (default dell'API); override solo per account di prova e solo valori noti", async () => {
+  const { effortPer, EFFORT_PER_AZIONE } = await import("../supabase/functions/_shared/modelli.js");
+  for (const v of Object.values(EFFORT_PER_AZIONE)) assert.ok(["low", "medium", "high", "max"].includes(v), v);
+  assert.equal(effortPer("azione_che_non_esiste"), undefined);
+  assert.equal(effortPer("trascrivi", { prova: true, richiesto: "high" }), "high");
+  assert.equal(effortPer("trascrivi", { prova: true, richiesto: "low" }), "low");
+  assert.equal(effortPer("trascrivi", { prova: false, richiesto: "max" }), EFFORT_PER_AZIONE.trascrivi);
+  assert.equal(effortPer("trascrivi", { prova: true, richiesto: "tantissimo" }), EFFORT_PER_AZIONE.trascrivi);
+});
+
+test("la funzione passa l'effort della tabella alla trascrizione e legge effort_prova dal corpo", () => {
+  assert.match(indice, /effort_prova/);
+  assert.match(indice, /chiedi\(prompt, SCHEMA_TRASCRIZIONE, imm, effortDellaRichiesta\(\)\)/);
+});
+
+test("trascrivi senza effort abbassato: low peggiorava le frazioni nella prova sulle 5 foto vere", async () => {
+  const { EFFORT_PER_AZIONE } = await import("../supabase/functions/_shared/modelli.js");
+  assert.equal(EFFORT_PER_AZIONE.trascrivi, undefined);
+});

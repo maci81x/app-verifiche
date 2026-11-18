@@ -85,8 +85,7 @@ async function leggiEsercizi(manuale) {
       .select("*").single();
     if (error) throw error;
     if (manuale) await sb.from("fonti").insert({ argomento_id: a.id, tipo: "testo" });
-    await conservaFoto(a, blobs, (t) => passoAttesa(st, t));
-    const testi = (manuale ? [manuale] : []).concat(await trascrivi(blobs, false, (t) => passoAttesa(st, t), true));
+    const testi = (manuale ? [manuale] : []).concat(await salvaELeggi(a, blobs, false, st, true, "miniature"));
     if (lettoVuoto(testi)) throw new Error("vuoto");
     a.trascrizione = testi.join("\n\n");
     await sb.from("argomenti").update({ trascrizione: a.trascrizione }).eq("id", a.id);
@@ -108,8 +107,7 @@ async function aggiungiFotoEsercizi(nuove) {
   errore($("err-scheda"), ""); attesa(st, ["Leggo le nuove pagine"]);
   try {
     const blobs = await Promise.all(nuove.map(ridimensiona));
-    await conservaFoto(a, blobs, (t) => passoAttesa(st, t));
-    const testi = await trascrivi(blobs, true, (t) => passoAttesa(st, t), true);
+    const testi = await salvaELeggi(a, blobs, true, st, true);
     if (lettoVuoto(testi)) throw new Error("vuoto");
     const testo = testi.join("\n\n");
     a.trascrizione = ((a.trascrizione || "") + "\n\n" + testo).trim();
