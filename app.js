@@ -58,10 +58,16 @@ function aGruppi(lista, n = PER_GRUPPO) {
 }
 
 // fn(x, i) su ogni elemento, al massimo max insieme; i risultati restano nell'ordine della lista.
+// Al primo errore non parte nessun lavoro nuovo (quelli già partiti finiscono) e l'errore arriva al chiamante.
 async function inParallelo(lista, max, fn) {
   const out = new Array(lista.length);
-  let prossimo = 0;
-  const lavora = async () => { while (prossimo < lista.length) { const i = prossimo++; out[i] = await fn(lista[i], i); } };
+  let prossimo = 0, fermo = false;
+  const lavora = async () => {
+    while (!fermo && prossimo < lista.length) {
+      const i = prossimo++;
+      try { out[i] = await fn(lista[i], i); } catch (e) { fermo = true; throw e; }
+    }
+  };
   await Promise.all(Array.from({ length: Math.min(max, lista.length) }, lavora));
   return out;
 }
@@ -899,7 +905,7 @@ async function salvaELeggi(a, blobs, aggiunta, st, esercizi = false, idMiniature
       conservaFoto(a, blobs, () => {}),
       trascrivi(blobs, aggiunta, (t) => passoAttesa(st, t), esercizi, (i) => segnaLetta(idMiniature, i)),
     ]);
-    return testi;
+    return testi.filter((t) => t); // le foto senza testo non lasciano righe vuote
   } finally { inLettura(idMiniature, false); }
 }
 
@@ -1099,8 +1105,9 @@ async function aggiungiFoto(nuove) {
   attesa(st, ["Leggo le nuove pagine"]);
   try {
     const blobs = await Promise.all(nuove.map(ridimensiona));
-    const testo = (await salvaELeggi(a, blobs, true, st)).join("\n\n");
-    if (!testo.trim()) throw new Error("vuoto");
+    const testi = await salvaELeggi(a, blobs, true, st);
+    if (lettoVuoto(testi)) throw new Error("vuoto");
+    const testo = testi.join("\n\n");
     const nuovi = await aggiungiTesto(a, testo, blobs.length, (t) => passoAttesa(st, t));
     attesa(st, null);
     await caricaLibreria();

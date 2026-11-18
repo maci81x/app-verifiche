@@ -725,3 +725,20 @@ test("salvaELeggi: salvataggio e lettura partono insieme, i testi tornano in ord
   const o = run("__ordine");
   assert.ok(o.indexOf("leggi") < o.indexOf("salva:1"), "la lettura non aspetta il salvataggio: " + o.join(","));
 });
+
+test("inParallelo: dopo un errore non parte nessun lavoro nuovo", async () => {
+  run("var __partiti = [];");
+  await assert.rejects(run(`inParallelo([0, 1, 2, 3, 4, 5, 6, 7], 3, async (x) => {
+    __partiti.push(x);
+    if (x === 0) throw new Error("stop");
+    await new Promise((ok) => setTimeout(ok, 10));
+  })`));
+  await new Promise((ok) => setTimeout(ok, 60));
+  assert.deepEqual(Array.from(run("__partiti")), [0, 1, 2]);
+});
+
+test("salvaELeggi: niente testi vuoti fra quelli da unire", async () => {
+  run(`conservaFoto = async (a, b) => b; base64 = async (b) => b;
+    modello = async (c) => ({ trascrizione: c.immagini[0] === "vuota" ? "" : "t" + c.immagini[0] });`);
+  assert.deepEqual(Array.from(await run(`salvaELeggi({ id: "a" }, ["x", "vuota", "y"], false, {}, false, null)`)), ["tx", "ty"]);
+});
