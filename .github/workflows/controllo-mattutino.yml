@@ -27,8 +27,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          TEST_BEA_EMAIL: ${{ secrets.TEST_BEA_EMAIL }}
-          TEST_BEA_PASSWORD: ${{ secrets.TEST_BEA_PASSWORD }}
+          TEST_FIGLIO_NOME_UTENTE: ${{ secrets.TEST_FIGLIO_NOME_UTENTE }}
+          TEST_FIGLIO_PIN: ${{ secrets.TEST_FIGLIO_PIN }}
           TEST_GENITORE_EMAIL: ${{ secrets.TEST_GENITORE_EMAIL }}
           TEST_GENITORE_PASSWORD: ${{ secrets.TEST_GENITORE_PASSWORD }}
           PROVA_GUASTO: ${{ inputs.prova_guasto }}

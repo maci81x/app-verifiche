@@ -1,4 +1,4 @@
-// Avviso guasti: chiamate di prova a modello, accedi (nome utente inesistente) e profili con i profili di prova, ogni mattina dal
+// Avviso guasti: chiamate di prova a modello (figlio di prova), accedi (nome utente inesistente) e profili (genitore di prova), ogni mattina dal
 // workflow «Controllo mattutino». Se un controllo fallisce o supera il suo tempo, lo script esce con 1, il
 // workflow fallisce e GitHub manda la mail. Le credenziali arrivano dai Secrets del repo (variabili
 // d'ambiente) e nei log si scrivono solo nome del controllo, esito e tempo.
@@ -52,9 +52,12 @@ export const CONTROLLI = [
     if (r.status !== 401 || dati?.ok !== false || typeof dati?.attendi !== "number") throw new Error("stato " + r.status);
     return "risponde e non fa entrare";
   } },
-  // Lo smistamento non prenota aiuti e usa il modello più economico (Haiku): circa 0,0005 $ al giorno.
+  // Lo smistamento non prenota aiuti e usa il modello più economico (Haiku): circa 0,0002 $ al giorno.
+  // Il figlio di prova (famiglia di prova, nome inventato) entra come l'app: nome utente + codice da `accedi` (issue #34).
   { nome: "modello (smistamento, senza aiuti)", limite: 60_000, fn: async () => {
-    const token = await entra("TEST_BEA_EMAIL", "TEST_BEA_PASSWORD");
+    const accesso = await chiama(env("SUPABASE_URL") + "/functions/v1/accedi", { azione: "entra", nome_utente: env("TEST_FIGLIO_NOME_UTENTE"), pin: env("TEST_FIGLIO_PIN") });
+    if (!accesso?.ok || !accesso.access_token) throw new Error("accesso del figlio di prova non riuscito");
+    const token = accesso.access_token;
     if (process.env.PROVA_GUASTO === "true") throw new Error("guasto finto per provare la mail (PROVA_GUASTO)");
     const r = await chiama(env("SUPABASE_URL") + "/functions/v1/modello", { azione: "smista", oggi: oggi(), argomenti: [],
       trascrizioni: ["Scienze\nIl cuore è un muscolo cavo diviso in quattro cavità: due atri e due ventricoli."] }, token);
