@@ -6,7 +6,7 @@
 Fa quello che fa l'app: porta ogni foto a 2000 px sul lato lungo raddrizzandola
 secondo l'orientamento salvato dal telefono, la manda alla funzione `modello` a
 gruppi di quattro con un secondo tentativo dopo 1,8 secondi, poi chiede i
-concetti. Accede come l'utente di prova Anna di .env.local. Stampa tutto a schermo.
+Accede come il figlio di prova (TEST_FIGLIO_NOME_UTENTE e TEST_FIGLIO_PIN di .env.local) con nome utente e codice, come l'app.
 
 Serve Pillow (già presente su questo Mac). Gli HEIC dell'iPhone li converte sips.
 """
