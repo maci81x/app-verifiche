@@ -114,6 +114,8 @@ create table public.consumi_archiviati (
 );
 create index consumi_archiviati_giorno on public.consumi_archiviati (famiglia_id, giorno);
 alter table public.consumi_archiviati enable row level security;
+-- Policy che non apre niente: la tabella è solo del server (service role), ma senza policy l'advisor la segnala.
+create policy nessuno on public.consumi_archiviati for select to authenticated using (false);
 revoke all on public.consumi_archiviati from anon, authenticated;
 grant select, insert, update, delete on public.consumi_archiviati to service_role;
 
@@ -185,6 +187,7 @@ create table public.tentativi_nome (
 );
 create index tentativi_nome_aggiornato on public.tentativi_nome (aggiornato);
 alter table public.tentativi_nome enable row level security;
+create policy nessuno on public.tentativi_nome for select to authenticated using (false); -- solo server, come sopra
 revoke all on public.tentativi_nome from anon, authenticated;
 grant select, insert, update, delete on public.tentativi_nome to service_role;
 
