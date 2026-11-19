@@ -97,6 +97,8 @@ Deno.serve(async (req) => {
     if (!AZIONI_LETTURA.has(b.azione)) {
       motivo = typeof b.motivo === "string" ? b.motivo.trim().slice(0, 300) : "";
       if (!motivo) return json({ errore: "motivo_mancante" }, 400);
+      // Un solo bersaglio per richiesta: con tutti e due gli id il controllo e l'effetto potrebbero guardare famiglie diverse.
+      if (b.studente_id !== undefined && b.famiglia_id !== undefined) return json({ errore: "un solo bersaglio: studente_id o famiglia_id" }, 400);
       const d = await famigliaDestinazione(db, b);
       if (!d) return json({ errore: "profilo o famiglia non trovati" }, 404);
       if (d.famiglia?.protetta) return json({ errore: "famiglia_protetta" }, 409);
@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
       const aiuti = intero(b.limite_aiuti, 1000), chiamate = intero(b.limite_chiamate, 10000);
       if (typeof b.famiglia_id !== "string" || !UUID.test(b.famiglia_id) || aiuti === null || chiamate === null) return json({ errore: "limiti non validi" }, 400);
       await registra("limiti della famiglia");
-      const { error } = await db.from("famiglie").update({ limite_aiuti: aiuti, limite_chiamate: chiamate }).eq("id", b.famiglia_id);
+      const { error } = await db.from("famiglie").update({ limite_aiuti: aiuti, limite_chiamate: chiamate }).eq("id", dest.famiglia!.id);
       if (error) throw error;
       return json({ ok: true });
     }
@@ -178,7 +180,7 @@ Deno.serve(async (req) => {
       if (b.stato === "attiva") {
         const { error: ep } = await db.rpc("pulisci_iscrizioni"); // un'iscrizione scaduta non deve occupare il posto
         if (ep) throw ep;
-        const { data: f, error } = await db.from("famiglie").select("esterna, prova, stato").eq("id", b.famiglia_id).single();
+        const { data: f, error } = await db.from("famiglie").select("esterna, prova, stato").eq("id", dest.famiglia!.id).single();
         if (error) throw error;
         const { data: imp } = await db.from("impostazioni").select("posti_esterni").single();
         // ponytail: controllo senza il lucchetto di iscrivi_famiglia; con un solo admin non c'è concorrenza vera.
@@ -186,14 +188,14 @@ Deno.serve(async (req) => {
           return json({ errore: "posti_esauriti" }, 409);
       }
       await registra(b.stato === "attiva" ? "famiglia riattivata" : "famiglia sospesa");
-      const { error } = await db.from("famiglie").update({ stato: b.stato }).eq("id", b.famiglia_id);
+      const { error } = await db.from("famiglie").update({ stato: b.stato }).eq("id", dest.famiglia!.id);
       if (error) throw error;
       return json({ ok: true });
     }
 
     if (b.azione === "elimina_famiglia") {
       if (typeof b.famiglia_id !== "string" || !UUID.test(b.famiglia_id)) return json({ errore: "richiesta non valida" }, 400);
-      const { data: f, error } = await db.from("famiglie").select("genitore_id, esterna").eq("id", b.famiglia_id).single();
+      const { data: f, error } = await db.from("famiglie").select("genitore_id, esterna").eq("id", dest.famiglia!.id).single();
       if (error) throw error;
       const { data: u, error: e2 } = await db.auth.admin.getUserById(f.genitore_id);
       if (e2) throw e2;

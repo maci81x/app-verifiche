@@ -134,3 +134,10 @@ test("profili #35: una famiglia nel cestino non fa niente; un figlio nel cestino
   assert.match(p, /famiglia_nel_cestino/);
   assert.match(p, /profilo_nel_cestino/);
 });
+
+test("admin #35 (revisione): studente_id e famiglia_id insieme rifiutati; le azioni vecchie usano la famiglia risolta", () => {
+  const s = leggi("functions/admin/index.ts");
+  assert.match(s, /b\.studente_id !== undefined && b\.famiglia_id !== undefined/);
+  for (const a of ["stato", "elimina_famiglia"]) assert.doesNotMatch(blocco(s, `b.azione === "${a}"`), /\.eq\("id", b\.famiglia_id\)/, a);
+  assert.doesNotMatch(blocco(s, 'b.azione === "imposta"'), /\.eq\("id", b\.famiglia_id\)/);
+});
