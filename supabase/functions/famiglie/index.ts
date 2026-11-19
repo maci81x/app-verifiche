@@ -27,6 +27,13 @@ async function statoInvito(db: Db, codice: unknown) {
   return { stato: "valido", prova: !!data.prova };
 }
 
+// Cancella l'utente appena creato da questa richiesta. Se non ci riesce lo scrive nel log: senza famiglia non può
+// fare niente (profili rifiuta gli account recenti senza famiglia), ma va tolto a mano.
+async function togli(db: Db, id: string) {
+  const { error } = await db.auth.admin.deleteUser(id);
+  if (error) console.error("famiglie: utente senza famiglia da togliere a mano:", id, error.message);
+}
+
 async function iscrivi(db: Db, b: Record<string, unknown>) {
   const v = validaIscrizione(b, VERSIONI);
   if (!v.ok) return json({ errore: "campo", campo: v.campo }, 400);
@@ -48,11 +55,11 @@ async function iscrivi(db: Db, b: Record<string, unknown>) {
     const { data: r, error: e } = await db.rpc("iscrivi_famiglia", { genitore: id, nome, cognome, codice: b.codice, versioni: VERSIONI });
     if (e) throw e;
     if (!r?.ok) {
-      await db.auth.admin.deleteUser(id);
+      await togli(db, id);
       return json({ errore: r?.errore === "posti_esauriti" ? "posti_esauriti" : "solo_invito" }, 409);
     }
   } catch (e) {
-    await db.auth.admin.deleteUser(id);
+    await togli(db, id);
     throw e;
   }
   if (s.prova) return json({ ok: true, prova: true, mail: false });

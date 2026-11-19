@@ -12,10 +12,10 @@ test("nessuna funzione chiama più accesso_con_pin: l'accesso passa da accesso_c
   assert.match(leggi("functions/accedi/index.ts"), /rpc\("accesso_con_nome"/);
 });
 
-test("accedi: l'elenco (solo finché la v34 è online) mostra solo le famiglie esistenti, mai quelle esterne", () => {
+test("accedi: nessun elenco dei profili e nessun accesso per id, solo nome utente + codice", () => {
   const s = leggi("functions/accedi/index.ts");
-  assert.match(s, /famiglie!inner\(esterna\)/);
-  assert.match(s, /\.eq\("famiglie\.esterna", false\)/);
+  assert.doesNotMatch(s, /azione === "elenco"/);
+  assert.doesNotMatch(s, /b\.studente_id/, "niente accesso per id dal client");
   assert.match(s, /famiglia_sospesa/);
 });
 
@@ -29,7 +29,7 @@ test("famiglie: anonima, con invito, consensi alla versione corrente e iscrizion
 
 test("profili: azioni nuove, massimo figli, consumi contati e cancellati prima dell'account", () => {
   const s = leggi("functions/profili/index.ts");
-  for (const a of ["crea", "codice", "classe", "nuovo_nome_utente", "elimina", "elimina_famiglia", "esporta", "invito", "famiglia", "consumo"])
+  for (const a of ["crea", "codice", "classe", "nuovo_nome_utente", "elimina", "elimina_famiglia", "esporta", "famiglia", "consumo"])
     assert.match(s, new RegExp(`b\\.azione === "${a}"`), a);
   assert.match(s, /const TABELLE = \[[^\]]*"consumi"/);
   assert.match(s, /MAX_FIGLI/);
@@ -55,4 +55,15 @@ test("modello: il tetto lo decide prenota_chiamata e il consumo va in tabella, n
   assert.match(s, /righeConsumo\(/);
   assert.doesNotMatch(s, /consumoAggiornato|tettoRaggiunto|app_metadata: \{ consumo/);
   assert.match(s, /contaAiuti\(am, giornoRoma\(\), .*limiteAiuti/);
+});
+
+test("revisione del branch: consumi archiviati prima di eliminare, famiglia di ripiego solo per gli account vecchi, cancellazioni controllate", () => {
+  const p = leggi("functions/profili/index.ts");
+  const elimina = p.slice(p.indexOf("async function elimina("));
+  assert.ok(elimina.indexOf('rpc("archivia_consumi"') > -1 && elimina.indexOf('rpc("archivia_consumi"') < elimina.indexOf('"consumi"]'), "il consumo si archivia prima di cancellarlo");
+  assert.match(p, /senza_famiglia/);
+  assert.match(p, /PRIMA_DELLA_30/);
+  const f = leggi("functions/famiglie/index.ts");
+  assert.doesNotMatch(f, /^\s*await db\.auth\.admin\.deleteUser\(id\);/m, "l'esito di deleteUser va controllato");
+  assert.match(leggi("functions/admin/index.ts"), /from\("consumi_archiviati"\)/);
 });

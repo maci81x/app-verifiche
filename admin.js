@@ -56,7 +56,7 @@ async function verifica() {
 async function disegna() {
   const [r, c, g] = await Promise.all([admin({ azione: "riepilogo" }), admin({ azione: "consumi" }), admin({ azione: "registro" })]);
   nomi = Object.fromEntries(r.figli.map((s) => [s.id, s.nome + (s.cognome ? " " + s.cognome : "")]));
-  $("a-posti").textContent = "Occupati " + r.posti_occupati + " su " + r.posti_esterni + " (contano le famiglie esterne attive, non di prova, con la mail confermata o iscritte da meno di 24 ore).";
+  $("a-posti").textContent = "Occupati " + r.posti_occupati + " su " + r.posti_esterni + " (contano le famiglie esterne attive non di prova; le iscrizioni mai confermate si cancellano dopo 24 ore).";
   $("a-nuovi-posti").value = r.posti_esterni;
   $("a-invito").textContent = r.invito ? "https://maci81x.github.io/app-verifiche/?invito=" + r.invito : "—";
 

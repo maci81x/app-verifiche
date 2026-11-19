@@ -13,27 +13,16 @@
 // POST { azione: "elimina", studente_id }             → { ok: true, foto, resti }   un figlio con tutti i suoi dati (issue #14)
 // POST { azione: "elimina_famiglia" }                 → { ok: true, figli: [{ id, foto, resti }] }   poi l'account del genitore
 // POST { azione: "esporta" }                          → JSON di «Scarica i miei dati» (esportazione in _shared/famiglie.js)
-// POST { azione: "invito" }                           → { codice }   il codice personale, creato la prima volta
 // POST { azione: "consumo" }                          → { tetto, profili: [{ studente_id, giorno, chiamate, input, output, cache_scritti, cache_letti, costo, tetto }] }
 //      chiamate al modello e token di oggi (ora di Roma) dalla tabella consumi; tetto per profilo (limite della famiglia).
 //
 // Chi chiama deve avere app_metadata.ruolo = "genitore". Le famiglie esterne con la mail del genitore non ancora
 // confermata possono solo esportare ed eliminare (difesa se «Confirm email» fosse spento).
-import { admin, CODICE, json, CORS } from "../_shared/http.ts";
+import { admin, CODICE, json, CORS, UUID, claims } from "../_shared/http.ts";
 import { giornoRoma } from "../_shared/compito.js";
-import { nomeUtente, codiceInvito, MAX_FIGLI, esportazione } from "../_shared/famiglie.js";
+import { nomeUtente, MAX_FIGLI, esportazione } from "../_shared/famiglie.js";
+import { codicePersonale } from "../_shared/inviti.ts";
 
-// La piattaforma (verify_jwt) ha già verificato la firma del token.
-function claims(req: Request): { role?: string; sub?: string; email?: string; app_metadata?: { ruolo?: string } } {
-  try {
-    const t = req.headers.get("Authorization")!.replace(/^Bearer /i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(t));
-  } catch {
-    return {};
-  }
-}
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BUCKET = "fonti";
 // Tabelle con i dati di un figlio: dopo l'eliminazione devono avere 0 righe; le stesse vanno nell'export.
 const TABELLE = ["argomenti", "concetti", "mappe", "sessioni", "domande", "risposte", "spiegazioni", "esercizi_tipi", "ripasso_stato", "fonti", "report", "scadenze", "giorni_diario", "punti_chiave", "consumi"];
@@ -41,6 +30,9 @@ const TABELLE = ["argomenti", "concetti", "mappe", "sessioni", "domande", "rispo
 type Db = ReturnType<typeof admin>;
 // Colonna unica per profilo con cui sfogliare le tabelle senza `id` (export a pagine).
 const ORDINE: Record<string, string> = { ripasso_stato: "concetto_id", giorni_diario: "data" };
+// Prima della #30 i genitori nascevano a mano, senza famiglia: solo loro ricevono una famiglia «esistente» alla prima
+// «crea». Un account più recente senza famiglia è un'iscrizione rimasta a metà e non diventa mai una famiglia di casa.
+const PRIMA_DELLA_30 = "2026-11-19T15:00:00Z";
 type Famiglia = { id: string; esterna: boolean; prova: boolean; stato: string; limite_chiamate: number };
 
 // Tutti i file del figlio nel bucket (<studente>/<argomento>/<file>.jpg), a pagine da 1000 e scendendo nelle
@@ -115,6 +107,13 @@ async function elimina(db: Db, id: string, genitore?: string) {
   if (genitore && (count ?? 0) > 1) {
     const { error } = await db.from("genitori_studenti").delete().eq("studente_id", id).eq("genitore_id", genitore);
     if (error) throw error;
+    // Il figlio resta all'altro genitore: anche la sua famiglia diventa quella (altrimenti il restrict blocca l'account).
+    const { data: altro, error: e3 } = await db.from("genitori_studenti").select("genitore_id").eq("studente_id", id).limit(1).maybeSingle();
+    if (e3) throw e3;
+    const { data: fa, error: e4 } = await db.from("famiglie").select("id").eq("genitore_id", altro?.genitore_id ?? "").maybeSingle();
+    if (e4) throw e4;
+    const { error: e5 } = await db.from("studenti").update({ famiglia_id: fa?.id ?? null }).eq("id", id);
+    if (e5) throw e5;
     return { id, foto: 0, resti: null, scollegato: true };
   }
   const { data: u, error: e2 } = await db.auth.admin.getUserById(id);
@@ -122,6 +121,10 @@ async function elimina(db: Db, id: string, genitore?: string) {
   if (u.user?.app_metadata?.ruolo !== "studente") return null;
 
   const foto = await fotoDi(db, id);
+  // Le chiamate del figlio restano alla famiglia, sommate e senza dati personali: reggono il tetto della famiglia
+  // (eliminare e ricreare un figlio non azzera la spesa di oggi) e il costo resta nel pannello admin.
+  const { error: ea } = await db.rpc("archivia_consumi", { studente: id });
+  if (ea) throw ea;
   for (const t of ["sessioni", "argomenti", "report", "consumi"]) {
     const { error } = await db.from(t).delete().eq("studente_id", id);
     if (error) throw error;
@@ -162,17 +165,6 @@ async function famigliaDi(db: Db, genitore: string): Promise<Famiglia | null> {
   const { data, error } = await db.from("famiglie").select("id, esterna, prova, stato, limite_chiamate").eq("genitore_id", genitore).maybeSingle();
   if (error) throw error;
   return data as Famiglia | null;
-}
-
-async function codicePersonale(db: Db, titolare: string): Promise<string> {
-  for (let i = 0; i < 5; i++) {
-    const { data, error } = await db.from("inviti").select("codice").eq("titolare_id", titolare).eq("prova", false).maybeSingle();
-    if (error) throw error;
-    if (data) return data.codice;
-    const { error: e2 } = await db.from("inviti").insert({ codice: codiceInvito(), titolare_id: titolare });
-    if (e2 && e2.code !== "23505") throw e2; // 23505: creato nel frattempo, o codice già usato da un altro: si rilegge
-  }
-  throw new Error("codice invito: troppi tentativi");
 }
 
 async function esporta(db: Db, genitore: string) {
@@ -265,14 +257,13 @@ Deno.serve(async (req) => {
       return json({ famiglia: fam ? { esterna: fam.esterna, stato: fam.stato } : null, figli: (righe ?? []).map((r: { id: string }) => ({ ...r, ultimo_blocco: blocco[r.id]?.ultimo_blocco ?? null, bloccato_fino: blocco[r.id]?.bloccato_fino ?? null })), invito });
     }
 
-    if (b.azione === "invito") return json({ codice: await codicePersonale(db, genitore) });
-
     if (b.azione === "consumo") return json(await consumo(db, genitore, fam));
 
     if (b.azione === "crea") {
       const nome = String(b.nome || "").trim().slice(0, 40);
       const cognome = String(b.cognome || "").trim().slice(0, 40) || null;
-      const classe = String(b.classe || "").trim().slice(0, 20) || null;
+      const classe = String(b.classe || "").trim() || null;
+      if (classe && !/^[123]$/.test(classe)) return json({ errore: "classe non valida" }, 400);
       const codice = String(b.codice || "");
       if (!nome) return json({ errore: "manca il nome" }, 400);
       if (!CODICE.test(codice)) return json({ errore: "il codice deve avere 4 cifre" }, 400);
@@ -280,6 +271,9 @@ Deno.serve(async (req) => {
       // Un genitore che non ha ancora una famiglia (nato prima della #30, senza figli) diventa una famiglia esistente.
       let famiglia = fam?.id;
       if (!famiglia) {
+        const { data: u, error: eu } = await db.auth.admin.getUserById(genitore);
+        if (eu) throw eu;
+        if (!u.user || u.user.created_at >= PRIMA_DELLA_30) return json({ errore: "senza_famiglia" }, 403);
         const { data: f, error } = await db.from("famiglie").insert({ genitore_id: genitore, esterna: false, limite_aiuti: 30, limite_chiamate: 150 }).select("id").single();
         if (error) throw error;
         famiglia = f.id;

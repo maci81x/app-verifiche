@@ -4,6 +4,13 @@
 -- e dell'app (v34): quelle nuove usano queste tabelle.
 begin;
 
+-- Se c'è anche 20261119160548_posti_famiglie, va annullata prima; per sicurezza qui si tolgono comunque trigger e
+-- funzioni che leggono famiglie, così una conferma email non fallisce dopo il drop della tabella.
+drop trigger if exists famiglie_conferma_entro_24_ore on auth.users;
+drop function if exists app.conferma_entro_24_ore();
+drop function if exists public.pulisci_iscrizioni();
+delete from supabase_migrations.schema_migrations where version = '20261119160548';
+
 -- funzioni nuove
 drop function if exists public.prenota_chiamata(uuid, date, text);
 drop function if exists public.iscrivi_famiglia(uuid, text, text, text, jsonb);

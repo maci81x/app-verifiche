@@ -10,20 +10,12 @@
 // POST { azione: "registro" }    → { righe }   gli accessi ai contenuti, dal più recente
 //
 // Limite dichiarato nell'informativa: dalla dashboard di Supabase si vede tutto senza passare da questo registro.
-import { admin, json, CORS } from "../_shared/http.ts";
-import { autorizzaAdmin, codiceInvito } from "../_shared/famiglie.js";
+import { admin, json, CORS, UUID, claims } from "../_shared/http.ts";
+import { autorizzaAdmin } from "../_shared/famiglie.js";
+import { codicePersonale } from "../_shared/inviti.ts";
 import { giornoRoma } from "../_shared/compito.js";
 
-function claims(req: Request) {
-  try {
-    const t = req.headers.get("Authorization")!.replace(/^Bearer /i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(t));
-  } catch {
-    return null;
-  }
-}
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const intero = (v: unknown, max: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : null);
 type Db = ReturnType<typeof admin>;
 
@@ -65,20 +57,14 @@ Deno.serve(async (req) => {
         db.from("impostazioni").select("posti_esterni").single(),
       ]);
       for (const e of [e1, e2, e3]) if (e) throw e;
-      // il codice personale dell'admin, creato la prima volta (come in profili)
-      let { data: inv } = await db.from("inviti").select("codice").eq("titolare_id", io.sub).eq("prova", false).maybeSingle();
-      if (!inv) {
-        const { data: nuovo, error } = await db.from("inviti").insert({ codice: codiceInvito(), titolare_id: io.sub }).select("codice").single();
-        if (error) throw error;
-        inv = nuovo;
-      }
+      const invito = await codicePersonale(db, io.sub!);
       return json({
         posti_esterni: imp!.posti_esterni,
         posti_occupati: await postiOccupati(db),
         famiglie: (famiglie ?? []).map((f: Record<string, unknown>) => ({ ...f, email: u[f.genitore_id as string]?.email,
           mail_confermata: u[f.genitore_id as string]?.confermata ?? false, invitata_da_email: f.invitata_da ? u[f.invitata_da as string]?.email ?? null : null })),
         figli: (figli ?? []).map((s: Record<string, unknown>) => ({ ...s, ultimo_accesso: u[s.id as string]?.ultimo_accesso ?? null })),
-        invito: inv?.codice ?? null,
+        invito,
       });
     }
 
@@ -93,7 +79,15 @@ Deno.serve(async (req) => {
         data.push(...(pagina ?? []));
         if (!pagina || pagina.length < 1000) break;
       }
+      // Le chiamate dei figli eliminati restano per famiglia (consumi_archiviati): si mostrano come «profilo eliminato».
+      const { data: archivio, error: ea } = await db.from("consumi_archiviati").select("famiglia_id, giorno, chiamate, costo").gte("giorno", dal);
+      if (ea) throw ea;
       const somme: Record<string, { studente_id: string; giorno: string; chiamate: number; costo: number }> = {};
+      for (const a of archivio ?? []) {
+        const k = "eliminato:" + a.famiglia_id + "|" + a.giorno;
+        const s = (somme[k] ??= { studente_id: "profilo eliminato", giorno: a.giorno, chiamate: 0, costo: 0 });
+        s.chiamate += a.chiamate; s.costo = Math.round((s.costo + Number(a.costo)) * 1e6) / 1e6;
+      }
       for (const r of data) {
         const k = r.studente_id + "|" + r.giorno;
         const s = (somme[k] ??= { studente_id: r.studente_id, giorno: r.giorno, chiamate: 0, costo: 0 });
@@ -120,6 +114,8 @@ Deno.serve(async (req) => {
     if (b.azione === "stato") {
       if (typeof b.famiglia_id !== "string" || !UUID.test(b.famiglia_id) || !["attiva", "sospesa"].includes(b.stato)) return json({ errore: "richiesta non valida" }, 400);
       if (b.stato === "attiva") {
+        const { error: ep } = await db.rpc("pulisci_iscrizioni"); // un'iscrizione scaduta non deve occupare il posto
+        if (ep) throw ep;
         const { data: f, error } = await db.from("famiglie").select("esterna, prova, stato").eq("id", b.famiglia_id).single();
         if (error) throw error;
         const { data: imp } = await db.from("impostazioni").select("posti_esterni").single();

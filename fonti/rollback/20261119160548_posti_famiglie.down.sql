@@ -1,5 +1,8 @@
 -- Annulla 20261119160548_posti_famiglie.sql (issue #30): torna al conteggio dei posti della migration famiglie_esterne.
 begin;
+drop policy if exists "fonti: solo chi studia carica" on storage.objects;
+drop policy if exists "fonti: solo chi studia modifica" on storage.objects;
+update storage.buckets set file_size_limit = null, allowed_mime_types = null where id = 'fonti';
 drop trigger if exists famiglie_conferma_entro_24_ore on auth.users;
 drop function if exists app.conferma_entro_24_ore();
 
@@ -53,6 +56,71 @@ begin
 end $$;
 
 drop function if exists public.pulisci_iscrizioni();
+drop function if exists public.archivia_consumi(uuid);
+drop table if exists public.consumi_archiviati;
+
+create or replace function public.prenota_chiamata(studente uuid, oggi date, azione text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  f public.famiglie%rowtype;
+  tetto int;
+  usate int;
+  rid bigint;
+begin
+  perform pg_advisory_xact_lock(hashtext('chiamate:' || studente::text));
+  if not exists (select 1 from public.studenti s where s.id = studente) then raise exception 'profilo inesistente'; end if;
+  select fa.* into f from public.studenti s join public.famiglie fa on fa.id = s.famiglia_id where s.id = studente;
+  if found and f.stato = 'sospesa' then return jsonb_build_object('ok', false, 'errore', 'famiglia_sospesa'); end if;
+  tetto := coalesce(f.limite_chiamate, 60);
+  select count(*) into usate from public.consumi c where c.studente_id = studente and c.giorno = oggi;
+  if usate >= tetto then return jsonb_build_object('ok', false, 'errore', 'tetto_giornaliero', 'tetto', tetto); end if;
+  insert into public.consumi (studente_id, giorno, azione, modello)
+  values (studente, oggi, left(coalesce(prenota_chiamata.azione, ''), 40), 'prenotata')
+  returning id into rid;
+  return jsonb_build_object('ok', true, 'id', rid, 'limite_aiuti', coalesce(f.limite_aiuti, 10), 'tetto', tetto);
+end $$;
+
+create or replace function public.accesso_con_nome(utente text, pin text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  sid uuid;
+  r public.pin_profili%rowtype;
+  n int;
+  attesa int;
+  sospesa boolean;
+begin
+  select s.id into sid from public.studenti s where s.nome_utente = lower(trim(coalesce(utente, '')));
+  if sid is null then return jsonb_build_object('ok', false, 'attendi', 0); end if;
+
+  -- for update: due tentativi in parallelo non saltano il conteggio
+  select * into r from public.pin_profili p where p.user_id = sid for update;
+  if not found then return jsonb_build_object('ok', false, 'attendi', 0); end if;
+
+  if r.bloccato_fino > now() then
+    return jsonb_build_object('ok', false, 'attendi', ceil(extract(epoch from r.bloccato_fino - now()))::int);
+  end if;
+
+  if coalesce(pin, '') ~ '^\d{4}$' and r.pin_hash = extensions.crypt(pin, r.pin_hash) then
+    update public.pin_profili set errori = 0, bloccato_fino = null, blocchi = 0 where user_id = sid;
+    select f.stato = 'sospesa' into sospesa
+      from public.studenti s join public.famiglie f on f.id = s.famiglia_id where s.id = sid;
+    if coalesce(sospesa, false) then return jsonb_build_object('ok', false, 'sospesa', true, 'attendi', 0); end if;
+    return jsonb_build_object('ok', true, 'studente_id', sid);
+  end if;
+
+  if r.errori + 1 >= 5 then
+    n := r.blocchi + 1;
+    attesa := case n when 1 then 60 when 2 then 300 when 3 then 900 when 4 then 3600 when 5 then 14400 else 86400 end;
+    update public.pin_profili
+       set errori = 0, blocchi = n, bloccato_fino = now() + make_interval(secs => attesa), ultimo_blocco = now()
+     where user_id = sid;
+    return jsonb_build_object('ok', false, 'attendi', attesa);
+  end if;
+
+  update public.pin_profili set errori = r.errori + 1 where user_id = sid;
+  return jsonb_build_object('ok', false, 'attendi', 0);
+end $$;
+
 
 delete from supabase_migrations.schema_migrations where version = '20261119160548';
 commit;

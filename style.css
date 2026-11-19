@@ -1114,8 +1114,8 @@ button.posto{min-height:44px;padding:8px 16px;border-radius:12px;border:1.5px da
 body[data-sola="1"] #btn-profilo, body[data-sola="1"] #btn-nuovo, body[data-sola="1"] .voce-barra[data-vai="profili"] { display: none; }
 .avviso-blocco { background: #FDE3DF; color: #B0291A; border-radius: 12px; padding: 8px 12px; margin: 6px 0; font-weight: 500; }
 .avviso-blocco::before { content: "✕ "; }
-.spunta { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; min-height: 44px; }
-.spunta input { width: 22px; height: 22px; min-height: 0; flex: none; margin-top: 2px; }
+label.spunta { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0; min-height: 44px; }
+label.spunta input { width: 22px; height: 22px; min-height: 0; flex: none; margin-top: 2px; }
 .link-invito { word-break: break-all; font-weight: 500; }
 .qr { max-width: 240px; margin: 8px 0; background: #FFFFFF; padding: 8px; border-radius: 12px; }
 .qr svg { width: 100%; height: auto; display: block; }

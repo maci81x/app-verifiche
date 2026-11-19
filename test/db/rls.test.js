@@ -47,9 +47,12 @@ async function esegui(sql) {
 }
 
 // Da qui in poi le query girano come l'utente indicato (null = anonimo).
+// Il ruolo vive in app_metadata (lo scrive il server): i genitori di prova lo hanno «genitore», gli altri «studente».
+const GENITORI = ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
+const claim = (uid) => (uid ? { sub: uid, role: 'authenticated', app_metadata: { ruolo: GENITORI.includes(uid) ? 'genitore' : 'studente' } } : { role: 'anon' });
 const come = (uid) => `
   ${BASE};
-  select set_config('request.jwt.claims', '${JSON.stringify(uid ? { sub: uid, role: 'authenticated' } : { role: 'anon' })}', true);
+  select set_config('request.jwt.claims', '${JSON.stringify(claim(uid))}', true);
   set local role ${uid ? 'authenticated' : 'anon'};`;
 
 const q = (s) => s.replaceAll("'", "''");
@@ -626,7 +629,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
   do $t$ declare f regprocedure; r text; begin
     for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public' and p.proname in
-                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni') loop
+                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi') loop
       foreach r in array array['anon', 'authenticated'] loop
         if has_function_privilege(r, f, 'execute') then raise exception '% può eseguire %', r, f; end if;
       end loop;
@@ -637,7 +640,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
       raise exception 'la service role non scrive in tutte le tabelle nuove';
     end if;
     if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in
-         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni')) <> 7 then
+         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi')) <> 8 then
       raise exception 'mancano funzioni nuove';
     end if;
   end $t$;
@@ -674,7 +677,13 @@ prova('accesso con nome utente: 5 errori bloccano, l\'attesa cresce fino a 24 or
   ${fineBlocco('30 days')} ${quintoErrore(86400)}
   ${fineBlocco()}
   ${verifica(`${nome('carlo-t3st', '1357')} ->> 'ok' = 'true'`, 'finito il blocco il codice giusto non entra')}
-  ${verifica(`(select errori = 0 and blocchi = 0 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`, 'il codice giusto non azzera')}
+  ${verifica(`(select errori = 0 and blocchi = 8 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`,
+    'un accesso giusto non deve riportare la scala a 1 minuto (azzera solo gli errori)')}
+  ${quintoErrore(86400)}
+  -- 7 giorni senza blocchi: la scala riparte
+  ${BASE}; update public.pin_profili set bloccato_fino = now() - interval '7 days', ultimo_blocco = now() - interval '8 days' where user_id = '${CARLO}';
+  ${comeServizio}
+  ${quintoErrore(60)}
   ${BASE}; update public.pin_profili set blocchi = 4, ultimo_blocco = now(), bloccato_fino = now() + interval '1 hour' where user_id = '${CARLO}';
   ${comeServizio}
   select imposta_pin_di('${CARLO}', '2468');
@@ -774,6 +783,35 @@ prova('prenota_chiamata: tetto atomico della famiglia, sospensione, limiti senza
   ${BASE}; update public.famiglie set stato = 'sospesa' where id = '${FAM_B}';
   ${comeServizio}
   ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') = '{"ok":false,"errore":"famiglia_sospesa"}'::jsonb`, 'una famiglia sospesa chiama il modello')}
+`, FAMIGLIE);
+
+prova('tetto della famiglia: eliminare e ricreare un figlio non azzera le chiamate di oggi, e il costo resta per l\'admin', `
+  ${BASE};
+  update public.famiglie set limite_chiamate = 2 where id = '${FAM_B}';
+  insert into public.consumi (studente_id, giorno, azione, modello, costo) values
+    ('${CARLO}', current_date, 'smista', 'claude-haiku-5-5', 0.001), ('${CARLO}', current_date, 'smista', 'claude-haiku-5-5', 0.002);
+  ${comeServizio}
+  select archivia_consumi('${CARLO}');
+  ${BASE};
+  ${verifica(`(select chiamate = 2 and costo = 0.003 from public.consumi_archiviati where famiglia_id = '${FAM_B}' and giorno = current_date)`,
+    'il consumo del figlio non è stato archiviato per la famiglia')}
+  delete from auth.users where id = '${CARLO}';
+  insert into public.consumi_archiviati (famiglia_id, giorno, chiamate, costo) values ('${FAM_B}', current_date, 5, 0);
+  ${comeServizio}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') ->> 'ok' = 'true'`, 'Dora non può chiamare con la famiglia a 7 su 8')}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') = '{"ok":false,"errore":"tetto_giornaliero","tetto":8}'::jsonb`,
+    'la famiglia supera il suo tetto (limite per figlio × 4) eliminando e ricreando i figli')}
+  ${verifica(`prenota_chiamata('${DORA}', current_date + 1, 'smista') ->> 'ok' = 'true'`, 'il tetto della famiglia vale anche il giorno dopo')}
+  ${come(GEN_B)}
+  ${vieta(`perform * from consumi_archiviati`, 'insufficient_privilege', 'il genitore legge l\'archivio dei consumi')}
+`, FAMIGLIE);
+
+prova('storage: solo chi studia carica foto, mai i genitori', `
+  ${come(GEN_B)}
+  ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${GEN_B}/file.jpg')`, 'insufficient_privilege', 'il genitore carica un file nella sua cartella')}
+  ${come(CARLO)}
+  insert into storage.objects (bucket_id, name) values ('fonti', '${CARLO}/${ARG_C}/p1.jpg');
+  ${verifica(`(select count(*) from storage.objects where name like '${CARLO}/%') = 1`, 'Carlo non carica le sue foto')}
 `, FAMIGLIE);
 
 prova('cancellazioni: consumi via col figlio, genitore con figli non si cancella, invitata_da si svuota', `

@@ -10,6 +10,18 @@ export const CORS = {
 export const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
+export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// I claim del token. La firma l'ha già verificata la piattaforma (verify_jwt = true in config.toml).
+export function claims(req: Request): { role?: string; sub?: string; email?: string; aal?: string; app_metadata?: { ruolo?: string; prova?: boolean } } {
+  try {
+    const t = req.headers.get("Authorization")!.replace(/^Bearer /i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(t));
+  } catch {
+    return {};
+  }
+}
+
 // Il codice delle ragazze: 4 cifre, come il tastierino dell'app.
 export const CODICE = /^\d{4}$/;
 

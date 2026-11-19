@@ -39,8 +39,6 @@ export function validaIscrizione(b, versioni) {
 }
 
 export const MAX_FIGLI = 4;
-// Solo se prenota_chiamata non dicesse il limite (profilo senza famiglia): quello delle famiglie esterne.
-export const LIMITE_AIUTI_SENZA_FAMIGLIA = 10;
 
 // Una riga di `consumi` per ogni chiamata al modello fatta durante una richiesta (issue #30).
 const n = (x) => Number(x) || 0;

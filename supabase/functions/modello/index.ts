@@ -114,7 +114,7 @@ import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
 import { modelloPer, effortPer, costoUsd } from "../_shared/modelli.js";
-import { righeConsumo, LIMITE_AIUTI_SENZA_FAMIGLIA } from "../_shared/famiglie.js";
+import { righeConsumo } from "../_shared/famiglie.js";
 import { dividiPerCache } from "../_shared/prompt.js";
 import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
@@ -544,7 +544,10 @@ async function prenotaAiuto(sub: string): Promise<boolean> {
   const { data, error } = await db.auth.admin.getUserById(sub);
   if (error || !data?.user) throw error ?? new Error("utente non trovato");
   const am = data.user.app_metadata ?? {};
-  const { permesso, aiuti } = contaAiuti(am, giornoRoma(), richiesta.getStore()?.limiteAiuti ?? LIMITE_AIUTI_SENZA_FAMIGLIA);
+  // Il limite lo dà prenota_chiamata (famiglia, o 10 senza famiglia); senza contesto non si inventa: niente aiuto.
+  const limiteAiuti = richiesta.getStore()?.limiteAiuti;
+  if (limiteAiuti == null) return false;
+  const { permesso, aiuti } = contaAiuti(am, giornoRoma(), limiteAiuti);
   if (!permesso) return false;
   // Solo la chiave aiuti: il server unisce le chiavi di app_metadata, così non si cancella il consumo scritto nel frattempo.
   const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { aiuti } });

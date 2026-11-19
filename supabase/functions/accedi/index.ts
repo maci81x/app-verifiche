@@ -1,14 +1,10 @@
-// Accesso di chi studia da qualsiasi telefono: nome utente + codice, niente email (issue #1, #30).
+// Accesso di chi studia da qualsiasi telefono: nome utente + codice, niente email (issue #1, #30). Nessun elenco
+// dei profili: il telefono ricorda solo quelli entrati da lì.
 // Funzione anonima (verify_jwt = false): chi la chiama non ha ancora una sessione.
 //
 // POST { azione: "entra", nome_utente, pin }   → { ok: true, access_token, refresh_token, id, nome, classe, nome_utente }
 //                                                401 { ok: false, attendi } se il codice non va o il profilo è bloccato
 //                                                403 { errore: "famiglia_sospesa" } (solo dopo il codice giusto)
-//
-// Passaggio dalla v34 (da togliere quando la v35 è su main, issue #30):
-// POST { azione: "elenco" }                    → [{ id, nome, classe }] solo dei profili delle famiglie esistenti:
-//                                                quelli delle famiglie esterne non compaiono mai.
-// POST { azione: "entra", studente_id, pin }   → come sopra: l'id si traduce nel nome utente e passa dallo stesso blocco.
 //
 // Codice, blocco crescente dopo 5 errori e sospensione li controlla il database (accesso_con_nome, eseguibile solo
 // con la service role). La sessione si apre qui con un magic link generato e verificato lato server: la password del
@@ -16,26 +12,14 @@
 import { admin, CODICE, json, CORS } from "../_shared/http.ts";
 import { normalizzaNomeUtente } from "../_shared/famiglie.js";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO = (attendi = 0) => json({ ok: false, attendi }, 401);
 
-async function elenco() {
-  const { data, error } = await admin().from("studenti").select("id, nome, classe, famiglie!inner(esterna)")
-    .eq("famiglie.esterna", false).order("nome");
-  if (error) throw error;
-  return json((data ?? []).map(({ id, nome, classe }) => ({ id, nome, classe })));
-}
-
-async function entra(nomeUtente: unknown, studenteId: unknown, pin: unknown) {
-  // Un nome, un id o un codice malformato è un codice sbagliato: stessa risposta, nessun indizio.
+async function entra(nomeUtente: unknown, pin: unknown) {
+  // Un nome o un codice malformato è un codice sbagliato: stessa risposta, nessun indizio.
   if (typeof pin !== "string" || !CODICE.test(pin)) return NO();
-  const db = admin();
-  let utente = typeof nomeUtente === "string" ? normalizzaNomeUtente(nomeUtente) : "";
-  if (!utente && typeof studenteId === "string" && UUID.test(studenteId)) {
-    const { data } = await db.from("studenti").select("nome_utente").eq("id", studenteId).maybeSingle();
-    utente = data?.nome_utente ?? "";
-  }
+  const utente = typeof nomeUtente === "string" ? normalizzaNomeUtente(nomeUtente) : "";
   if (!utente) return NO();
+  const db = admin();
 
   const { data: esito, error } = await db.rpc("accesso_con_nome", { utente, pin });
   if (error) throw error;
@@ -76,8 +60,7 @@ Deno.serve(async (req) => {
   if (!b || typeof b !== "object") return json({ errore: "richiesta non valida" }, 400);
 
   try {
-    if (b.azione === "elenco") return await elenco();
-    if (b.azione === "entra") return await entra(b.nome_utente, b.studente_id, b.pin);
+    if (b.azione === "entra") return await entra(b.nome_utente, b.pin);
     return json({ errore: "azione sconosciuta" }, 400);
   } catch (e) {
     console.error("accedi:", b.azione, e);
