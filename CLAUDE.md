@@ -58,8 +58,8 @@ Le regole comuni di prodotto (voce, design, accuratezza) sono nella issue #17. V
 - Il workflow `.github/workflows/controllo-mattutino.yml` gira ogni mattina alle 5:30 UTC ed esegue `scripts/sentinella.mjs`. Lo script fa chiamate di prova a:
   - il sito;
   - `accedi` (un nome utente inesistente deve ricevere 401: l'elenco dei profili non c'è più);
-  - `modello` (uno smistamento, che non consuma aiuti);
-  - `profili` (consumo, con il genitore di prova).
+  - `modello` (uno smistamento, che non consuma aiuti), con il **figlio di prova** entrato con nome utente e codice come l'app;
+  - `profili` (consumo, con il **genitore di prova**, che ha solo la famiglia di prova: mai i figli veri).
 - Se una chiamata risponde male o supera il suo tempo, il workflow fallisce e GitHub manda la mail.
 - Le credenziali dei profili di prova stanno solo nei **Secrets** del repo, mai nel codice né nei log.
 - Per provare che la mail arriva: Actions → Controllo mattutino → Run workflow → «Fai fallire apposta».

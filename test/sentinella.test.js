@@ -36,13 +36,21 @@ test("accedi si controlla senza l'elenco dei profili, che non esiste più (issue
   assert.match(codice, /azione: "entra"/);
 });
 
+test("il modello si prova con il figlio di prova, entrato con nome utente e codice come l'app: mai con la password di un profilo vero (issue #34)", () => {
+  const codice = readFileSync(new URL("../scripts/sentinella.mjs", import.meta.url), "utf8");
+  const flusso = readFileSync(new URL("../.github/workflows/controllo-mattutino.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(codice + flusso, /TEST_BEA|TEST_ANNA/);
+  assert.match(codice, /env\("TEST_FIGLIO_NOME_UTENTE"\)/);
+  assert.match(codice, /env\("TEST_FIGLIO_PIN"\)/);
+});
+
 test("niente credenziali nel codice né nel workflow: solo i Secrets del repo", () => {
   const codice = readFileSync(new URL("../scripts/sentinella.mjs", import.meta.url), "utf8");
   const flusso = readFileSync(new URL("../.github/workflows/controllo-mattutino.yml", import.meta.url), "utf8");
   for (const testo of [codice, flusso]) {
     assert.doesNotMatch(testo, /@app-verifiche\.test|@gmail\.com|eyJ[A-Za-z0-9_-]{10,}|sb_publishable_/);
   }
-  for (const s of ["TEST_BEA_EMAIL", "TEST_BEA_PASSWORD", "TEST_GENITORE_EMAIL", "TEST_GENITORE_PASSWORD", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"])
+  for (const s of ["TEST_FIGLIO_NOME_UTENTE", "TEST_FIGLIO_PIN", "TEST_GENITORE_EMAIL", "TEST_GENITORE_PASSWORD", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"])
     assert.match(flusso, new RegExp("\\$\\{\\{ secrets\\." + s + " \\}\\}"));
   assert.doesNotMatch(codice, /console\.(log|error)\([^)]*(token|password|access_token|PASSWORD)/i);
   assert.match(flusso, /schedule:\s*\n\s*- cron:/);
