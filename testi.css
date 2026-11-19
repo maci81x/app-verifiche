@@ -66,6 +66,18 @@ button:disabled { opacity: .4; cursor: default; }
 .limiti button { padding: 8px 14px; }
 .azioni { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .vuoto { color: var(--inchiostro-2); }
+.uscita { background: var(--evidenziatore-bg, var(--superficie)); border: 1.5px solid var(--bordo); border-radius: 16px; padding: 12px 14px; margin: 12px 0; }
+.uscita h2 { margin: 0 0 6px; font-size: 17px; }
+.uscita code { display: block; font-family: inherit; font-weight: 800; font-size: 28px; letter-spacing: 0.04em; overflow-wrap: anywhere; user-select: all; }
+.gestisci { margin-top: 8px; border-top: 1px solid var(--bordo); }
+.gestisci h4 { margin: 12px 0 4px; font-size: 16px; }
+.campi { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 8px; }
+.campi label { margin: 6px 0 2px; font-size: 14px; }
+.campi input, .campi select { width: 100%; min-height: 44px; }
+.gestisci-figlio { border-left: 3px solid var(--bordo); padding-left: 10px; margin: 10px 0; }
+.zona-cestino { margin-top: 8px; }
+.zona-cestino label { font-size: 14px; font-weight: 500; color: var(--inchiostro-2); }
+#a-cestino li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--bordo); }
 table.dati { width: 100%; border-collapse: collapse; font-size: 15px; }
 table.dati th { text-align: left; font-weight: 700; color: var(--inchiostro-2); font-size: 14px; padding: 8px 6px; border-bottom: 1.5px solid var(--bordo); }
 table.dati td { padding: 10px 6px; border-bottom: 1px solid var(--bordo); vertical-align: top; }

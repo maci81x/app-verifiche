@@ -61,6 +61,7 @@ Le regole comuni di prodotto (voce, design, accuratezza) sono nella issue #17. V
   - `modello` (uno smistamento, che non consuma aiuti), con il **figlio di prova** entrato con nome utente e codice come l'app;
   - `profili` (consumo, con il **genitore di prova**, che ha solo la famiglia di prova: mai i figli veri).
 - Se una chiamata risponde male o supera il suo tempo, il workflow fallisce e GitHub manda la mail.
+- Poi, anche se le chiamate falliscono, la **pulizia del cestino** (issue #35): `POST pulizia` con l'header `x-pulizia` (segreto `PULIZIA_SEGRETO`, nei Secrets del repo e di Supabase). Cancella solo quello che è nel cestino da più di 30 giorni, scrive ogni cancellazione in `accessi_admin` (azione «pulizia») e, se in un giro dovrebbe cancellare più di 3 famiglie o 5 profili, non cancella niente e fa fallire il workflow. La famiglia di prova ha `famiglie.protetta = true`: il pannello non la modifica e la pulizia non la tocca.
 - Le credenziali dei profili di prova stanno solo nei **Secrets** del repo, mai nel codice né nei log.
 - Per provare che la mail arriva: Actions → Controllo mattutino → Run workflow → «Fai fallire apposta».
 - GitHub spegne i workflow pianificati dopo 60 giorni senza commit nel repo, avvisando per mail: in quel caso va riattivato da Actions.
@@ -98,4 +99,4 @@ Lo script ricrea tutto in un Postgres locale temporaneo, confronta le righe di o
    ```
    supabase storage cp -r foto/ ss:///fonti --experimental --linked
    ```
-3. Ripubblica le funzioni (`modello`, `profili`, `accedi`, `famiglie`, `admin`), rimetti i segreti (`ANTHROPIC_API_KEY`; `MAIL_PRONTA` solo se lo SMTP è configurato) e aggiorna URL e chiave pubblica in `index.html` e nei Secrets del repo.
+3. Ripubblica le funzioni (`modello`, `profili`, `accedi`, `famiglie`, `admin`, `pulizia`), rimetti i segreti (`ANTHROPIC_API_KEY`, `PULIZIA_SEGRETO` uguale a quello nei Secrets del repo; `MAIL_PRONTA` solo se lo SMTP è configurato), rimetti `protetta = true` sulla famiglia di prova e aggiorna URL e chiave pubblica in `index.html` e nei Secrets del repo.

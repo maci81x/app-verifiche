@@ -120,3 +120,76 @@ test("l'export della famiglia: genitore, consensi, invito e per ogni figlio le s
   assert.deepEqual(e.figli[0].foto, ["s1/a1/p.jpg"]);
   assert.equal(JSON.stringify(e).includes("pin_hash"), false);
 });
+
+import { nuovoCodice, validaNomeUtente, scaduti, confermaNome, GIORNI_CESTINO } from "../supabase/functions/_shared/famiglie.js";
+
+test("codice nuovo: 4 cifre, da byte casuali, uniforme anche sugli zeri iniziali", () => {
+  assert.equal(nuovoCodice(() => Uint8Array.from([0, 0])), "0000");
+  assert.match(nuovoCodice(), /^\d{4}$/);
+  for (let i = 0; i < 200; i++) assert.match(nuovoCodice(), /^\d{4}$/);
+  // byte che darebbero più di 9999 si scartano: nessun codice fuori dalle 4 cifre
+  let chiamate = 0;
+  const byte = () => (chiamate++ === 0 ? Uint8Array.from([255, 255]) : Uint8Array.from([0x04, 0xD2]));
+  assert.equal(nuovoCodice(byte), "1234");
+});
+
+test("nome utente scelto dall'admin: minuscolo, da 3 a 40 caratteri, lettere, cifre e trattini", () => {
+  assert.equal(validaNomeUtente("  Anna-K7M "), "anna-k7m");
+  assert.equal(validaNomeUtente("bea"), "bea");
+  for (const no of ["ab", "-anna", "anna k", "anna_k", "ànna", "x".repeat(41), "", null]) assert.equal(validaNomeUtente(no), null, String(no));
+});
+
+test("cestino: scaduto dopo 30 giorni esatti, non prima", () => {
+  const ora = Date.parse("2026-12-20T12:00:00Z");
+  const righe = [{ id: "a", cestino: "2026-11-20T11:59:00Z" }, { id: "b", cestino: "2026-11-20T12:01:00Z" }, { id: "c", cestino: null }];
+  assert.equal(GIORNI_CESTINO, 30);
+  assert.deepEqual(scaduti(righe, ora).map((r) => r.id), ["a"]);
+});
+
+test("conferma scrivendo il nome: senza spazi ai lati e senza maiuscole, ma tutto il nome", () => {
+  assert.equal(confermaNome(" carla verdi ", "Carla Verdi"), true);
+  assert.equal(confermaNome("Carla", "Carla Verdi"), false);
+  assert.equal(confermaNome("", ""), false);
+  assert.equal(confermaNome(null, "Carla"), false);
+});
+
+import { pianoPulizia, SOGLIA_PULIZIA, AZIONI_LETTURA } from "../supabase/functions/_shared/famiglie.js";
+
+const ORA = Date.parse("2026-12-20T12:00:00Z");
+const giorniFa = (g) => new Date(ORA - g * 86400000).toISOString();
+
+test("pulizia: a 29 giorni non si tocca, a 31 si cancella; i figli di una famiglia scaduta vanno con lei", () => {
+  const p = pianoPulizia({
+    famiglie: [{ id: "f1", genitore_id: "g1", cestino: giorniFa(31) }, { id: "f2", genitore_id: "g2", cestino: giorniFa(29) }, { id: "f3", genitore_id: "g3", cestino: null }],
+    figli: [
+      { id: "a", famiglia_id: "f1", cestino: null }, { id: "b", famiglia_id: "f1", cestino: giorniFa(2) },
+      { id: "c", famiglia_id: "f2", cestino: null }, { id: "d", famiglia_id: "f3", cestino: giorniFa(31) },
+      { id: "e", famiglia_id: "f3", cestino: giorniFa(29) },
+    ],
+  }, ORA);
+  assert.deepEqual(p.famiglie.map((f) => [f.id, f.figli]), [["f1", ["a", "b"]]]);
+  assert.deepEqual(p.figli, ["d"]);
+  assert.equal(p.profili, 3);
+  assert.equal(p.troppi, false);
+});
+
+test("pulizia: oltre 3 famiglie o 5 profili in un giro, troppi = true (non si cancella niente)", () => {
+  assert.deepEqual(SOGLIA_PULIZIA, { famiglie: 3, profili: 5 });
+  const fam = (n) => Array.from({ length: n }, (_, i) => ({ id: "f" + i, genitore_id: "g" + i, cestino: giorniFa(40) }));
+  const figli = (n, f = null) => Array.from({ length: n }, (_, i) => ({ id: "s" + i, famiglia_id: f, cestino: giorniFa(40) }));
+  assert.equal(pianoPulizia({ famiglie: fam(3), figli: [] }, ORA).troppi, false);
+  assert.equal(pianoPulizia({ famiglie: fam(4), figli: [] }, ORA).troppi, true);
+  assert.equal(pianoPulizia({ famiglie: [], figli: figli(5) }, ORA).troppi, false);
+  assert.equal(pianoPulizia({ famiglie: [], figli: figli(6) }, ORA).troppi, true);
+  // i figli dentro una famiglia scaduta contano nei 5 profili
+  assert.equal(pianoPulizia({ famiglie: fam(1).map((f) => ({ ...f, id: "x" })), figli: figli(6, "x").map((s) => ({ ...s, cestino: null })) }, ORA).troppi, true);
+});
+
+test("pulizia: una famiglia protetta non si cancella mai", () => {
+  const p = pianoPulizia({ famiglie: [{ id: "f1", genitore_id: "g1", cestino: giorniFa(40), protetta: true }], figli: [{ id: "a", famiglia_id: "f1", cestino: giorniFa(40) }] }, ORA);
+  assert.deepEqual([p.famiglie.length, p.figli.length], [0, 0]);
+});
+
+test("admin: solo riepilogo, consumi e registro senza motivo", () => {
+  assert.deepEqual([...AZIONI_LETTURA].sort(), ["consumi", "registro", "riepilogo"]);
+});

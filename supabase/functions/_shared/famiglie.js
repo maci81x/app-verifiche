@@ -63,3 +63,48 @@ export const esportazione = ({ genitore, consensi, invito, figli }, generato = n
   invito: invito ? { codice: invito.codice } : null,
   figli: (figli ?? []).map((f) => ({ profilo: scegli(f.profilo, CAMPI_PROFILO), tabelle: f.tabelle ?? {}, foto: f.foto ?? [] })),
 });
+
+// ---------------------------------------------------------------- pannello admin (issue #35)
+
+export const GIORNI_CESTINO = 30;
+
+// Codice nuovo a 4 cifre, uniforme: da 2 byte (0..65535) si scartano i valori ≥ 60000 (multiplo di 10000).
+export function nuovoCodice(byte = casuali) {
+  for (;;) {
+    const [a, b] = byte(2);
+    const n = a * 256 + b;
+    if (n < 60000) return String(n % 10000).padStart(4, "0");
+  }
+}
+
+// Nome utente scelto dall'admin: minuscolo, comincia con lettera o cifra, poi lettere, cifre e trattini, 3-40 caratteri.
+export function validaNomeUtente(t) {
+  const n = typeof t === "string" ? t.trim().toLowerCase() : "";
+  return /^[a-z0-9][a-z0-9-]{2,39}$/.test(n) ? n : null;
+}
+
+// Righe nel cestino da più di GIORNI_CESTINO giorni.
+export const scaduti = (righe, ora = Date.now()) =>
+  righe.filter((r) => r.cestino && Date.parse(r.cestino) <= ora - GIORNI_CESTINO * 86400000);
+
+// Conferma dell'eliminazione: il nome scritto per intero (spazi ai lati e maiuscole non contano).
+export const confermaNome = (scritto, nome) => {
+  const pulisci = (x) => String(x ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return pulisci(nome) !== "" && pulisci(scritto) === pulisci(nome);
+};
+
+// Pulizia del cestino (issue #35): cosa cancellare in un giro. Una famiglia scaduta porta con sé tutti i suoi figli; un
+// figlio scaduto in una famiglia attiva va da solo. Le famiglie protette (controllo mattutino) non si toccano mai.
+// Oltre la soglia il giro non cancella niente e fallisce: un numero così alto è più probabilmente un errore che un caso vero.
+export const SOGLIA_PULIZIA = { famiglie: 3, profili: 5 };
+export function pianoPulizia({ famiglie, figli }, ora = Date.now()) {
+  const protette = new Set(famiglie.filter((f) => f.protetta).map((f) => f.id));
+  const fam = scaduti(famiglie.filter((f) => !f.protetta), ora).map((f) => ({ ...f, figli: figli.filter((s) => s.famiglia_id === f.id).map((s) => s.id) }));
+  const viaConFamiglia = new Set(fam.flatMap((f) => f.figli));
+  const soli = scaduti(figli, ora).filter((s) => !viaConFamiglia.has(s.id) && !protette.has(s.famiglia_id)).map((s) => s.id);
+  const profili = viaConFamiglia.size + soli.length;
+  return { famiglie: fam, figli: soli, profili, troppi: fam.length > SOGLIA_PULIZIA.famiglie || profili > SOGLIA_PULIZIA.profili };
+}
+
+// Azioni del pannello admin che non chiedono il motivo e non guardano la famiglia protetta: solo letture di sintesi.
+export const AZIONI_LETTURA = new Set(["riepilogo", "consumi", "registro"]);

@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#15151A" media="(prefers-color-scheme: dark)">
 <title>10+ · Amministrazione</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="testi.css?v=36">
+<link rel="stylesheet" href="testi.css?v=37">
 </head>
 <body>
 <header class="a-testata">
@@ -37,6 +37,15 @@
   </section>
 
   <section id="a-pannello" hidden>
+    <label for="a-motivo">Motivo delle azioni</label>
+    <input id="a-motivo" maxlength="300" placeholder="per esempio: richiesta del genitore del 19/11">
+    <p class="aiuto">Serve per ogni modifica, recupero, export, cestino o apertura dei contenuti: va nel registro.</p>
+    <section id="a-uscita" class="uscita" hidden aria-live="polite">
+      <h2 id="a-uscita-titolo"></h2>
+      <code id="a-uscita-valore"></code>
+      <p class="aiuto" id="a-uscita-nota"></p>
+      <div class="riga"><button type="button" class="azione" id="a-uscita-copia">Copia</button><button type="button" id="a-uscita-fatto">Fatto</button></div>
+    </section>
     <div class="riquadri" role="group" aria-label="Numeri principali">
       <div class="riquadro"><b id="a-n-posti">—</b><span>posti occupati / tetto</span></div>
       <div class="riquadro"><b id="a-n-oggi">—</b><span>richieste di oggi</span></div>
@@ -55,6 +64,10 @@
     </table>
     <div id="a-senza-famiglia"></div>
 
+    <h2>Cestino</h2>
+    <p class="aiuto">Dopo 30 giorni si cancella tutto in modo definitivo, ogni mattina. Fino ad allora «Ripristina» rimette com'era.</p>
+    <ul class="figli" id="a-cestino"></ul>
+
     <h2>Consumi</h2>
     <p class="aiuto">Ultimi 30 giorni, in dollari come le tariffe dei modelli. Stime dai token.</p>
     <table class="dati">
@@ -65,20 +78,20 @@
     <h2>Contenuti di un profilo</h2>
     <p class="aiuto">Solo per assistenza. Ogni apertura viene registrata: chi, quando, quale profilo, perché.</p>
     <label for="a-profilo">Profilo</label><select id="a-profilo"></select>
-    <label for="a-motivo">Motivo</label><input id="a-motivo" maxlength="300" placeholder="per esempio: segnalazione del genitore del 19/11">
     <div class="riga"><button type="button" id="a-apri">Apri i contenuti</button></div>
     <div id="a-contenuti"></div>
 
-    <h2>Registro degli accessi</h2>
+    <h2>Registro</h2>
+    <p class="aiuto">Ogni azione del pannello e ogni cancellazione automatica, con il motivo. Si tiene 12 mesi.</p>
     <table class="dati" id="a-tab-registro">
-      <thead><tr><th>Quando</th><th>Profilo</th><th>Motivo</th></tr></thead>
+      <thead><tr><th>Quando</th><th>Azione</th><th>Su chi</th><th>Motivo</th></tr></thead>
       <tbody id="a-registro"></tbody>
     </table>
     <p class="vuoto" id="a-registro-vuoto" hidden>Nessun accesso ai contenuti finora</p>
   </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="soldi.js?v=36"></script>
-<script src="admin.js?v=36"></script>
+<script src="soldi.js?v=37"></script>
+<script src="admin.js?v=37"></script>
 </body>
 </html>

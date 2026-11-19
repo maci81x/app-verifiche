@@ -1,6 +1,7 @@
 # Avviso guasti: ogni mattina chiamate di prova a modello, accedi e profili con i profili di prova
 # (scripts/sentinella.mjs). Se una risponde male o troppo lentamente il job fallisce e GitHub manda la
 # mail di «workflow fallito». Le credenziali sono nei Secrets del repo: GitHub le maschera nei log.
+# Poi la pulizia del cestino oltre 30 giorni (issue #35): gira anche se le chiamate di prova falliscono.
 name: Controllo mattutino
 on:
   schedule:
@@ -32,3 +33,13 @@ jobs:
           TEST_GENITORE_EMAIL: ${{ secrets.TEST_GENITORE_EMAIL }}
           TEST_GENITORE_PASSWORD: ${{ secrets.TEST_GENITORE_PASSWORD }}
           PROVA_GUASTO: ${{ inputs.prova_guasto }}
+      - name: Pulizia del cestino
+        if: always()
+        # solo l'esito: la risposta (conteggi) non si stampa, i log di un repo pubblico sono pubblici
+        run: |
+          code=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$SUPABASE_URL/functions/v1/pulizia" -H "x-pulizia: $PULIZIA_SEGRETO")
+          echo "pulizia: HTTP $code"
+          test "$code" = "200"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          PULIZIA_SEGRETO: ${{ secrets.PULIZIA_SEGRETO }}

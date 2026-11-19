@@ -430,3 +430,6 @@ verify_jwt = true
 
 [functions.modello]
 verify_jwt = true
+
+[functions.pulizia]
+verify_jwt = false

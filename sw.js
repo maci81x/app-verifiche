@@ -1,37 +1,37 @@
 // Avvio offline dell'interfaccia: prima la rete, se manca la copia salvata.
 // I dati (Supabase) e la funzione del modello non passano da qui.
 // Alza la versione a ogni rilascio, insieme a ?v= in index.html.
-const CACHE_NAME = 'app-verifiche-v36';
+const CACHE_NAME = 'app-verifiche-v37';
 const ASSETS = [
   '/app-verifiche/',
   '/app-verifiche/index.html',
-  '/app-verifiche/style.css?v=36',
-  '/app-verifiche/soldi.js?v=36',
-  '/app-verifiche/semaforo.js?v=36',
-  '/app-verifiche/app.js?v=36',
-  '/app-verifiche/libreria.js?v=36',
-  '/app-verifiche/stampa.js?v=36',
-  '/app-verifiche/aiuto.js?v=36',
-  '/app-verifiche/mappa-card.js?v=36',
-  '/app-verifiche/figure.js?v=36',
-  '/app-verifiche/formule.js?v=36',
-  '/app-verifiche/esercizi.js?v=36',
-  '/app-verifiche/prova-esercizi.js?v=36',
-  '/app-verifiche/compito.js?v=36',
-  '/app-verifiche/classe-app.js?v=36',
-  '/app-verifiche/poesia.js?v=36',
-  '/app-verifiche/invalsi.js?v=36',
-  '/app-verifiche/esempi.js?v=36',
-  '/app-verifiche/esame.js?v=36',
-  '/app-verifiche/italia-mappa.js?v=36',
-  '/app-verifiche/geografia.js?v=36',
-  '/app-verifiche/lezione.js?v=36',
-  '/app-verifiche/diario.js?v=36',
-  '/app-verifiche/piano.js?v=36',
-  '/app-verifiche/ripasso.js?v=36',
-  '/app-verifiche/studio.js?v=36',
-  '/app-verifiche/strumenti.js?v=36',
-  '/app-verifiche/famiglia.js?v=36',
+  '/app-verifiche/style.css?v=37',
+  '/app-verifiche/soldi.js?v=37',
+  '/app-verifiche/semaforo.js?v=37',
+  '/app-verifiche/app.js?v=37',
+  '/app-verifiche/libreria.js?v=37',
+  '/app-verifiche/stampa.js?v=37',
+  '/app-verifiche/aiuto.js?v=37',
+  '/app-verifiche/mappa-card.js?v=37',
+  '/app-verifiche/figure.js?v=37',
+  '/app-verifiche/formule.js?v=37',
+  '/app-verifiche/esercizi.js?v=37',
+  '/app-verifiche/prova-esercizi.js?v=37',
+  '/app-verifiche/compito.js?v=37',
+  '/app-verifiche/classe-app.js?v=37',
+  '/app-verifiche/poesia.js?v=37',
+  '/app-verifiche/invalsi.js?v=37',
+  '/app-verifiche/esempi.js?v=37',
+  '/app-verifiche/esame.js?v=37',
+  '/app-verifiche/italia-mappa.js?v=37',
+  '/app-verifiche/geografia.js?v=37',
+  '/app-verifiche/lezione.js?v=37',
+  '/app-verifiche/diario.js?v=37',
+  '/app-verifiche/piano.js?v=37',
+  '/app-verifiche/ripasso.js?v=37',
+  '/app-verifiche/studio.js?v=37',
+  '/app-verifiche/strumenti.js?v=37',
+  '/app-verifiche/famiglia.js?v=37',
   '/app-verifiche/privacy.html',
   '/app-verifiche/condizioni.html',
   '/app-verifiche/testi.css',
@@ -61,7 +61,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.hostname.endsWith('supabase.co')) return;
   // Il pannello dell'amministratore (issue #30) non resta mai nella cache del telefono.
-  if (/\/admin\.(html|js)$/.test(url.pathname)) return;
+  if (/\/(admin\.(html|js)|nuova-password\.html)$/.test(url.pathname)) return;
   e.respondWith(
     fetch(e.request)
       .then(r => {
