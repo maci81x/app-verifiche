@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const leggi = (f) => readFileSync(new URL("../" + f, import.meta.url), "utf8");
-const JS = ["semaforo.js", "app.js", "libreria.js", "stampa.js", "aiuto.js", "mappa-card.js", "figure.js", "formule.js", "esercizi.js", "prova-esercizi.js", "compito.js", "piano.js", "ripasso.js", "studio.js"];
+const JS = ["semaforo.js", "app.js", "libreria.js", "famiglia.js", "soldi.js", "stampa.js", "aiuto.js", "mappa-card.js", "figure.js", "formule.js", "esercizi.js", "prova-esercizi.js", "compito.js", "piano.js", "ripasso.js", "studio.js"];
 const html = leggi("index.html");
 const css = leggi("style.css");
 
@@ -85,6 +85,9 @@ test("service worker: cache alzata e stessa versione di index.html", () => {
   const versioni = [...html.matchAll(/\?v=(\d+)/g)].map((m) => Number(m[1]));
   assert.ok(versioni.length >= 11 && versioni.every((x) => x === v), "?v= in index.html diverso dalla cache");
   assert.ok([...sw.matchAll(/\?v=(\d+)/g)].every((m) => Number(m[1]) === v));
+  // admin.html (issue #34): non è nella cache, ma i suoi file cambiano con i rilasci e prendono la stessa versione
+  const admin = [...leggi("admin.html").matchAll(/\?v=(\d+)/g)].map((m) => Number(m[1]));
+  assert.ok(admin.length >= 3 && admin.every((x) => x === v), "?v= in admin.html diverso dalla cache");
   assert.match(sw, /icons\/icon-maskable-512\.png/);
 });
 

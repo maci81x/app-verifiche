@@ -67,10 +67,10 @@ test("testi nuovi senza forme di genere e senza «Sbagliato»", () => {
     assert.doesNotMatch(testi, p, String(p));
 });
 
-test("service worker v35: famiglia.js e pagine privacy in cache, il pannello admin mai", () => {
+test("service worker: famiglia.js e pagine privacy in cache, il pannello admin mai", () => {
   const sw = leggi("sw.js");
-  assert.match(sw, /app-verifiche-v35/);
-  for (const f of ["famiglia.js?v=35", "privacy.html", "condizioni.html"]) assert.ok(sw.includes("/app-verifiche/" + f), f);
+  const v = sw.match(/app-verifiche-v(\d+)/)[1];
+  for (const f of ["famiglia.js?v=" + v, "privacy.html", "condizioni.html"]) assert.ok(sw.includes("/app-verifiche/" + f), f);
   assert.doesNotMatch(sw, /'\/app-verifiche\/admin/);
   assert.match(sw, /\/admin\\\.\(html\|js\)\$\/\.test\(url\.pathname\)\) return;/);
 });

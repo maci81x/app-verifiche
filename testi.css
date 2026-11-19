@@ -1,23 +1,81 @@
-/* Pagine di testo (informativa, condizioni, pannello admin): stessi colori e carattere dell'app (issue #17). */
-:root { --carta: #FFFFFF; --inchiostro: #1A1A1E; --grigio: #5B5E66; --bordo: #E6E6E1; --superficie: #F4F4F1; --giallo: #FFE55C; }
-@media (prefers-color-scheme: dark) { :root { --carta: #15151A; --inchiostro: #F1F1EC; --grigio: #A9ACB4; --bordo: #2C2C33; --superficie: #1E1E24; } }
+/* Pagine fuori dall'app (informativa, condizioni, pannello admin): stessi token e regole di style.css (issue #17, #34). */
+:root {
+  --carta: #FFFFFF; --superficie: #F4F4F1; --bordo: #E6E6E1;
+  --inchiostro: #1A1A1E; --inchiostro-2: #5B5E66;
+  --evidenziatore: #FFE55C; --su-evidenziatore: #1A1A1E;
+  --verde-bg: #DDF3E4; --verde: #1A6B3E; --rosso-bg: #FDE3DF; --rosso: #B0291A;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --carta: #15151A; --superficie: #1F1F25; --bordo: #2C2C33;
+  --inchiostro: #F2F2EE; --inchiostro-2: #A9ACB3;
+  --verde-bg: #16301F; --verde: #8FD9AE; --rosso-bg: #3A1A16; --rosso: #F4A296;
+  color-scheme: dark;
+} }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--carta); color: var(--inchiostro); font: 400 17px/1.5 "Bricolage Grotesque", system-ui, sans-serif; }
 .testo-legale, .admin { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
 h1 { font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-size: 34px; margin: 8px 0; }
-h2 { font-weight: 700; font-size: 20px; margin: 28px 0 8px; }
+h2 { font-weight: 700; font-size: 20px; margin: 32px 0 8px; letter-spacing: -0.01em; }
 a { color: inherit; }
 ul { padding-left: 1.2em; }
 li { margin: 4px 0; }
-.versione { color: var(--grigio); }
+.versione, .aiuto { color: var(--inchiostro-2); }
 .breve { background: var(--superficie); border-radius: 16px; padding: 4px 16px 8px; }
-mark.segnaposto { background: linear-gradient(transparent 28%, var(--giallo) 28%, var(--giallo) 92%, transparent 92%); color: #1A1A1E; font-weight: 700; }
-input, select, textarea { font: inherit; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bordo); border-radius: 12px; background: var(--carta); color: inherit; }
-button { font: inherit; min-height: 44px; padding: 8px 18px; border-radius: 999px; border: 1px solid var(--inchiostro); background: var(--carta); color: inherit; cursor: pointer; }
-button.azione { background: var(--inchiostro); color: var(--giallo); font-weight: 700; }
-button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--giallo); outline-offset: 2px; }
-table { width: 100%; border-collapse: collapse; font-size: 15px; }
-th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+mark.segnaposto { background: linear-gradient(transparent 28%, var(--evidenziatore) 28%, var(--evidenziatore) 92%, transparent 92%); color: #1A1A1E; font-weight: 700; }
+label { display: block; font-weight: 700; margin: 12px 0 4px; }
+input, select, textarea { font: inherit; width: 100%; min-height: 48px; padding: 10px 14px; border: 1.5px solid var(--bordo); border-radius: 14px; background: var(--carta); color: inherit; }
+button { font: 700 16px "Bricolage Grotesque", system-ui, sans-serif; min-height: 44px; padding: 8px 18px; border-radius: 999px; border: 1.5px solid var(--inchiostro); background: transparent; color: inherit; cursor: pointer; }
+button.azione { background: var(--inchiostro); color: var(--evidenziatore); border-color: var(--inchiostro); min-height: 52px; padding: 12px 24px; }
+button.pericolo { color: var(--rosso); border-color: var(--rosso); }
+button.pericolo[data-in-conferma="1"] { background: var(--rosso-bg); }
+button:disabled { opacity: .4; cursor: default; }
+@media (prefers-color-scheme: dark) { button.azione { background: var(--evidenziatore); color: var(--su-evidenziatore); border-color: var(--evidenziatore); } }
+:focus-visible { outline: 3px solid var(--inchiostro); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 .riga { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
-.errore { color: #B0291A; }
-.tabella { overflow-x: auto; }
+.riga input { width: auto; flex: 0 0 96px; }
+.errore { color: var(--rosso); }
+
+/* ------------------------------------------------ pannello admin */
+.a-testata { position: sticky; top: 0; z-index: 10; background: var(--carta); border-bottom: 1px solid var(--bordo); }
+.a-testata-riga { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.a-testata h1 { font-size: 22px; margin: 0; }
+.a-logo { font-weight: 800; letter-spacing: -0.03em; }
+.a-logo span { background: var(--evidenziatore); color: #1A1A1E; border-radius: 6px; padding: 0 4px; margin-left: 2px; }
+#a-msg { max-width: 1040px; margin: 0 auto; padding: 0 16px; min-height: 0; }
+#a-msg:not(:empty) { padding: 8px 16px 10px; font-weight: 500; }
+.admin.largo { max-width: 1040px; }
+.riquadri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 8px; }
+.riquadro { background: var(--superficie); border-radius: 16px; padding: 12px; min-width: 0; }
+.riquadro b { display: block; font-weight: 800; font-size: clamp(20px, 6vw, 32px); letter-spacing: -0.03em; line-height: 1.1; overflow-wrap: anywhere; }
+.riquadro span { display: block; color: var(--inchiostro-2); font-size: 14px; line-height: 1.3; margin-top: 4px; }
+.invito-codice { font-weight: 800; font-size: 22px; letter-spacing: 0.02em; }
+.invito-link { display: block; font-family: inherit; color: var(--inchiostro-2); font-size: 14px; overflow-wrap: anywhere; user-select: all; margin: 4px 0 8px; }
+.qr { max-width: 220px; background: #FFFFFF; padding: 8px; border-radius: 12px; margin: 8px 0; }
+.qr svg { width: 100%; height: auto; display: block; }
+.stato { display: inline-block; font-weight: 700; border-radius: 999px; padding: 2px 10px; font-size: 14px; }
+.stato.attiva { background: var(--verde-bg); color: var(--verde); }
+.stato.sospesa { background: var(--rosso-bg); color: var(--rosso); }
+.nota { color: var(--rosso); font-size: 14px; font-weight: 500; }
+.figli { list-style: none; padding: 0; margin: 6px 0 0; font-size: 15px; }
+.figli li { margin: 2px 0; color: var(--inchiostro-2); }
+.figli li b { color: var(--inchiostro); font-weight: 700; }
+.limiti { display: grid; grid-template-columns: auto minmax(52px, 1fr) auto minmax(52px, 1fr) auto; gap: 6px; align-items: center; max-width: 420px; }
+.limiti label { display: inline; margin: 0; font-weight: 500; font-size: 14px; color: var(--inchiostro-2); }
+.limiti input { width: 100%; min-height: 44px; padding: 6px 8px; }
+.limiti button { padding: 8px 14px; }
+.azioni { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.vuoto { color: var(--inchiostro-2); }
+table.dati { width: 100%; border-collapse: collapse; font-size: 15px; }
+table.dati th { text-align: left; font-weight: 700; color: var(--inchiostro-2); font-size: 14px; padding: 8px 6px; border-bottom: 1.5px solid var(--bordo); }
+table.dati td { padding: 10px 6px; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+pre.contenuti { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--superficie); border-radius: 12px; padding: 12px; font-size: 13px; max-height: 50vh; overflow: auto; }
+/* Su schermo stretto le tabelle diventano schede: una per riga, con l'etichetta prima di ogni valore. */
+@media (max-width: 719px) {
+  table.dati thead { display: none; }
+  table.dati, table.dati tbody, table.dati tr, table.dati td { display: block; width: 100%; }
+  table.dati tr { border: 1.5px solid var(--bordo); border-radius: 16px; padding: 10px 14px; margin: 0 0 10px; }
+  table.dati td { border: 0; padding: 4px 0; }
+  table.dati td[data-etichetta]::before { content: attr(data-etichetta); display: block; font-size: 13px; font-weight: 700; color: var(--inchiostro-2); }
+  table.dati td.titolo { font-size: 17px; }
+}
