@@ -6,14 +6,21 @@
 // e non lascia niente nel database.
 //
 //   SUPABASE_ACCESS_TOKEN=sbp_... SUPABASE_PROJECT_REF=... npm run test:db
+//   RLS_PSQL=postgresql://postgres@127.0.0.1:54329/postgres node --test test/db/rls.test.js
+//     (issue #30) stessi test su un Postgres locale, per esempio una copia di sicurezza ripristinata con la migration
+//     nuova applicata sopra: si provano le migration prima di darle a Roby, mai sul progetto vero.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const REF = process.env.SUPABASE_PROJECT_REF;
 // SQL eseguito come superutente prima del test: serve solo a rompere apposta
 // lo schema e controllare che i test se ne accorgano.
 const MUTAZIONE = process.env.RLS_MUTAZIONE ?? '';
+const LOCALE = process.env.RLS_PSQL;
+// Con il pooler di Supabase l'utente temporaneo della CLI diventa postgres con `set role`, non con `reset role`.
+const BASE = process.env.RLS_BASE ?? 'reset role';
 
 const ANNA = '11111111-1111-4111-8111-111111111111';
 const BEA = '22222222-2222-4222-8222-222222222222';
@@ -24,6 +31,11 @@ const SESS = 'e0000000-0000-4000-8000-000000000001';
 const DOM = 'd0000000-0000-4000-8000-000000000001';
 
 async function esegui(sql) {
+  if (LOCALE) {
+    const r = spawnSync('psql', [LOCALE, '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', '-'], { input: sql, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(JSON.stringify({ message: (/ERROR:\s+(.*)/.exec(r.stderr) || [, r.stderr])[1] }));
+    return [];
+  }
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
@@ -35,9 +47,12 @@ async function esegui(sql) {
 }
 
 // Da qui in poi le query girano come l'utente indicato (null = anonimo).
+// Il ruolo vive in app_metadata (lo scrive il server): i genitori di prova lo hanno «genitore», gli altri «studente».
+const GENITORI = ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
+const claim = (uid) => (uid ? { sub: uid, role: 'authenticated', app_metadata: { ruolo: GENITORI.includes(uid) ? 'genitore' : 'studente' } } : { role: 'anon' });
 const come = (uid) => `
-  reset role;
-  select set_config('request.jwt.claims', '${JSON.stringify(uid ? { sub: uid, role: 'authenticated' } : { role: 'anon' })}', true);
+  ${BASE};
+  select set_config('request.jwt.claims', '${JSON.stringify(claim(uid))}', true);
   set local role ${uid ? 'authenticated' : 'anon'};`;
 
 const q = (s) => s.replaceAll("'", "''");
@@ -80,10 +95,11 @@ const PREPARA = `
   insert into risposte (sessione_id, domanda_id, scelta, punteggio) values ('${SESS}', '${DOM}', 1, 0);
 `;
 
-function prova(nome, corpo) {
-  test(nome, { skip: !TOKEN || !REF ? 'servono SUPABASE_ACCESS_TOKEN e SUPABASE_PROJECT_REF' : false }, async () => {
+// extra: preparazione in più per i test che ne hanno bisogno (famiglie, issue #30).
+function prova(nome, corpo, extra = '') {
+  test(nome, { skip: !LOCALE && (!TOKEN || !REF) ? 'servono SUPABASE_ACCESS_TOKEN e SUPABASE_PROJECT_REF (o RLS_PSQL)' : false }, async () => {
     try {
-      await esegui(`begin; ${MUTAZIONE} ${PREPARA} ${corpo} rollback;`);
+      await esegui(`begin; ${MUTAZIONE} ${PREPARA} ${extra} ${corpo} rollback;`);
     } catch (e) {
       const m = /"message":"((?:[^"\\]|\\.)*)"/.exec(e.message);
       assert.fail(m ? JSON.parse(`"${m[1]}"`) : e.message);
@@ -113,7 +129,8 @@ prova("una sorella non può scrivere nei dati dell'altra", `
     'foreign_key_violation', 'Bea aggiunge una domanda alla prova di Anna')}
   ${nessunaRiga(`update argomenti set titolo = 'preso' where id = '${ARG}'`, "Bea modifica l'argomento di Anna")}
   ${nessunaRiga(`delete from sessioni where id = '${SESS}'`, 'Bea cancella la prova di Anna')}
-  ${nessunaRiga(`update studenti set nome = 'preso' where id = '${ANNA}'`, 'Bea modifica il profilo di Anna')}
+  ${nessunaRiga(`update studenti set scelte = '{}' where id = '${ANNA}'`, 'Bea modifica il profilo di Anna')}
+  ${vieta(`update studenti set nome = 'preso' where id = '${ANNA}'`, 'insufficient_privilege', 'Bea cambia il nome di un profilo')}
   ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${ANNA}/intrusa.jpg')`,
     'insufficient_privilege', 'Bea carica una foto nella cartella di Anna')}
   insert into argomenti (id, materia, titolo) values ('a0000000-0000-4000-8000-0000000000b1', 'a', 'b');
@@ -194,7 +211,7 @@ prova('una domanda chiusa senza opzioni valide non entra', `
 // ---------------------------------------------------------------- accesso con codice (issue #1)
 // Le funzioni le chiama solo la Edge Function `accedi`/`profili` con la service role.
 const comeServizio = `
-  reset role;
+  ${BASE};
   select set_config('request.jwt.claims', '{"role":"service_role"}', true);
   set local role service_role;`;
 const accesso = (pin, studente = ANNA) => `accesso_con_pin('${studente}', '${pin}')`;
@@ -210,7 +227,7 @@ prova('accesso con codice: giusto entra, sbagliato no, al terzo errore 60 second
   ${esito('1357', { ok: false, attendi: 60 }, 'terzo errore: dovrebbero essere 60 secondi')}
   ${esito('2468', { ok: false, attendi: 60 }, 'durante il blocco anche il PIN giusto deve aspettare')}
   -- passa il minuto
-  reset role;
+  ${BASE};
   update public.pin_profili set bloccato_fino = now() - interval '1 second' where user_id = '${ANNA}';
   ${comeServizio}
   ${esito('2468', { ok: true }, 'finito il blocco il PIN giusto non entra')}
@@ -249,6 +266,7 @@ prova('imposta_pin_di: valida il codice e sblocca il profilo', `
   ${esito('9753', { ok: true }, 'il codice nuovo non entra subito: il cambio non toglie il blocco')}
   ${esito('2468', { ok: false, attendi: 0 }, 'il codice vecchio entra ancora')}
   ${vieta(`perform imposta_pin_di('${ANNA}', '12')`, 'raise_exception', 'accettato un PIN di due cifre')}
+  ${vieta(`perform imposta_pin_di('${ANNA}', '123456')`, 'raise_exception', 'accettato un PIN di sei cifre (il tastierino ne ha 4)')}
   ${vieta(`perform imposta_pin_di('${ANNA}', null)`, 'raise_exception', 'accettato un PIN vuoto')}
   ${vieta(`perform imposta_pin_di('${GENITORE}', '1234')`, 'raise_exception', 'PIN impostato su un utente che non è una studentessa')}
 `);
@@ -517,3 +535,306 @@ prova("sessioni: il tipo 'ripasso' entra, un tipo sconosciuto no, le policy rest
   ${come(GENITORE)}
   ${verifica(`(select count(*) = 1 from sessioni where tipo = 'ripasso')`, 'il genitore non vede il ripasso della figlia')}
 `);
+
+// ---------------------------------------------------------------- famiglie esterne (issue #30)
+// Due famiglie: A (esistente: il genitore di Anna) e B (esterna: GEN_B con Carlo e Dora). Bea non ha famiglia.
+const GEN_B = '44444444-4444-4444-8444-444444444444';
+const CARLO = '55555555-5555-4555-8555-555555555555';
+const DORA = '66666666-6666-4666-8666-666666666666';
+const FAM_A = 'fa000000-0000-4000-8000-00000000000a';
+const FAM_B = 'fa000000-0000-4000-8000-00000000000b';
+const ARG_C = 'a0000000-0000-4000-8000-0000000000c1';
+const ARG_D = 'a0000000-0000-4000-8000-0000000000d1';
+const FAMIGLIE = `
+  ${BASE};
+  update auth.users set email_confirmed_at = now() where id = '${GENITORE}';
+  insert into auth.users (id, email, email_confirmed_at) values
+    ('${GEN_B}', 'genb@test.invalid', now()), ('${CARLO}', 'carlo@test.invalid', now()), ('${DORA}', 'dora@test.invalid', now());
+  insert into public.famiglie (id, genitore_id, esterna, limite_aiuti, limite_chiamate) values
+    ('${FAM_A}', '${GENITORE}', false, 30, 150), ('${FAM_B}', '${GEN_B}', true, 10, 60);
+  update public.studenti set famiglia_id = '${FAM_A}', nome_utente = 'anna-t3st' where id = '${ANNA}';
+  update public.studenti set nome_utente = 'bea-t3st' where id = '${BEA}';
+  insert into public.studenti (id, nome, classe, nome_utente, famiglia_id) values
+    ('${CARLO}', 'Carlo', '1', 'carlo-t3st', '${FAM_B}'), ('${DORA}', 'Dora', '2', 'dora-t3st', '${FAM_B}');
+  insert into public.genitori_studenti values ('${GEN_B}', '${CARLO}', 'genb@test.invalid'), ('${GEN_B}', '${DORA}', 'genb@test.invalid');
+  insert into public.consensi (genitore_id, documento, versione) values ('${GENITORE}', 'privacy', '2026-11-19');
+  insert into public.inviti (codice, titolare_id) values ('aaaaaaaa', '${GENITORE}');
+  insert into public.consumi (studente_id, giorno, azione, modello) values ('${ANNA}', current_date, 'smista', 'claude-haiku-5-5');
+  ${come(CARLO)}
+  insert into argomenti (id, materia, titolo) values ('${ARG_C}', 'storia', 'I Romani');
+  ${come(DORA)}
+  insert into argomenti (id, materia, titolo) values ('${ARG_D}', 'scienze', 'La cellula');
+  ${BASE};`;
+const intestazione = (valore) => `select set_config('request.headers', '${q(JSON.stringify({ 'x-figlio': valore }))}', true);`;
+const studentiVisti = (ids) => `(select coalesce(array_agg(id order by id), '{}') from studenti) = array[${ids.map((i) => `'${i}'::uuid`).join(',')}]::uuid[]`;
+
+prova('due famiglie: il genitore B non vede niente della famiglia A, e viceversa', `
+  ${come(GEN_B)}
+  ${['argomenti', 'concetti', 'fonti', 'sessioni', 'domande', 'risposte', 'report', 'consumi']
+    .map((t) => verifica(`(select count(*) from ${t} where studente_id = '${ANNA}') = 0`, `il genitore B vede righe di Anna in ${t}`)).join('\n')}
+  ${verifica(studentiVisti([CARLO, DORA]), 'il genitore B non vede esattamente Carlo e Dora')}
+  ${verifica(`(select array_agg(genitore_id) from famiglie) = array['${GEN_B}'::uuid]`, 'il genitore B vede famiglie di altri')}
+  ${verifica(`${conta('consensi')} = 0 and ${conta('inviti')} = 0`, 'il genitore B vede consensi o inviti del genitore A')}
+  ${come(GENITORE)}
+  ${verifica(studentiVisti([ANNA]), 'il genitore A vede i figli di B')}
+  ${verifica(`${conta('argomenti')} = 1`, 'il genitore A vede gli argomenti di Carlo o Dora')}
+  ${verifica(`${conta('famiglie')} = 1 and ${conta('consensi')} = 1 and ${conta('inviti')} = 1 and ${conta('consumi')} = 1`,
+    'il genitore A non vede la sua famiglia, i suoi consensi, il suo invito o i consumi di Anna')}
+`, FAMIGLIE);
+
+prova('due famiglie: Carlo vede solo sé; nessuno scrive le tabelle nuove; chi studia cambia solo le sue scelte', `
+  ${come(CARLO)}
+  ${verifica(studentiVisti([CARLO]), 'Carlo vede altri profili')}
+  ${verifica(`${conta('argomenti')} = 1 and ${conta('famiglie')} = 0 and ${conta('consumi')} = 0`, 'Carlo vede dati di altri')}
+  ${vieta(`insert into consumi (studente_id, giorno, azione, modello) values ('${CARLO}', current_date, 'x', 'y')`,
+    'insufficient_privilege', 'Carlo scrive un consumo')}
+  ${vieta(`update studenti set famiglia_id = '${FAM_A}' where id = '${CARLO}'`, 'insufficient_privilege', 'Carlo cambia famiglia')}
+  ${vieta(`update studenti set nome_utente = 'anna' where id = '${CARLO}'`, 'insufficient_privilege', 'Carlo cambia nome utente')}
+  ${vieta(`update studenti set nome = 'Carlino' where id = '${CARLO}'`, 'insufficient_privilege', 'Carlo cambia nome')}
+  update studenti set scelte = '{"livello":"difficile","tipo":"miste","modalita":"scritta"}' where id = '${CARLO}';
+  ${verifica(`(select scelte->>'livello' from studenti where id = '${CARLO}') = 'difficile'`, 'Carlo non salva le sue scelte')}
+  ${come(GEN_B)}
+  ${vieta(`insert into famiglie (genitore_id) values ('${GEN_B}')`, 'insufficient_privilege', 'il genitore crea una famiglia')}
+  ${vieta(`update famiglie set limite_chiamate = 999`, 'insufficient_privilege', 'il genitore si alza i limiti')}
+  ${vieta(`insert into consensi (genitore_id, documento, versione) values ('${GEN_B}', 'privacy', 'x')`,
+    'insufficient_privilege', 'il genitore scrive un consenso')}
+  ${vieta(`insert into inviti (codice, titolare_id) values ('bbbbbbbb', '${GEN_B}')`, 'insufficient_privilege', 'il genitore crea un invito')}
+  ${vieta(`delete from consumi`, 'insufficient_privilege', 'il genitore cancella i consumi')}
+`, FAMIGLIE);
+
+prova("x-figlio: il genitore guarda un figlio solo; l'header non allarga mai", `
+  ${come(GEN_B)}
+  ${verifica(studentiVisti([CARLO, DORA]), 'senza header il genitore B non vede i due figli')}
+  ${intestazione(CARLO)}
+  ${verifica(studentiVisti([CARLO]), "con l'header di Carlo il genitore vede anche Dora")}
+  ${verifica(`(select array_agg(id) from argomenti) = array['${ARG_C}'::uuid]`, "con l'header di Carlo gli argomenti di Dora si vedono")}
+  ${intestazione(ANNA)}
+  ${verifica(`${conta('studenti')} = 0 and ${conta('argomenti')} = 0`, "con l'header di Anna il genitore B vede qualcosa")}
+  ${intestazione("x' or 'a' = 'a")}
+  ${verifica(`${conta('studenti')} = 0`, 'un header malformato allarga o rompe le letture')}
+  ${come(ANNA)}
+  ${intestazione(CARLO)}
+  ${verifica(studentiVisti([ANNA]), "Anna con l'header di Carlo vede altro che sé")}
+  ${verifica(`${conta('argomenti')} = 1`, "Anna con l'header di Carlo perde i suoi argomenti")}
+`, FAMIGLIE);
+
+prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono', `
+  ${come(null)}
+  ${['famiglie', 'inviti', 'consensi', 'consumi', 'impostazioni', 'accessi_admin', 'consumi_archiviati', 'tentativi_nome']
+    .map((t) => vieta(`perform * from ${t}`, 'insufficient_privilege', `l'anonimo legge ${t}`)).join('\n')}
+  ${come(GENITORE)}
+  ${vieta(`perform * from impostazioni`, 'insufficient_privilege', 'il genitore legge le impostazioni')}
+  ${vieta(`perform * from accessi_admin`, 'insufficient_privilege', 'il genitore legge il registro admin')}
+  ${vieta(`perform * from tentativi_nome`, 'insufficient_privilege', 'il genitore legge i tentativi di accesso')}
+  ${BASE};
+  do $t$ declare f regprocedure; r text; begin
+    for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname in
+                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi') loop
+      foreach r in array array['anon', 'authenticated'] loop
+        if has_function_privilege(r, f, 'execute') then raise exception '% può eseguire %', r, f; end if;
+      end loop;
+      if not has_function_privilege('service_role', f, 'execute') then raise exception 'service_role non esegue %', f; end if;
+    end loop;
+    if exists (select 1 from unnest(array['famiglie', 'inviti', 'consensi', 'consumi', 'impostazioni', 'accessi_admin']) t
+                where not has_table_privilege('service_role', 'public.' || t, 'insert, update, delete, select')) then
+      raise exception 'la service role non scrive in tutte le tabelle nuove';
+    end if;
+    if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in
+         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi')) <> 8 then
+      raise exception 'mancano funzioni nuove';
+    end if;
+  end $t$;
+  -- nessun'altra funzione security definer in public eseguibile da anon
+  do $t$ declare f regprocedure; begin
+    for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.prosecdef loop
+      if has_function_privilege('anon', f, 'execute') then raise exception 'anon esegue la funzione security definer %', f; end if;
+    end loop;
+  end $t$;
+`, FAMIGLIE);
+
+const nome = (utente, pin) => `accesso_con_nome('${utente}', '${pin}')`;
+const sbaglia5 = `select ${nome('carlo-t3st', '0000')}; select ${nome('carlo-t3st', '0000')}; select ${nome('carlo-t3st', '0000')}; select ${nome('carlo-t3st', '0000')};`;
+const fineBlocco = (indietro = '1 second') => `${BASE}; update public.pin_profili set bloccato_fino = now() - interval '${indietro}' where user_id = '${CARLO}'; ${comeServizio}`;
+const quintoErrore = (secondi) => `${sbaglia5} ${verifica(`${nome('carlo-t3st', '0000')} = '{"ok":false,"attendi":${secondi}}'::jsonb`, `al quinto errore l'attesa non è ${secondi} secondi`)}`;
+
+prova('accesso con nome utente: 5 errori bloccano, l\'attesa cresce fino a 24 ore e aspettare non la azzera', `
+  ${comeServizio}
+  select imposta_pin_di('${CARLO}', '1357');
+  ${verifica(`${nome('  Carlo-T3ST ', '1357')} = '{"ok":true,"studente_id":"${CARLO}"}'::jsonb`, 'nome utente con spazi e maiuscole non entra')}
+  ${verifica(`${nome('nessuno-xyz', '1357')} = '{"ok":false,"attendi":0}'::jsonb`, 'un nome sconosciuto risponde diverso da un codice sbagliato')}
+  select ${nome('nessuno-xyz', '0000')}; select ${nome('nessuno-xyz', '0000')}; select ${nome('nessuno-xyz', '0000')};
+  ${verifica(`${nome('nessuno-xyz', '0000')} = '{"ok":false,"attendi":60}'::jsonb`, 'un nome sconosciuto non si blocca come uno vero: si capisce che non esiste')}
+  ${sbaglia5}
+  ${verifica(`(select errori = 4 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`, 'quattro errori non contati')}
+  ${verifica(`${nome('carlo-t3st', '0000')} = '{"ok":false,"attendi":60}'::jsonb`, 'al quinto errore non scatta 1 minuto')}
+  ${verifica(`(${nome('carlo-t3st', '1357')} ->> 'attendi')::int > 0`, 'durante il blocco il codice giusto entra')}
+  ${verifica(`(select ultimo_blocco is not null and blocchi = 1 from pin_profili where user_id = '${CARLO}')`, 'il blocco non è registrato per il genitore')}
+  ${fineBlocco()} ${quintoErrore(300)}
+  ${fineBlocco()} ${quintoErrore(900)}
+  ${fineBlocco()} ${quintoErrore(3600)}
+  ${fineBlocco()} ${quintoErrore(14400)}
+  ${fineBlocco()} ${quintoErrore(86400)}
+  ${fineBlocco()} ${quintoErrore(86400)}
+  ${fineBlocco('30 days')} ${quintoErrore(86400)}
+  ${fineBlocco()}
+  ${verifica(`${nome('carlo-t3st', '1357')} ->> 'ok' = 'true'`, 'finito il blocco il codice giusto non entra')}
+  ${verifica(`(select errori = 0 and blocchi = 7 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`,
+    'un accesso giusto deve scendere di un solo gradino (non riportare la scala a 1 minuto)')}
+  ${quintoErrore(86400)}
+  -- 7 giorni senza blocchi: la scala riparte
+  ${BASE}; update public.pin_profili set bloccato_fino = now() - interval '7 days', ultimo_blocco = now() - interval '8 days' where user_id = '${CARLO}';
+  ${comeServizio}
+  ${quintoErrore(60)}
+  ${BASE}; update public.pin_profili set blocchi = 4, ultimo_blocco = now(), bloccato_fino = now() + interval '1 hour' where user_id = '${CARLO}';
+  ${comeServizio}
+  select imposta_pin_di('${CARLO}', '2468');
+  ${verifica(`(select blocchi = 0 and ultimo_blocco is null and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`,
+    'cambiare il codice non toglie blocco e blocchi')}
+`, FAMIGLIE);
+
+prova('accesso con nome utente: la famiglia sospesa si dice solo dopo il codice giusto', `
+  ${BASE}; update public.famiglie set stato = 'sospesa' where id = '${FAM_B}';
+  ${comeServizio}
+  select imposta_pin_di('${CARLO}', '1357');
+  ${verifica(`${nome('carlo-t3st', '0000')} = '{"ok":false,"attendi":0}'::jsonb`, 'la sospensione si rivela con un codice sbagliato')}
+  ${verifica(`${nome('carlo-t3st', '1357')} = '{"ok":false,"sospesa":true,"attendi":0}'::jsonb`, 'una famiglia sospesa entra')}
+`, FAMIGLIE);
+
+// Genitori nuovi che si iscrivono: P1 e P2 senza mail confermata, P3 e P4 confermati.
+const P = [1, 2, 3, 4].map((i) => `77777777-7777-4777-8777-77777777777${i}`);
+const VERSIONI = `'{"privacy":"2026-11-19","condizioni":"2026-11-19","dati_figlio":"2026-11-19"}'::jsonb`;
+const iscrivi = (gen, codice) => `iscrivi_famiglia('${gen}', 'Nome', 'Cognome', '${codice}', ${VERSIONI})`;
+const esitoIscrizione = (gen, codice, atteso, messaggio) =>
+  verifica(`${iscrivi(gen, codice)} ->> ${atteso === 'ok' ? `'ok' = 'true'` : `'errore' = '${atteso}'`}`, messaggio);
+const ISCRIZIONI = `
+  ${BASE};
+  insert into auth.users (id, email, email_confirmed_at) values
+    ('${P[0]}', 'p1@test.invalid', null), ('${P[1]}', 'p2@test.invalid', null),
+    ('${P[2]}', 'p3@test.invalid', now()), ('${P[3]}', 'p4@test.invalid', now());
+  insert into public.inviti (codice, titolare_id) values ('bbbbbbbb', '${GEN_B}');
+  insert into public.inviti (codice, titolare_id, prova) values ('dddddddd', '${GENITORE}', true);
+  update public.impostazioni set posti_esterni = 2;`;
+
+prova('iscrizione: tetto dei posti, codici, prova monouso, consensi, chi ha invitato chi', `
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 1`, 'la famiglia B (esterna, confermata) non occupa un posto')}
+  ${verifica(`stato_invito('bbbbbbbb') = '{"valido":true,"prova":false,"posti_liberi":true}'::jsonb`, 'stato di un invito valido sbagliato')}
+  ${verifica(`stato_invito('zzzzzzzz') = '{"valido":false}'::jsonb`, 'un codice inesistente è valido')}
+  ${esitoIscrizione(P[0], ' BBBBBBBB ', 'ok', 'P1 non si iscrive con un codice valido (spazi e maiuscole)')}
+  ${verifica(`posti_occupati() = 2`, "un'iscrizione non confermata di oggi non occupa un posto")}
+  ${esitoIscrizione(P[1], 'aaaaaaaa', 'posti_esauriti', 'la terza famiglia supera il tetto di 2')}
+  ${verifica(`(stato_invito('aaaaaaaa') ->> 'posti_liberi')::boolean = false`, 'stato_invito non vede i posti pieni')}
+  ${esitoIscrizione(P[1], 'zzzzzzzz', 'invito_non_valido', 'un codice inesistente iscrive')}
+  -- passano 25 ore senza conferma: il posto resta contato finché la pulizia (alla prossima iscrizione) non cancella P1
+  ${BASE}; update public.famiglie set creato = now() - interval '25 hours' where genitore_id = '${P[0]}';
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 2`, 'il tetto non conta tutte le famiglie esterne attive non di prova')}
+  ${esitoIscrizione(P[1], 'aaaaaaaa', 'ok', 'P2 non entra quando il posto di un iscritto mai confermato si libera')}
+  ${BASE};
+  ${verifica(`(select count(*) from auth.users where id = '${P[0]}') = 0 and (select count(*) from public.famiglie where genitore_id = '${P[0]}') = 0`,
+    "l'iscrizione mai confermata non è stata cancellata (utente e famiglia)")}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 2`, 'dopo la pulizia i posti non sono B e P2')}
+  ${verifica(`(select invitata_da = '${GENITORE}' and esterna and not prova and limite_aiuti = 10 and limite_chiamate = 60
+                 and codice_invito_usato = 'aaaaaaaa' from famiglie where genitore_id = '${P[1]}')`, 'la famiglia di P2 ha valori sbagliati')}
+  ${verifica(`(select count(*) from consensi where genitore_id = '${P[1]}' and versione = '2026-11-19') = 3`, 'i tre consensi non sono registrati con la versione')}
+  ${esitoIscrizione(P[2], 'dddddddd', 'ok', 'il codice di prova non iscrive a posti pieni')}
+  ${verifica(`(select prova from famiglie where genitore_id = '${P[2]}') and posti_occupati() = 2`, 'la famiglia di prova occupa un posto o non è segnata')}
+  ${esitoIscrizione(P[3], 'dddddddd', 'invito_non_valido', 'il codice di prova vale due volte')}
+  -- sospendere una famiglia libera il posto
+  ${BASE}; update public.famiglie set stato = 'sospesa' where id = '${FAM_B}';
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 1`, 'una famiglia sospesa occupa un posto')}
+`, FAMIGLIE + ISCRIZIONI);
+
+prova("iscrizione non confermata: entro 24 ore si conferma, dopo è rifiutata e la pulizia libera il posto", `
+  ${BASE}; update public.impostazioni set posti_esterni = 3;
+  ${comeServizio}
+  ${esitoIscrizione(P[0], 'bbbbbbbb', 'ok', 'P1 non si iscrive')}
+  ${esitoIscrizione(P[1], 'aaaaaaaa', 'ok', 'P2 non si iscrive')}
+  ${verifica(`posti_occupati() = 3`, 'le iscrizioni non confermate di oggi non occupano un posto')}
+  ${esitoIscrizione(P[2], 'dddddddd', 'ok', 'il codice di prova non entra a posti pieni')}
+  ${BASE};
+  update auth.users set email_confirmed_at = now() where id = '${P[0]}';
+  ${verifica(`(select email_confirmed_at is not null from auth.users where id = '${P[0]}')`, 'entro 24 ore la conferma non riesce')}
+  update public.famiglie set creato = now() - interval '25 hours' where genitore_id = '${P[1]}';
+  ${vieta(`update auth.users set email_confirmed_at = now() where id = '${P[1]}'`, 'raise_exception', 'dopo 24 ore la conferma riesce ancora')}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 3`, 'prima della pulizia il posto di P2 non è più contato')}
+  ${verifica(`(stato_invito('bbbbbbbb') ->> 'posti_liberi')::boolean`, 'controllare un invito non libera il posto di chi non ha confermato')}
+  ${BASE};
+  ${verifica(`(select count(*) from auth.users where id = '${P[1]}') = 0`, "l'utente non confermato non è stato cancellato")}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 2`, 'la pulizia non libera il posto')}
+  ${verifica(`pulisci_iscrizioni() = 0`, 'la pulizia cancella anche chi ha confermato o è di prova')}
+  ${verifica(`(select count(*) from famiglie where genitore_id in ('${P[0]}', '${P[2]}')) = 2`, 'la pulizia ha toccato famiglie confermate o di prova')}
+`, FAMIGLIE + ISCRIZIONI);
+
+prova('prenota_chiamata: tetto atomico della famiglia, sospensione, limiti senza famiglia', `
+  ${BASE}; update public.famiglie set limite_chiamate = 2 where id = '${FAM_B}';
+  ${comeServizio}
+  ${verifica(`prenota_chiamata('${CARLO}', current_date, 'smista') ->> 'ok' = 'true'`, 'prima chiamata rifiutata')}
+  ${verifica(`prenota_chiamata('${CARLO}', current_date, 'smista') ->> 'ok' = 'true'`, 'seconda chiamata rifiutata')}
+  ${verifica(`prenota_chiamata('${CARLO}', current_date, 'smista') = '{"ok":false,"errore":"tetto_giornaliero","tetto":2}'::jsonb`,
+    'la terza chiamata supera il tetto di 2 (le righe prenotate non contano)')}
+  ${verifica(`prenota_chiamata('${CARLO}', current_date + 1, 'smista') ->> 'ok' = 'true'`, 'il tetto di ieri vale anche oggi')}
+  ${verifica(`(prenota_chiamata('${DORA}', current_date, 'smista') ->> 'limite_aiuti')::int = 10`, 'Dora non ha il limite di aiuti della famiglia')}
+  ${verifica(`(select prenota_chiamata('${ANNA}', current_date, 'x') @> '{"ok":true,"limite_aiuti":30,"tetto":150}'::jsonb)`, 'Anna (famiglia esistente) non ha 30 e 150')}
+  ${verifica(`(select prenota_chiamata('${BEA}', current_date, 'x') @> '{"ok":true,"limite_aiuti":10,"tetto":60}'::jsonb)`, 'senza famiglia non valgono 10 e 60')}
+  ${BASE}; update public.famiglie set stato = 'sospesa' where id = '${FAM_B}';
+  ${comeServizio}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') = '{"ok":false,"errore":"famiglia_sospesa"}'::jsonb`, 'una famiglia sospesa chiama il modello')}
+`, FAMIGLIE);
+
+prova('tetto della famiglia: eliminare e ricreare un figlio non azzera le chiamate di oggi, e il costo resta per l\'admin', `
+  ${BASE};
+  update public.famiglie set limite_chiamate = 2 where id = '${FAM_B}';
+  insert into public.consumi (studente_id, giorno, azione, modello, costo) values
+    ('${CARLO}', current_date, 'smista', 'claude-haiku-5-5', 0.001), ('${CARLO}', current_date, 'smista', 'claude-haiku-5-5', 0.002);
+  ${comeServizio}
+  select archivia_consumi('${CARLO}');
+  ${BASE};
+  ${verifica(`(select chiamate = 2 and costo = 0.003 from public.consumi_archiviati where famiglia_id = '${FAM_B}' and giorno = current_date)`,
+    'il consumo del figlio non è stato archiviato per la famiglia')}
+  ${verifica(`(select count(*) from public.consumi where studente_id = '${CARLO}') = 0`, 'archiviare non toglie le righe vive (si conterebbero due volte)')}
+  ${comeServizio}
+  ${verifica(`archivia_consumi('${CARLO}') = 0`, 'ripetere l\'archiviazione archivia due volte')}
+  ${BASE};
+  delete from auth.users where id = '${CARLO}';
+  insert into public.consumi_archiviati (famiglia_id, giorno, chiamate, costo) values ('${FAM_B}', current_date, 5, 0);
+  ${comeServizio}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') ->> 'ok' = 'true'`, 'Dora non può chiamare con la famiglia a 7 su 8')}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') = '{"ok":false,"errore":"tetto_giornaliero","tetto":8}'::jsonb`,
+    'la famiglia supera il suo tetto (limite per figlio × 4) eliminando e ricreando i figli')}
+  ${verifica(`prenota_chiamata('${DORA}', current_date + 1, 'smista') ->> 'ok' = 'true'`, 'il tetto della famiglia vale anche il giorno dopo')}
+  ${come(GEN_B)}
+  ${vieta(`perform * from consumi_archiviati`, 'insufficient_privilege', 'il genitore legge l\'archivio dei consumi')}
+`, FAMIGLIE);
+
+prova('storage: solo chi studia carica foto, mai i genitori', `
+  ${come(GEN_B)}
+  ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${GEN_B}/file.jpg')`, 'insufficient_privilege', 'il genitore carica un file nella sua cartella')}
+  ${come(CARLO)}
+  insert into storage.objects (bucket_id, name) values ('fonti', '${CARLO}/${ARG_C}/p1.jpg');
+  ${verifica(`(select count(*) from storage.objects where name like '${CARLO}/%') = 1`, 'Carlo non carica le sue foto')}
+  ${BASE}; delete from public.studenti where id = '${DORA}';
+  ${come(DORA)}
+  ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${DORA}/x/p.jpg')`, 'insufficient_privilege', 'un profilo eliminato (token ancora valido) carica foto')}
+`, FAMIGLIE);
+
+prova('cancellazioni: consumi via col figlio, genitore con figli non si cancella, invitata_da si svuota', `
+  ${BASE};
+  insert into public.consumi (studente_id, giorno, azione, modello) values ('${CARLO}', current_date, 'x', 'y');
+  insert into auth.users (id, email) values ('${P[0]}', 'p1@test.invalid');
+  insert into public.famiglie (genitore_id, esterna, invitata_da) values ('${P[0]}', true, '${GEN_B}');
+  delete from auth.users where id = '${CARLO}';
+  ${verifica(`(select count(*) from public.consumi where studente_id = '${CARLO}') = 0`, 'i consumi di Carlo restano dopo la cancellazione')}
+  ${vieta(`delete from auth.users where id = '${GEN_B}'`, 'foreign_key_violation', 'si cancella il genitore di una famiglia che ha ancora Dora')}
+  ${verifica(`(select count(*) from public.studenti where id = '${DORA}') = 1`, 'Dora è sparita')}
+  delete from auth.users where id = '${DORA}';
+  delete from auth.users where id = '${GEN_B}';
+  ${verifica(`(select invitata_da is null from public.famiglie where genitore_id = '${P[0]}')`, "invitata_da punta a un utente cancellato")}
+  ${verifica(`(select count(*) from public.famiglie where genitore_id = '${GEN_B}') = 0`, 'la famiglia di B resta senza genitore')}
+`, FAMIGLIE);

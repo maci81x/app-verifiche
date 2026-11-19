@@ -16,9 +16,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap">
-<link rel="stylesheet" href="style.css?v=34">
+<link rel="stylesheet" href="style.css?v=35">
 </head>
 <body>
+<div class="banner-sola" id="banner-sola" role="status" hidden>Stai guardando il profilo di <b id="sola-nome"></b>. Sola lettura: qui vedi solo quello che è salvato online. <button type="button" class="link" id="btn-sola-esci">Esci</button></div>
 <div class="wrap">
 
 <!-- Intestazione (issue #26): freccia indietro, titolo della schermata e segno della materia. -->
@@ -41,7 +42,11 @@
   </header>
   <div class="nomi" id="scelta-profilo"></div>
   <div id="err-profili"></div>
-  <p class="piede"><button type="button" class="link" id="btn-impostazioni">Impostazioni</button></p>
+  <div class="bottoni bottoni-accesso">
+    <button type="button" class="azione" id="btn-entra-nome">Entra con il nome utente</button>
+    <button type="button" class="minore" id="btn-iscriviti">Iscriviti come genitore</button>
+  </div>
+  <p class="piede"><button type="button" class="link" id="btn-impostazioni">Sono un genitore</button> · <a class="link" href="privacy.html">Privacy</a></p>
 </section>
 
 <!-- ============ CODICE ============ -->
@@ -49,6 +54,8 @@
   <div class="codice">
     <span class="iniziale grande" id="cod-iniziale"></span>
     <h2 id="cod-nome"></h2>
+    <label class="etichetta" for="cod-utente">Nome utente</label>
+    <input type="text" id="cod-utente" class="cod-utente" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="per esempio anna-k7m">
     <p class="aiuto" id="cod-aiuto">Scrivi il tuo codice</p>
     <div class="pallini" id="cod-pallini" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <p class="cod-msg" id="cod-msg" aria-live="assertive"></p>
@@ -74,17 +81,20 @@
   </div>
   <div id="imp-pannello" hidden>
     <h3 class="sez-titolo">Profili</h3>
-    <p class="aiuto">Da qualsiasi telefono si entra toccando il proprio nome e scrivendo il codice.</p>
+    <p class="aiuto">Da qualsiasi telefono si entra con il nome utente e il codice.</p>
     <div id="imp-profili"></div>
-    <p class="occhiello">Nuovo profilo</p>
+    <p class="occhiello">Aggiungi un figlio</p>
     <div class="riga-campi">
       <div><label class="etichetta" for="np-nome">Nome *</label><input type="text" id="np-nome" autocomplete="off"></div>
-      <div><label class="etichetta" for="np-classe">Classe</label><input type="text" id="np-classe" placeholder="2ª media" autocomplete="off"></div>
+      <div><label class="etichetta" for="np-cognome">Cognome</label><input type="text" id="np-cognome" autocomplete="off"></div>
+      <div><label class="etichetta" for="np-classe">Classe</label><select id="np-classe"><option value="">—</option><option value="1">1ª media</option><option value="2">2ª media</option><option value="3">3ª media</option></select></div>
       <div><label class="etichetta" for="np-codice">Codice a 4 cifre *</label><input type="password" id="np-codice" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off"></div>
     </div>
     <div class="bottoni">
       <button class="azione" id="btn-np-crea">Crea il profilo</button>
     </div>
+    <h3 class="sez-titolo">Famiglia</h3>
+    <div id="imp-famiglia"></div>
     <h3 class="sez-titolo">Dati</h3>
     <p class="aiuto" id="imp-dati-vuoto">Apri un profilo su questo telefono per cancellarne gli argomenti.</p>
     <div id="imp-svuota" hidden>
@@ -92,11 +102,42 @@
       <div class="bottoni"><button class="minore pericolo" id="btn-svuota" hidden>Cancella tutti gli argomenti</button></div>
     </div>
     <h3 class="sez-titolo">Notizie sull'app</h3>
-    <p class="aiuto" id="imp-notizie">10+ versione 34. Novità: le foto si caricano più in fretta e vedi quale è già letta; i problemi gemelli escono di nuovo tutti e tre; ogni azione usa il modello più adatto e il genitore vede le richieste di oggi; il diario di ogni giorno con le date delle verifiche, il piano dei 10 minuti e la settimana, il ripasso guidato, le 5 cose da sapere, il racconto in 2 minuti, le schede da ascoltare con i video, la linea del tempo, i vocaboli e gli schemi da completare.</p>
+    <p class="aiuto" id="imp-notizie">10+ versione 35. Novità: si entra con il nome utente, il telefono ricorda solo i profili entrati da lì; il genitore guarda il profilo del figlio in sola lettura, invita altre famiglie con un link o un QR e scarica i dati. Prima: le foto si caricano più in fretta e vedi quale è già letta; i problemi gemelli escono di nuovo tutti e tre; ogni azione usa il modello più adatto e il genitore vede le richieste di oggi; il diario di ogni giorno con le date delle verifiche, il piano dei 10 minuti e la settimana, il ripasso guidato, le 5 cose da sapere, il racconto in 2 minuti, le schede da ascoltare con i video, la linea del tempo, i vocaboli e gli schemi da completare.</p>
     <div class="bottoni"><button class="minore" id="btn-gen-esci">Ho finito</button></div>
   </div>
   <div id="err-imp"></div>
   <div id="stato-imp"></div>
+</section>
+
+<!-- ============ ISCRIZIONE DEL GENITORE (issue #30) ============ -->
+<section id="v-iscrizione" hidden>
+  <h2>Iscriviti come genitore</h2>
+  <div id="isc-passo-codice">
+    <p class="aiuto">Per ora 10+ è solo su invito. Scrivi il codice che trovi nel link o sotto il QR.</p>
+    <label class="etichetta" for="isc-codice">Codice d'invito</label>
+    <input type="text" id="isc-codice" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="bottoni"><button type="button" class="azione" id="btn-isc-codice">Continua</button></div>
+  </div>
+  <div id="isc-modulo" hidden>
+    <div class="riga-campi">
+      <div><label class="etichetta" for="isc-nome">Nome *</label><input type="text" id="isc-nome" autocomplete="given-name"></div>
+      <div><label class="etichetta" for="isc-cognome">Cognome *</label><input type="text" id="isc-cognome" autocomplete="family-name"></div>
+    </div>
+    <label class="etichetta" for="isc-email">Email *</label>
+    <input type="email" id="isc-email" autocomplete="email" autocapitalize="off">
+    <label class="etichetta" for="isc-password">Password * (almeno 10 caratteri)</label>
+    <input type="password" id="isc-password" autocomplete="new-password" minlength="10">
+    <label class="spunta"><input type="checkbox" id="isc-privacy"> Ho letto l'<a href="privacy.html" target="_blank" rel="noopener">informativa privacy</a></label>
+    <label class="spunta"><input type="checkbox" id="isc-condizioni"> Accetto le <a href="condizioni.html" target="_blank" rel="noopener">condizioni d'uso</a></label>
+    <label class="spunta"><input type="checkbox" id="isc-dati"> Come genitore, do il consenso al trattamento dei dati di mio figlio o mia figlia per usare 10+</label>
+    <p class="aiuto">Le spiegazioni di 10+ le scrive un'intelligenza artificiale: possono contenere errori.</p>
+    <div class="bottoni"><button type="button" class="azione" id="btn-isc-invia">Iscriviti</button></div>
+  </div>
+  <div id="isc-fatto" hidden>
+    <p class="aiuto" id="isc-fatto-testo"></p>
+    <div class="bottoni"><button type="button" class="azione" id="btn-isc-entra">Entra come genitore</button></div>
+  </div>
+  <div id="err-isc"></div>
 </section>
 
 <!-- ============ OGGI (ex libreria) ============ -->
@@ -763,29 +804,30 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
-<script src="semaforo.js?v=34"></script>
-<script src="app.js?v=34"></script>
-<script src="libreria.js?v=34"></script>
-<script src="stampa.js?v=34"></script>
-<script src="aiuto.js?v=34"></script>
-<script src="mappa-card.js?v=34"></script>
-<script src="figure.js?v=34"></script>
-<script src="formule.js?v=34"></script>
-<script src="esercizi.js?v=34"></script>
-<script src="prova-esercizi.js?v=34"></script>
-<script src="compito.js?v=34"></script>
-<script src="classe-app.js?v=34"></script>
-<script src="poesia.js?v=34"></script>
-<script src="invalsi.js?v=34"></script>
-<script src="esempi.js?v=34"></script>
-<script src="esame.js?v=34"></script>
-<script src="italia-mappa.js?v=34"></script>
-<script src="geografia.js?v=34"></script>
-<script src="lezione.js?v=34"></script>
-<script src="diario.js?v=34"></script>
-<script src="piano.js?v=34"></script>
-<script src="ripasso.js?v=34"></script>
-<script src="studio.js?v=34"></script>
-<script src="strumenti.js?v=34"></script>
+<script src="semaforo.js?v=35"></script>
+<script src="app.js?v=35"></script>
+<script src="libreria.js?v=35"></script>
+<script src="stampa.js?v=35"></script>
+<script src="aiuto.js?v=35"></script>
+<script src="mappa-card.js?v=35"></script>
+<script src="figure.js?v=35"></script>
+<script src="formule.js?v=35"></script>
+<script src="esercizi.js?v=35"></script>
+<script src="prova-esercizi.js?v=35"></script>
+<script src="compito.js?v=35"></script>
+<script src="classe-app.js?v=35"></script>
+<script src="poesia.js?v=35"></script>
+<script src="invalsi.js?v=35"></script>
+<script src="esempi.js?v=35"></script>
+<script src="esame.js?v=35"></script>
+<script src="italia-mappa.js?v=35"></script>
+<script src="geografia.js?v=35"></script>
+<script src="lezione.js?v=35"></script>
+<script src="diario.js?v=35"></script>
+<script src="piano.js?v=35"></script>
+<script src="ripasso.js?v=35"></script>
+<script src="studio.js?v=35"></script>
+<script src="strumenti.js?v=35"></script>
+<script src="famiglia.js?v=35"></script>
 </body>
 </html>

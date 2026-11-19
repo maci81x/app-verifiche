@@ -26,8 +26,14 @@ test("risposta sbagliata: fallisce con il motivo, senza il corpo della risposta"
 });
 
 test("i controlli sono accedi, modello e profili, con limiti di tempo", () => {
-  assert.deepEqual(CONTROLLI.map((c) => c.nome), ["sito", "accedi (elenco dei profili)", "modello (smistamento, senza aiuti)", "profili (consumo, genitore di prova)"]);
+  assert.deepEqual(CONTROLLI.map((c) => c.nome), ["sito", "accedi (nome utente inesistente)", "modello (smistamento, senza aiuti)", "profili (consumo, genitore di prova)"]);
   for (const c of CONTROLLI) assert.ok(c.limite > 0 && c.limite <= 90_000, c.nome);
+});
+
+test("accedi si controlla senza l'elenco dei profili, che non esiste più (issue #30)", () => {
+  const codice = readFileSync(new URL("../scripts/sentinella.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(codice, /azione: "elenco"/);
+  assert.match(codice, /azione: "entra"/);
 });
 
 test("niente credenziali nel codice né nel workflow: solo i Secrets del repo", () => {

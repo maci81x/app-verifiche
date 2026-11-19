@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 // semaforo.js prima di app.js, libreria.js dopo (disegno dei profili), come in index.html.
-const SORGENTE = ["semaforo.js", "app.js", "libreria.js"].map((f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n;\n");
+const SORGENTE = ["semaforo.js", "app.js", "libreria.js", "famiglia.js"].map((f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n;\n");
 
 // Quel tanto di DOM che usano le schermate di accesso.
 function elemento(tag = "div") {
@@ -75,36 +75,37 @@ function ambiente(rispostaServer) {
   return { run: (e) => vm.runInContext(e, ctx), el: document.getElementById, chiamate, memoria, sessioni };
 }
 
-const ELENCO = [{ id: "id-ada", nome: "Ada", classe: "3ª media" }, { id: "id-leo", nome: "Leo", classe: "1ª media" }];
+// Dalla #30 non c'è più l'elenco dal server: il telefono mostra solo i profili entrati da qui (con una sessione salvata).
+const SALVATI = [
+  { id: "id-ada", nome: "Ada", classe: "3", nome_utente: "ada-k7m", chiave: "sb-verifiche-id-ada" },
+  { id: "id-leo", nome: "Leo", classe: "1", chiave: "sb-verifiche-id-leo" }, // voce della v34: senza nome utente
+  { id: "id-zoe", nome: "Zoe", classe: "2", chiave: "sb-verifiche-id-zoe" },  // senza sessione su questo telefono
+];
+function conSalvati(a) {
+  a.memoria["verifiche-profili"] = JSON.stringify(SALVATI);
+  a.memoria["sb-verifiche-id-ada"] = "{}";
+  a.memoria["sb-verifiche-id-leo"] = "{}";
+  return a;
+}
 
-test("Profilo: i nomi arrivano dal server anche su un telefono mai usato", async () => {
-  const a = ambiente(() => ({ status: 200, dati: ELENCO }));
+test("Profilo: niente elenco dal server, solo i profili entrati da questo telefono", async () => {
+  const a = conSalvati(ambiente(() => ({ status: 500, dati: null })));
   await a.run("caricaProfili()");
-  assert.equal(a.chiamate.length, 1);
-  assert.match(a.chiamate[0].url, /\/functions\/v1\/accedi$/);
-  assert.deepEqual(a.chiamate[0].corpo, { azione: "elenco" });
-  assert.equal(a.chiamate[0].headers.authorization, undefined, "l'elenco non deve chiedere una sessione");
+  assert.equal(a.chiamate.length, 0, "nessuna chiamata: l'elenco delle altre famiglie non si chiede mai");
   const box = a.el("scelta-profilo");
   assert.equal(box.children.length, 2);
-  assert.match(box.testo(), /Ada.*3ª media.*Leo/s);
-  assert.doesNotMatch(box.testo(), /Nessun profilo su questo telefono/);
-  assert.equal(a.el("err-profili").innerHTML, "");
-  assert.equal(JSON.parse(a.memoria["verifiche-profili"]).length, 2, "la copia locale non è stata aggiornata");
+  assert.match(box.testo(), /Ada.*Leo/s);
+  assert.doesNotMatch(box.testo(), /Zoe/);
+  const copia = JSON.parse(a.memoria["verifiche-profili"]);
+  assert.deepEqual(copia.map((p) => p.id), ["id-ada", "id-leo"], "la copia locale tiene solo i profili con sessione");
+  assert.equal(copia[1].nome_utente, "leo", "la voce della v34 prende il nome in minuscolo come nome utente");
 });
 
-test("Profilo: senza rete resta la copia locale e compare un messaggio chiaro", async () => {
-  const a = ambiente(() => new Error("offline"));
-  a.memoria["verifiche-profili"] = JSON.stringify([{ id: "id-ada", nome: "Ada", classe: "", chiave: "sb-verifiche-id-ada" }]);
-  await a.run("caricaProfili()");
-  assert.equal(a.el("scelta-profilo").children.length, 1);
-  assert.match(a.el("err-profili").innerHTML, /Non riesco a caricare i profili: controlla la connessione/);
-});
-
-test("Profilo: elenco vuoto dal server → messaggio per il genitore", async () => {
-  const a = ambiente(() => ({ status: 200, dati: [] }));
+test("Profilo: telefono nuovo → invito a entrare con il nome utente", async () => {
+  const a = ambiente(() => ({ status: 500, dati: null }));
   await a.run("caricaProfili()");
   assert.equal(a.el("scelta-profilo").children.length, 0);
-  assert.match(a.el("err-profili").innerHTML, /nessun profilo/i);
+  assert.match(a.el("err-profili").innerHTML, /nome utente/);
 });
 
 async function digita(a, codice) {
@@ -113,47 +114,75 @@ async function digita(a, codice) {
   await new Promise((r) => setTimeout(r, 0));
 }
 
-test("Codice: con risposta attendi il tastierino si blocca e il messaggio mostra i secondi", async () => {
-  const a = ambiente((c) => (c.azione === "elenco" ? { status: 200, dati: ELENCO } : { status: 401, dati: { ok: false, attendi: 60 } }));
+test("Codice: il profilo salvato ha il nome utente già scritto; con risposta attendi il tastierino si blocca", async () => {
+  const a = conSalvati(ambiente(() => ({ status: 401, dati: { ok: false, attendi: 60 } })));
   await a.run("caricaProfili()");
   a.el("scelta-profilo").children[1].onclick(); // Leo
+  assert.equal(a.el("cod-utente").value, "leo");
   await digita(a, "1234");
-  assert.deepEqual(a.chiamate[1].corpo, { azione: "entra", studente_id: "id-leo", pin: "1234" });
+  assert.deepEqual(a.chiamate[0].corpo, { azione: "entra", nome_utente: "leo", pin: "1234" });
   assert.equal(a.el("tastierino").getAttribute("aria-disabled"), "true");
   assert.equal(a.el("cod-msg").textContent, "Troppi tentativi. Riprova fra 60 secondi.");
   await digita(a, "5678"); // durante l'attesa i tasti non partono
-  assert.equal(a.chiamate.length, 2);
+  assert.equal(a.chiamate.length, 1);
   a.run("clearInterval(timerBlocco)");
 });
 
-test("Codice: codice sbagliato → messaggio, nessuna sessione", async () => {
-  const a = ambiente((c) => (c.azione === "elenco" ? { status: 200, dati: ELENCO } : { status: 401, dati: { ok: false, attendi: 0 } }));
+test("Codice: sbagliato su un profilo salvato → messaggio che ricorda il nome utente nuovo, nessuna sessione", async () => {
+  const a = conSalvati(ambiente(() => ({ status: 401, dati: { ok: false, attendi: 0 } })));
   await a.run("caricaProfili()");
   a.el("scelta-profilo").children[0].onclick();
   await digita(a, "0000");
-  assert.equal(a.el("cod-msg").textContent, "Non è il codice giusto. Riprova.");
+  assert.match(a.el("cod-msg").textContent, /^Non è il codice giusto\. Riprova\..*nome utente nuovo/);
   assert.equal(a.el("tastierino").getAttribute("aria-disabled"), "false");
   assert.equal(a.sessioni.length, 0);
   a.run("clearInterval(timerBlocco)");
 });
 
-test("Codice: giusto → sessione dal server nel profilo scelto, ricordato come ultimo", async () => {
-  const a = ambiente((c) => (c.azione === "elenco"
-    ? { status: 200, dati: ELENCO }
-    : { status: 200, dati: { ok: true, access_token: "AT", refresh_token: "RT", nome: "Leo", classe: "1ª media" } }));
+test("Codice: entrare con il nome utente scritto a mano salva il profilo su questo telefono", async () => {
+  const a = ambiente(() => ({ status: 200, dati: { ok: true, access_token: "AT", refresh_token: "RT", id: "id-bea", nome: "Bea", classe: "2", nome_utente: "bea-x2z" } }));
+  await a.run("caricaProfili()");
+  a.run("apriCodice(null)");
+  assert.equal(a.el("cod-utente").value, "");
+  await digita(a, "1111");
+  assert.equal(a.chiamate.length, 0, "senza nome utente non parte niente");
+  assert.match(a.el("cod-msg").textContent, /nome utente/);
+  a.el("cod-utente").value = "  Bea-X2Z ";
+  await digita(a, "2468");
+  assert.deepEqual(a.chiamate[0].corpo, { azione: "entra", nome_utente: "bea-x2z", pin: "2468" });
+  assert.equal(JSON.stringify(a.sessioni), JSON.stringify([{ access_token: "AT", refresh_token: "RT" }]));
+  assert.equal(a.run("profilo && profilo.id"), "id-bea");
+  assert.deepEqual(JSON.parse(a.memoria["verifiche-profili"]).map((p) => [p.id, p.nome_utente]), [["id-bea", "bea-x2z"]]);
+  assert.equal(JSON.parse(a.memoria["verifiche-ultimo"]), "id-bea");
+  assert.equal(a.el("v-libreria").hidden, false);
+});
+
+test("Codice: un nome utente nuovo sostituisce quello salvato del profilo", async () => {
+  const a = conSalvati(ambiente(() => ({ status: 200, dati: { ok: true, access_token: "AT", refresh_token: "RT", id: "id-leo", nome: "Leo", classe: "1", nome_utente: "leo-n3w" } })));
   await a.run("caricaProfili()");
   a.el("scelta-profilo").children[1].onclick();
+  a.el("cod-utente").value = "leo-n3w";
   await digita(a, "2468");
-  assert.equal(JSON.stringify(a.sessioni), JSON.stringify([{ access_token: "AT", refresh_token: "RT" }]));
-  assert.equal(a.run("profilo && profilo.id"), "id-leo");
-  assert.equal(JSON.parse(a.memoria["verifiche-ultimo"]), "id-leo");
-  assert.equal(a.el("v-libreria").hidden, false);
+  const copia = JSON.parse(a.memoria["verifiche-profili"]);
+  assert.equal(copia.filter((p) => p.id === "id-leo").length, 1);
+  assert.equal(copia.find((p) => p.id === "id-leo").nome_utente, "leo-n3w");
+});
+
+test("Codice: famiglia sospesa → messaggio, nessuna sessione", async () => {
+  const a = conSalvati(ambiente(() => ({ status: 403, dati: { errore: "famiglia_sospesa" } })));
+  await a.run("caricaProfili()");
+  a.el("scelta-profilo").children[0].onclick();
+  await digita(a, "2468");
+  assert.equal(a.el("cod-msg").textContent, "Il profilo è in pausa. Chiedi al tuo genitore.");
+  assert.equal(a.sessioni.length, 0);
+  a.run("clearInterval(timerBlocco)");
 });
 
 test("Elimina profilo (issue #14): chiama il server e toglie nome, sessione e conteggio salvati sul telefono", async () => {
   const amb = ambiente(async (corpo) => (corpo.azione === "elimina" ? { status: 200, dati: { ok: true, foto: 2, resti: {} } } : { status: 200, dati: [] }));
   amb.memoria["verifiche-profili"] = JSON.stringify([{ id: "s1", nome: "Prova" }, { id: "s2", nome: "Ada" }]);
   amb.memoria["sb-verifiche-s1"] = "sessione";
+  amb.memoria["sb-verifiche-s2"] = "sessione"; // Ada è entrata da questo telefono: resta
   amb.memoria["verifiche-ripassare-s1"] = "3";
   amb.memoria["verifiche-ultimo"] = JSON.stringify("s1");
   amb.run(`genitore = { auth: { getSession: async () => ({ data: { session: { access_token: "t" } } }) },

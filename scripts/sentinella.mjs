@@ -1,4 +1,4 @@
-// Avviso guasti: chiamate di prova a modello, accedi e profili con i profili di prova, ogni mattina dal
+// Avviso guasti: chiamate di prova a modello, accedi (nome utente inesistente) e profili con i profili di prova, ogni mattina dal
 // workflow «Controllo mattutino». Se un controllo fallisce o supera il suo tempo, lo script esce con 1, il
 // workflow fallisce e GitHub manda la mail. Le credenziali arrivano dai Secrets del repo (variabili
 // d'ambiente) e nei log si scrivono solo nome del controllo, esito e tempo.
@@ -42,10 +42,15 @@ export const CONTROLLI = [
     if (!r.ok || !html.includes("<title>10+</title>")) throw new Error("stato " + r.status);
     return "pagina pubblicata";
   } },
-  { nome: "accedi (elenco dei profili)", limite: 20_000, fn: async () => {
-    const elenco = await chiama(env("SUPABASE_URL") + "/functions/v1/accedi", { azione: "elenco" });
-    if (!Array.isArray(elenco) || !elenco.length) throw new Error("elenco vuoto o non valido");
-    return elenco.length + " profili";
+  // Dalla #30 non c'è più l'elenco dei profili: un nome utente che non esiste deve ricevere 401 con l'attesa (0),
+  // cioè funzione, database e accesso_con_nome rispondono. Un nome inesistente non blocca nessun profilo.
+  { nome: "accedi (nome utente inesistente)", limite: 20_000, fn: async () => {
+    const r = await fetch(env("SUPABASE_URL") + "/functions/v1/accedi", { method: "POST",
+      headers: { apikey: env("SUPABASE_PUBLISHABLE_KEY"), authorization: "Bearer " + env("SUPABASE_PUBLISHABLE_KEY"), "content-type": "application/json" },
+      body: JSON.stringify({ azione: "entra", nome_utente: "sentinella-nessuno", pin: "0000" }) });
+    const dati = await r.json().catch(() => null);
+    if (r.status !== 401 || dati?.ok !== false || typeof dati?.attendi !== "number") throw new Error("stato " + r.status);
+    return "risponde e non fa entrare";
   } },
   // Lo smistamento non prenota aiuti e usa il modello più economico (Haiku): circa 0,0005 $ al giorno.
   { nome: "modello (smistamento, senza aiuti)", limite: 60_000, fn: async () => {

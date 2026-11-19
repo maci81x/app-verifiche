@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>10+ · Amministrazione</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&display=swap">
+<link rel="stylesheet" href="testi.css">
+</head>
+<body>
+<main class="admin">
+  <h1>Amministrazione</h1>
+  <p class="versione">Solo per l'amministratore, con la verifica in due passaggi. Niente resta salvato su questo dispositivo.</p>
+
+  <section id="a-accesso">
+    <label for="a-email">Email</label><input id="a-email" type="email" autocomplete="username" autocapitalize="off">
+    <label for="a-password">Password</label><input id="a-password" type="password" autocomplete="current-password">
+    <div class="riga"><button class="azione" id="a-entra" type="button">Entra</button></div>
+  </section>
+
+  <section id="a-totp" hidden>
+    <div id="a-nuovo" hidden>
+      <p>Prima volta: inquadra il QR con l'app di autenticazione (per esempio quella del telefono), poi scrivi il codice a 6 cifre.</p>
+      <div id="a-qr"></div>
+      <p>Se non puoi inquadrare, scrivi questa chiave nell'app: <code id="a-segreto"></code></p>
+    </div>
+    <label for="a-codice">Codice a 6 cifre</label><input id="a-codice" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+    <div class="riga"><button class="azione" id="a-verifica" type="button">Verifica</button></div>
+  </section>
+
+  <section id="a-pannello" hidden>
+    <h2>Posti per famiglie esterne</h2>
+    <p id="a-posti"></p>
+    <div class="riga"><label for="a-nuovi-posti">Tetto</label><input id="a-nuovi-posti" type="number" min="0" max="1000" style="max-width:120px"><button type="button" id="a-salva-posti">Salva</button></div>
+    <p>Il tuo link d'invito: <code id="a-invito"></code></p>
+
+    <h2>Famiglie</h2>
+    <div class="tabella"><table><thead><tr><th>Genitore</th><th>Tipo</th><th>Iscrizione</th><th>Invitata da</th><th>Limiti al giorno</th><th>Stato</th></tr></thead><tbody id="a-famiglie"></tbody></table></div>
+
+    <h2>Profili</h2>
+    <div class="tabella"><table><thead><tr><th>Nome</th><th>Nome utente</th><th>Classe</th><th>Ultimo accesso</th></tr></thead><tbody id="a-figli"></tbody></table></div>
+
+    <h2>Consumi (ultimi 30 giorni)</h2>
+    <div class="tabella"><table><thead><tr><th>Giorno</th><th>Profilo</th><th>Richieste</th><th>Costo stimato</th></tr></thead><tbody id="a-consumi"></tbody></table></div>
+
+    <h2>Contenuti di un profilo (solo per assistenza)</h2>
+    <p>Ogni apertura viene registrata: chi, quando, quale profilo, perché.</p>
+    <label for="a-profilo">Profilo</label><select id="a-profilo"></select>
+    <label for="a-motivo">Motivo</label><input id="a-motivo" maxlength="300" placeholder="per esempio: segnalazione del genitore del 19/11">
+    <div class="riga"><button type="button" id="a-apri">Apri i contenuti</button></div>
+    <pre id="a-contenuti" class="tabella"></pre>
+
+    <h2>Registro degli accessi</h2>
+    <div class="tabella"><table><thead><tr><th>Quando</th><th>Profilo</th><th>Motivo</th></tr></thead><tbody id="a-registro"></tbody></table></div>
+
+    <div class="riga"><button type="button" id="a-esci">Esci</button></div>
+  </section>
+  <p id="a-msg" role="status"></p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
+<script src="admin.js"></script>
+</body>
+</html>

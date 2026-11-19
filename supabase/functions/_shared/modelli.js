@@ -1,4 +1,4 @@
-// Quale modello per quale azione, quanto costa, quanto si è speso oggi (branch ottimizzazione).
+// Quale modello per quale azione e quanto costa (branch ottimizzazione).
 // La tabella viene dal confronto vero Opus / Sonnet / Haiku sulle stesse prove (rapporto nella issue #29):
 // per ogni azione il modello più economico che dà lo stesso risultato; nel dubbio, o se non provata, Opus.
 
@@ -55,19 +55,4 @@ export function costoUsd(modello, u = {}) {
     n(u.cache_creation_input_tokens) * p.cache_scritti + n(u.cache_read_input_tokens) * p.cache_letti) / 1e6;
 }
 
-// Tetto su tutte le chiamate al modello di un profilo in un giorno (ora di Roma), aiuti compresi.
-export const TETTO_CHIAMATE = 150;
-const CAMPI = ["chiamate", "input", "output", "cache_scritti", "cache_letti", "costo"];
-const arrotonda = (x) => Math.round(x * 1e6) / 1e6;
-
-export function consumoDelGiorno(appMetadata, giorno) {
-  const c = appMetadata?.consumo;
-  const oggi = c && c.giorno === giorno;
-  return Object.fromEntries([["giorno", giorno], ...CAMPI.map((k) => [k, oggi ? Number(c[k]) || 0 : 0])]);
-}
-export const tettoRaggiunto = (appMetadata, giorno) => consumoDelGiorno(appMetadata, giorno).chiamate >= TETTO_CHIAMATE;
-export function consumoAggiornato(appMetadata, giorno, delta) {
-  const c = consumoDelGiorno(appMetadata, giorno);
-  for (const k of CAMPI) c[k] = arrotonda(c[k] + (Number(delta[k]) || 0));
-  return c;
-}
+// Tetto delle chiamate e consumo (issue #30): nel database, funzione prenota_chiamata e tabella consumi.
