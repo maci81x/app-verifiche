@@ -630,7 +630,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
   do $t$ declare f regprocedure; r text; begin
     for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public' and p.proname in
-                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi') loop
+                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi', 'prendi_pulizia', 'lascia_pulizia') loop
       foreach r in array array['anon', 'authenticated'] loop
         if has_function_privilege(r, f, 'execute') then raise exception '% può eseguire %', r, f; end if;
       end loop;
@@ -641,7 +641,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
       raise exception 'la service role non scrive in tutte le tabelle nuove';
     end if;
     if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in
-         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi')) <> 8 then
+         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni', 'archivia_consumi', 'prendi_pulizia', 'lascia_pulizia')) <> 10 then
       raise exception 'mancano funzioni nuove';
     end if;
   end $t$;
@@ -837,4 +837,55 @@ prova('cancellazioni: consumi via col figlio, genitore con figli non si cancella
   delete from auth.users where id = '${GEN_B}';
   ${verifica(`(select invitata_da is null from public.famiglie where genitore_id = '${P[0]}')`, "invitata_da punta a un utente cancellato")}
   ${verifica(`(select count(*) from public.famiglie where genitore_id = '${GEN_B}') = 0`, 'la famiglia di B resta senza genitore')}
+`, FAMIGLIE);
+
+// ---------------------------------------------------------------- cestino (issue #35)
+prova('cestino: un figlio nel cestino non entra, non chiama il modello, non si legge e non carica foto', `
+  ${comeServizio}
+  select imposta_pin_di('${CARLO}', '1357');
+  select imposta_pin_di('${DORA}', '2468');
+  ${BASE}; update public.studenti set cestino = now() where id = '${CARLO}';
+  ${comeServizio}
+  ${verifica(`${nome('carlo-t3st', '1357')} = '{"ok":false,"sospesa":true,"attendi":0}'::jsonb`, 'un figlio nel cestino entra con il codice giusto')}
+  ${verifica(`${nome('carlo-t3st', '0000')} = '{"ok":false,"attendi":0}'::jsonb`, 'il cestino si rivela con un codice sbagliato')}
+  ${verifica(`prenota_chiamata('${CARLO}', current_date, 'smista') = '{"ok":false,"errore":"famiglia_sospesa"}'::jsonb`, 'un figlio nel cestino chiama il modello')}
+  ${verifica(`${nome('dora-t3st', '2468')} ->> 'ok' = 'true'`, 'la sorella non nel cestino non entra più')}
+  ${come(CARLO)}
+  ${verifica(`${conta('studenti')} = 0 and ${conta('argomenti')} = 0`, 'un figlio nel cestino legge ancora i suoi dati con il token già emesso')}
+  ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${CARLO}/${ARG_C}/p2.jpg')`, 'insufficient_privilege', 'un figlio nel cestino carica foto')}
+  ${come(GEN_B)}
+  ${verifica(studentiVisti([DORA]), 'il genitore vede ancora il figlio nel cestino')}
+`, FAMIGLIE);
+
+prova('cestino: una famiglia nel cestino chiude tutti i figli e libera il posto; il ripristino della famiglia non ripristina il figlio già nel cestino', `
+  ${comeServizio}
+  select imposta_pin_di('${DORA}', '2468');
+  ${verifica(`posti_occupati() = 1`, 'la famiglia B non occupa il posto prima del cestino')}
+  ${BASE};
+  update public.studenti set cestino = now() where id = '${CARLO}';
+  update public.famiglie set cestino = now() where id = '${FAM_B}';
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 0`, 'una famiglia nel cestino occupa ancora un posto')}
+  ${verifica(`${nome('dora-t3st', '2468')} = '{"ok":false,"sospesa":true,"attendi":0}'::jsonb`, 'il figlio di una famiglia nel cestino entra')}
+  ${verifica(`prenota_chiamata('${DORA}', current_date, 'smista') = '{"ok":false,"errore":"famiglia_sospesa"}'::jsonb`, 'il figlio di una famiglia nel cestino chiama il modello')}
+  ${come(GEN_B)}
+  ${verifica(`${conta('studenti')} = 0 and ${conta('argomenti')} = 0`, 'il genitore di una famiglia nel cestino legge i dati dei figli')}
+  ${BASE}; update public.famiglie set cestino = null where id = '${FAM_B}';
+  ${come(GEN_B)}
+  ${verifica(studentiVisti([DORA]), 'ripristinata la famiglia, il figlio già nel cestino torna visibile')}
+  ${come(DORA)}
+  ${verifica(`${conta('argomenti')} = 1`, 'ripristinata la famiglia, Dora non legge i suoi argomenti')}
+`, FAMIGLIE);
+
+prova('cestino: profilo_attivo per la policy delle foto (authenticated sì, anon no); lucchetto della pulizia', `
+  ${BASE};
+  do $t$ begin
+    if not has_function_privilege('authenticated', 'app.profilo_attivo(uuid)', 'execute') then raise exception 'authenticated non esegue profilo_attivo'; end if;
+    if has_function_privilege('anon', 'app.profilo_attivo(uuid)', 'execute') then raise exception 'anon esegue profilo_attivo'; end if;
+  end $t$;
+  ${comeServizio}
+  ${verifica(`prendi_pulizia(10)`, 'il primo giro di pulizia non prende il lucchetto')}
+  ${verifica(`not prendi_pulizia(10)`, 'due giri di pulizia insieme')}
+  select lascia_pulizia();
+  ${verifica(`prendi_pulizia(10)`, 'lasciato il lucchetto, il giro dopo non lo prende')}
 `, FAMIGLIE);
