@@ -69,10 +69,13 @@ def main():
 
     env = leggi_env()
     url, chiave = env["SUPABASE_URL"], env["SUPABASE_PUBLISHABLE_KEY"]
-    s, r = chiama(f"{url}/auth/v1/token?grant_type=password",
-                  {"email": env["TEST_ANNA_EMAIL"], "password": env["TEST_ANNA_PASSWORD"]}, {"apikey": chiave})
-    if s != 200:
-        sys.exit(f"Accesso non riuscito: {r}")
+    # Il figlio di prova (famiglia di prova, issue #34) entra come l'app: nome utente + codice. Mai un profilo vero.
+    # La famiglia di prova ha un tetto basso (10 richieste al giorno): per prove lunghe si alza dal pannello admin.
+    s, r = chiama(f"{url}/functions/v1/accedi",
+                  {"azione": "entra", "nome_utente": env["TEST_FIGLIO_NOME_UTENTE"], "pin": env["TEST_FIGLIO_PIN"]},
+                  {"apikey": chiave, "authorization": f"Bearer {chiave}"})
+    if s != 200 or not r.get("ok"):
+        sys.exit(f"Accesso del figlio di prova non riuscito (stato {s})")
     auth = {"apikey": chiave, "authorization": f"Bearer {r['access_token']}"}
     funzione = f"{url}/functions/v1/modello"
     t0 = time.time()
