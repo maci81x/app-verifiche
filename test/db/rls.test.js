@@ -620,11 +620,12 @@ prova("x-figlio: il genitore guarda un figlio solo; l'header non allarga mai", `
 
 prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono', `
   ${come(null)}
-  ${['famiglie', 'inviti', 'consensi', 'consumi', 'impostazioni', 'accessi_admin']
+  ${['famiglie', 'inviti', 'consensi', 'consumi', 'impostazioni', 'accessi_admin', 'consumi_archiviati', 'tentativi_nome']
     .map((t) => vieta(`perform * from ${t}`, 'insufficient_privilege', `l'anonimo legge ${t}`)).join('\n')}
   ${come(GENITORE)}
   ${vieta(`perform * from impostazioni`, 'insufficient_privilege', 'il genitore legge le impostazioni')}
   ${vieta(`perform * from accessi_admin`, 'insufficient_privilege', 'il genitore legge il registro admin')}
+  ${vieta(`perform * from tentativi_nome`, 'insufficient_privilege', 'il genitore legge i tentativi di accesso')}
   ${BASE};
   do $t$ declare f regprocedure; r text; begin
     for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -663,6 +664,8 @@ prova('accesso con nome utente: 5 errori bloccano, l\'attesa cresce fino a 24 or
   select imposta_pin_di('${CARLO}', '1357');
   ${verifica(`${nome('  Carlo-T3ST ', '1357')} = '{"ok":true,"studente_id":"${CARLO}"}'::jsonb`, 'nome utente con spazi e maiuscole non entra')}
   ${verifica(`${nome('nessuno-xyz', '1357')} = '{"ok":false,"attendi":0}'::jsonb`, 'un nome sconosciuto risponde diverso da un codice sbagliato')}
+  select ${nome('nessuno-xyz', '0000')}; select ${nome('nessuno-xyz', '0000')}; select ${nome('nessuno-xyz', '0000')};
+  ${verifica(`${nome('nessuno-xyz', '0000')} = '{"ok":false,"attendi":60}'::jsonb`, 'un nome sconosciuto non si blocca come uno vero: si capisce che non esiste')}
   ${sbaglia5}
   ${verifica(`(select errori = 4 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`, 'quattro errori non contati')}
   ${verifica(`${nome('carlo-t3st', '0000')} = '{"ok":false,"attendi":60}'::jsonb`, 'al quinto errore non scatta 1 minuto')}
@@ -677,8 +680,8 @@ prova('accesso con nome utente: 5 errori bloccano, l\'attesa cresce fino a 24 or
   ${fineBlocco('30 days')} ${quintoErrore(86400)}
   ${fineBlocco()}
   ${verifica(`${nome('carlo-t3st', '1357')} ->> 'ok' = 'true'`, 'finito il blocco il codice giusto non entra')}
-  ${verifica(`(select errori = 0 and blocchi = 8 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`,
-    'un accesso giusto non deve riportare la scala a 1 minuto (azzera solo gli errori)')}
+  ${verifica(`(select errori = 0 and blocchi = 7 and bloccato_fino is null from pin_profili where user_id = '${CARLO}')`,
+    'un accesso giusto deve scendere di un solo gradino (non riportare la scala a 1 minuto)')}
   ${quintoErrore(86400)}
   -- 7 giorni senza blocchi: la scala riparte
   ${BASE}; update public.pin_profili set bloccato_fino = now() - interval '7 days', ultimo_blocco = now() - interval '8 days' where user_id = '${CARLO}';
@@ -795,6 +798,10 @@ prova('tetto della famiglia: eliminare e ricreare un figlio non azzera le chiama
   ${BASE};
   ${verifica(`(select chiamate = 2 and costo = 0.003 from public.consumi_archiviati where famiglia_id = '${FAM_B}' and giorno = current_date)`,
     'il consumo del figlio non è stato archiviato per la famiglia')}
+  ${verifica(`(select count(*) from public.consumi where studente_id = '${CARLO}') = 0`, 'archiviare non toglie le righe vive (si conterebbero due volte)')}
+  ${comeServizio}
+  ${verifica(`archivia_consumi('${CARLO}') = 0`, 'ripetere l\'archiviazione archivia due volte')}
+  ${BASE};
   delete from auth.users where id = '${CARLO}';
   insert into public.consumi_archiviati (famiglia_id, giorno, chiamate, costo) values ('${FAM_B}', current_date, 5, 0);
   ${comeServizio}
@@ -812,6 +819,9 @@ prova('storage: solo chi studia carica foto, mai i genitori', `
   ${come(CARLO)}
   insert into storage.objects (bucket_id, name) values ('fonti', '${CARLO}/${ARG_C}/p1.jpg');
   ${verifica(`(select count(*) from storage.objects where name like '${CARLO}/%') = 1`, 'Carlo non carica le sue foto')}
+  ${BASE}; delete from public.studenti where id = '${DORA}';
+  ${come(DORA)}
+  ${vieta(`insert into storage.objects (bucket_id, name) values ('fonti', '${DORA}/x/p.jpg')`, 'insufficient_privilege', 'un profilo eliminato (token ancora valido) carica foto')}
 `, FAMIGLIE);
 
 prova('cancellazioni: consumi via col figlio, genitore con figli non si cancella, invitata_da si svuota', `

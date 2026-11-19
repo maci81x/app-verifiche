@@ -58,6 +58,7 @@ end $$;
 drop function if exists public.pulisci_iscrizioni();
 drop function if exists public.archivia_consumi(uuid);
 drop table if exists public.consumi_archiviati;
+drop table if exists public.tentativi_nome;
 
 create or replace function public.prenota_chiamata(studente uuid, oggi date, azione text) returns jsonb
 language plpgsql security definer set search_path = '' as $$

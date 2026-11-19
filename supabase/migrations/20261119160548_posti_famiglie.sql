@@ -117,17 +117,19 @@ alter table public.consumi_archiviati enable row level security;
 revoke all on public.consumi_archiviati from anon, authenticated;
 grant select, insert, update, delete on public.consumi_archiviati to service_role;
 
--- Prima di eliminare un figlio (funzione profili): le sue chiamate, sommate per giorno, passano alla famiglia.
+-- Prima di eliminare un figlio (funzione profili): nella stessa transazione toglie le sue righe di consumi e ne
+-- aggiunge la somma per giorno alla famiglia. Ripeterla non archivia due volte (le righe non ci sono più).
 create function public.archivia_consumi(studente uuid) returns int
 language plpgsql security definer set search_path = '' as $$
 declare
   n int;
 begin
+  with via as (delete from public.consumi c where c.studente_id = archivia_consumi.studente returning c.giorno, c.costo),
+       fam as (select s.famiglia_id from public.studenti s where s.id = archivia_consumi.studente)
   insert into public.consumi_archiviati (famiglia_id, giorno, chiamate, costo)
-  select s.famiglia_id, c.giorno, count(*), coalesce(sum(c.costo), 0)
-    from public.consumi c join public.studenti s on s.id = c.studente_id
-   where c.studente_id = studente and s.famiglia_id is not null
-   group by s.famiglia_id, c.giorno;
+  select fam.famiglia_id, via.giorno, count(*), coalesce(sum(via.costo), 0)
+    from via cross join fam where fam.famiglia_id is not null
+   group by fam.famiglia_id, via.giorno;
   get diagnostics n = row_count;
   return n;
 end $$;
@@ -171,54 +173,76 @@ end $$;
 revoke all on function public.prenota_chiamata(uuid, date, text) from public, anon, authenticated;
 grant execute on function public.prenota_chiamata(uuid, date, text) to service_role;
 
--- Un accesso giusto azzera solo gli errori, non la scala dei blocchi: chi prova a indovinare non riparte da 1 minuto
--- ogni volta che il figlio entra. La scala la azzera il genitore («Cambia il codice») o 7 giorni senza blocchi.
+-- Tentativi su nomi utente che non esistono: stesso conteggio e stessi blocchi di un profilo vero, così dalla risposta non
+-- si capisce se un nome esiste. Solo server; le righe ferme da 8 giorni si cancellano a ogni tentativo sconosciuto.
+create table public.tentativi_nome (
+  nome          text primary key check (length(nome) between 1 and 40),
+  errori        int not null default 0 check (errori >= 0),
+  blocchi       int not null default 0 check (blocchi >= 0),
+  bloccato_fino timestamptz,
+  ultimo_blocco timestamptz,
+  aggiornato    timestamptz not null default now()
+);
+create index tentativi_nome_aggiornato on public.tentativi_nome (aggiornato);
+alter table public.tentativi_nome enable row level security;
+revoke all on public.tentativi_nome from anon, authenticated;
+grant select, insert, update, delete on public.tentativi_nome to service_role;
+
+-- Accesso con nome utente + codice. Rispetto alla prima versione:
+--   * un accesso giusto scende di un solo gradino della scala (prima la azzerava): chi prova a indovinare non riparte da
+--     1 minuto ogni volta che il figlio entra, e chi sbaglia ogni tanto non arriva alle 24 ore;
+--   * la scala riparte da zero con «Cambia il codice» del genitore o dopo 7 giorni senza blocchi;
+--   * un nome che non esiste si conta e si blocca come uno vero (tentativi_nome).
 create or replace function public.accesso_con_nome(utente text, pin text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
+  nome_n text := left(lower(trim(coalesce(utente, ''))), 40);
   sid uuid;
-  r public.pin_profili%rowtype;
-  n int;
+  hash text;
+  e int; b int; fino timestamptz; ultimo timestamptz;
   attesa int;
   sospesa boolean;
 begin
-  select s.id into sid from public.studenti s where s.nome_utente = lower(trim(coalesce(utente, '')));
-  if sid is null then return jsonb_build_object('ok', false, 'attendi', 0); end if;
-
-  -- for update: due tentativi in parallelo non saltano il conteggio
-  select * into r from public.pin_profili p where p.user_id = sid for update;
-  if not found then return jsonb_build_object('ok', false, 'attendi', 0); end if;
-
-  -- 7 giorni senza blocchi: la scala riparte da 1 minuto (prima di questo, nemmeno un accesso giusto la azzera)
-  if r.blocchi > 0 and r.ultimo_blocco < now() - interval '7 days' and coalesce(r.bloccato_fino, now()) <= now() then
-    r.blocchi := 0;
-    update public.pin_profili set blocchi = 0 where user_id = sid;
+  if nome_n = '' then return jsonb_build_object('ok', false, 'attendi', 0); end if;
+  select s.id into sid from public.studenti s where s.nome_utente = nome_n;
+  if sid is not null then
+    -- for update: due tentativi in parallelo non saltano il conteggio
+    select p.pin_hash, p.errori, p.blocchi, p.bloccato_fino, p.ultimo_blocco into hash, e, b, fino, ultimo
+      from public.pin_profili p where p.user_id = sid for update;
+    if not found then sid := null; end if; -- profilo senza codice: nessun accesso, conta come nome sconosciuto
+  end if;
+  if sid is null then
+    delete from public.tentativi_nome t where t.aggiornato < now() - interval '8 days';
+    insert into public.tentativi_nome (nome) values (nome_n) on conflict (nome) do nothing;
+    select t.errori, t.blocchi, t.bloccato_fino, t.ultimo_blocco into e, b, fino, ultimo
+      from public.tentativi_nome t where t.nome = nome_n for update;
   end if;
 
-  if r.bloccato_fino > now() then
-    return jsonb_build_object('ok', false, 'attendi', ceil(extract(epoch from r.bloccato_fino - now()))::int);
-  end if;
+  if b > 0 and ultimo < now() - interval '7 days' and coalesce(fino, now()) <= now() then b := 0; end if; -- 7 giorni senza blocchi
 
-  if coalesce(pin, '') ~ '^\d{4}$' and r.pin_hash = extensions.crypt(pin, r.pin_hash) then
-    -- solo gli errori: la scala dei blocchi la azzera il genitore cambiando il codice, o 7 giorni senza blocchi
-    update public.pin_profili set errori = 0, bloccato_fino = null where user_id = sid;
+  if fino > now() then
+    attesa := ceil(extract(epoch from fino - now()))::int;
+  elsif sid is not null and coalesce(pin, '') ~ '^\d{4}$' and hash = extensions.crypt(pin, hash) then
+    update public.pin_profili set errori = 0, bloccato_fino = null, blocchi = greatest(b - 1, 0) where user_id = sid;
     select f.stato = 'sospesa' into sospesa
       from public.studenti s join public.famiglie f on f.id = s.famiglia_id where s.id = sid;
     if coalesce(sospesa, false) then return jsonb_build_object('ok', false, 'sospesa', true, 'attendi', 0); end if;
     return jsonb_build_object('ok', true, 'studente_id', sid);
+  elsif e + 1 >= 5 then
+    b := b + 1; e := 0; ultimo := now();
+    attesa := case b when 1 then 60 when 2 then 300 when 3 then 900 when 4 then 3600 when 5 then 14400 else 86400 end;
+    fino := now() + make_interval(secs => attesa);
+  else
+    e := e + 1; attesa := 0;
   end if;
 
-  if r.errori + 1 >= 5 then
-    n := r.blocchi + 1;
-    attesa := case n when 1 then 60 when 2 then 300 when 3 then 900 when 4 then 3600 when 5 then 14400 else 86400 end;
-    update public.pin_profili
-       set errori = 0, blocchi = n, bloccato_fino = now() + make_interval(secs => attesa), ultimo_blocco = now()
-     where user_id = sid;
-    return jsonb_build_object('ok', false, 'attendi', attesa);
+  if sid is not null then
+    update public.pin_profili set errori = e, blocchi = b, bloccato_fino = fino, ultimo_blocco = ultimo where user_id = sid;
+  else
+    update public.tentativi_nome set errori = e, blocchi = b, bloccato_fino = fino, ultimo_blocco = ultimo, aggiornato = now()
+     where nome = nome_n;
   end if;
-
-  update public.pin_profili set errori = r.errori + 1 where user_id = sid;
-  return jsonb_build_object('ok', false, 'attendi', 0);
+  return jsonb_build_object('ok', false, 'attendi', attesa);
 end $$;
 
 revoke all on function public.accesso_con_nome(text, text) from public, anon, authenticated;
@@ -226,10 +250,13 @@ grant execute on function public.accesso_con_nome(text, text) to service_role;
 
 -- Foto: nel bucket `fonti` carica solo chi studia (ruolo in app_metadata, scritto solo dal server). Prima ogni account
 -- autenticato poteva caricare nella sua cartella, genitori e admin compresi. Policy restrittiva: si aggiunge alle altre.
+-- Il profilo deve esistere ancora: dopo l'eliminazione il token del figlio vale fino a un'ora e non deve lasciare foto orfane.
 create policy "fonti: solo chi studia carica" on storage.objects as restrictive for insert to authenticated
-  with check (bucket_id <> 'fonti' or (select auth.jwt()) -> 'app_metadata' ->> 'ruolo' = 'studente');
+  with check (bucket_id <> 'fonti' or ((select auth.jwt()) -> 'app_metadata' ->> 'ruolo' = 'studente'
+              and exists (select 1 from public.studenti s where s.id = (select auth.uid()))));
 create policy "fonti: solo chi studia modifica" on storage.objects as restrictive for update to authenticated
   using (bucket_id <> 'fonti' or (select auth.jwt()) -> 'app_metadata' ->> 'ruolo' = 'studente')
-  with check (bucket_id <> 'fonti' or (select auth.jwt()) -> 'app_metadata' ->> 'ruolo' = 'studente');
+  with check (bucket_id <> 'fonti' or ((select auth.jwt()) -> 'app_metadata' ->> 'ruolo' = 'studente'
+              and exists (select 1 from public.studenti s where s.id = (select auth.uid()))));
 -- L'app carica solo JPEG ridimensionati (1568 px, 0,92): bastano 10 MB a foto.
 update storage.buckets set file_size_limit = 10485760, allowed_mime_types = array['image/jpeg'] where id = 'fonti';
