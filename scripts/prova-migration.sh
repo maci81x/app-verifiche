@@ -34,8 +34,25 @@ SQL
 q -v ON_ERROR_STOP=0 -f "$COPIA/ruoli.sql" > /dev/null 2>&1 || true
 # Su Supabase la service role scavalca RLS: in locale va detto.
 q -c 'alter role service_role bypassrls'
-grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$COPIA/interno.sql" | q -f - > /dev/null
+# Policy e trigger di auth/storage possono usare tabelle e funzioni dell'app (issue #30, #35): si creano dopo lo
+# schema dell'app. Il dump interno si divide in due: prima tutto il resto, poi le CREATE POLICY e i trigger verso app.
+python3 -I -c '
+import sys
+dentro, prima, dopo = None, [], []
+for riga in open(sys.argv[1], encoding="utf-8"):
+    if dentro is None and (riga.startswith("CREATE POLICY ") or (riga.startswith("CREATE TRIGGER ") and "app." in riga)):
+        dentro = []
+    if dentro is not None:
+        dentro.append(riga)
+        if riga.rstrip().endswith(";"):
+            dopo.extend(dentro); dentro = None
+    else:
+        prima.append(riga)
+open(sys.argv[2], "w").writelines(prima); open(sys.argv[3], "w").writelines(dopo)
+' "$COPIA/interno.sql" "$DIR/interno-prima.sql" "$DIR/interno-dopo.sql"
+grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$DIR/interno-prima.sql" | q -f - > /dev/null
 grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$COPIA/schema.sql" | q -f - > /dev/null
+q -f "$DIR/interno-dopo.sql" > /dev/null
 q -f "$COPIA/dati.sql" > /dev/null
 # I permessi che Supabase dà da sé sugli schemi interni (non sono nella copia): storage con le sue policy, auth.uid().
 q <<'SQL'

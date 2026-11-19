@@ -152,3 +152,44 @@ test("conferma scrivendo il nome: senza spazi ai lati e senza maiuscole, ma tutt
   assert.equal(confermaNome("", ""), false);
   assert.equal(confermaNome(null, "Carla"), false);
 });
+
+import { pianoPulizia, SOGLIA_PULIZIA, AZIONI_LETTURA } from "../supabase/functions/_shared/famiglie.js";
+
+const ORA = Date.parse("2026-12-20T12:00:00Z");
+const giorniFa = (g) => new Date(ORA - g * 86400000).toISOString();
+
+test("pulizia: a 29 giorni non si tocca, a 31 si cancella; i figli di una famiglia scaduta vanno con lei", () => {
+  const p = pianoPulizia({
+    famiglie: [{ id: "f1", genitore_id: "g1", cestino: giorniFa(31) }, { id: "f2", genitore_id: "g2", cestino: giorniFa(29) }, { id: "f3", genitore_id: "g3", cestino: null }],
+    figli: [
+      { id: "a", famiglia_id: "f1", cestino: null }, { id: "b", famiglia_id: "f1", cestino: giorniFa(2) },
+      { id: "c", famiglia_id: "f2", cestino: null }, { id: "d", famiglia_id: "f3", cestino: giorniFa(31) },
+      { id: "e", famiglia_id: "f3", cestino: giorniFa(29) },
+    ],
+  }, ORA);
+  assert.deepEqual(p.famiglie.map((f) => [f.id, f.figli]), [["f1", ["a", "b"]]]);
+  assert.deepEqual(p.figli, ["d"]);
+  assert.equal(p.profili, 3);
+  assert.equal(p.troppi, false);
+});
+
+test("pulizia: oltre 3 famiglie o 5 profili in un giro, troppi = true (non si cancella niente)", () => {
+  assert.deepEqual(SOGLIA_PULIZIA, { famiglie: 3, profili: 5 });
+  const fam = (n) => Array.from({ length: n }, (_, i) => ({ id: "f" + i, genitore_id: "g" + i, cestino: giorniFa(40) }));
+  const figli = (n, f = null) => Array.from({ length: n }, (_, i) => ({ id: "s" + i, famiglia_id: f, cestino: giorniFa(40) }));
+  assert.equal(pianoPulizia({ famiglie: fam(3), figli: [] }, ORA).troppi, false);
+  assert.equal(pianoPulizia({ famiglie: fam(4), figli: [] }, ORA).troppi, true);
+  assert.equal(pianoPulizia({ famiglie: [], figli: figli(5) }, ORA).troppi, false);
+  assert.equal(pianoPulizia({ famiglie: [], figli: figli(6) }, ORA).troppi, true);
+  // i figli dentro una famiglia scaduta contano nei 5 profili
+  assert.equal(pianoPulizia({ famiglie: fam(1).map((f) => ({ ...f, id: "x" })), figli: figli(6, "x").map((s) => ({ ...s, cestino: null })) }, ORA).troppi, true);
+});
+
+test("pulizia: una famiglia protetta non si cancella mai", () => {
+  const p = pianoPulizia({ famiglie: [{ id: "f1", genitore_id: "g1", cestino: giorniFa(40), protetta: true }], figli: [{ id: "a", famiglia_id: "f1", cestino: giorniFa(40) }] }, ORA);
+  assert.deepEqual([p.famiglie.length, p.figli.length], [0, 0]);
+});
+
+test("admin: solo riepilogo, consumi e registro senza motivo", () => {
+  assert.deepEqual([...AZIONI_LETTURA].sort(), ["consumi", "registro", "riepilogo"]);
+});

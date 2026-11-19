@@ -29,7 +29,7 @@ type Db = ReturnType<typeof admin>;
 // Prima della #30 i genitori nascevano a mano, senza famiglia: solo loro ricevono una famiglia «esistente» alla prima
 // «crea». Un account più recente senza famiglia è un'iscrizione rimasta a metà e non diventa mai una famiglia di casa.
 const PRIMA_DELLA_30 = "2026-11-19T15:00:00Z";
-type Famiglia = { id: string; esterna: boolean; prova: boolean; stato: string; limite_chiamate: number };
+type Famiglia = { id: string; esterna: boolean; prova: boolean; stato: string; limite_chiamate: number; cestino: string | null };
 
 
 
@@ -60,7 +60,7 @@ async function conNomeUtente(nome: string, scrivi: (nu: string) => Promise<{ err
 }
 
 async function famigliaDi(db: Db, genitore: string): Promise<Famiglia | null> {
-  const { data, error } = await db.from("famiglie").select("id, esterna, prova, stato, limite_chiamate").eq("genitore_id", genitore).maybeSingle();
+  const { data, error } = await db.from("famiglie").select("id, esterna, prova, stato, limite_chiamate, cestino").eq("genitore_id", genitore).maybeSingle();
   if (error) throw error;
   return data as Famiglia | null;
 }
@@ -93,6 +93,10 @@ Deno.serve(async (req) => {
   const db = admin();
 
   try {
+    // Famiglia nel cestino (issue #35): l'account è bannato, ma un token già emesso vale fino a un'ora. Niente di niente.
+    const fam = await famigliaDi(db, genitore);
+    if (fam?.cestino) return json({ errore: "famiglia_nel_cestino" }, 403);
+
     if (b.azione === "esporta") return json(await esporta(db, genitore));
 
     if (b.azione === "elimina") {
@@ -111,7 +115,6 @@ Deno.serve(async (req) => {
     }
 
     // Da qui in poi: famiglie esterne solo con la mail confermata.
-    const fam = await famigliaDi(db, genitore);
     if (fam?.esterna && !fam.prova) {
       const { data: u, error } = await db.auth.admin.getUserById(genitore);
       if (error) throw error;
@@ -119,7 +122,7 @@ Deno.serve(async (req) => {
     }
 
     if (b.azione === "famiglia") {
-      const { data: righe, error } = await db.from("studenti").select("id, nome, cognome, classe, nome_utente").in("id", await figliDi(db, genitore)).order("nome");
+      const { data: righe, error } = await db.from("studenti").select("id, nome, cognome, classe, nome_utente, cestino").in("id", await figliDi(db, genitore)).order("nome");
       if (error) throw error;
       const { data: pin, error: e2 } = await db.from("pin_profili").select("user_id, ultimo_blocco, bloccato_fino").in("user_id", (righe ?? []).map((r: { id: string }) => r.id));
       if (e2) throw e2;
@@ -175,6 +178,10 @@ Deno.serve(async (req) => {
 
     const id = await figlioDi(db, genitore, b.studente_id);
     if (!id) return json({ errore: "profilo non trovato" }, 404);
+    // Un figlio nel cestino si ripristina solo dal pannello admin: il genitore non lo modifica (può solo eliminarlo).
+    const { data: st0, error: es0 } = await db.from("studenti").select("cestino").eq("id", id).single();
+    if (es0) throw es0;
+    if (st0.cestino) return json({ errore: "profilo_nel_cestino" }, 409);
 
     if (b.azione === "codice") {
       const codice = String(b.codice || "");

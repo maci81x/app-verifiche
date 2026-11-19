@@ -92,3 +92,19 @@ export const confermaNome = (scritto, nome) => {
   const pulisci = (x) => String(x ?? "").trim().toLowerCase().replace(/\s+/g, " ");
   return pulisci(nome) !== "" && pulisci(scritto) === pulisci(nome);
 };
+
+// Pulizia del cestino (issue #35): cosa cancellare in un giro. Una famiglia scaduta porta con sé tutti i suoi figli; un
+// figlio scaduto in una famiglia attiva va da solo. Le famiglie protette (controllo mattutino) non si toccano mai.
+// Oltre la soglia il giro non cancella niente e fallisce: un numero così alto è più probabilmente un errore che un caso vero.
+export const SOGLIA_PULIZIA = { famiglie: 3, profili: 5 };
+export function pianoPulizia({ famiglie, figli }, ora = Date.now()) {
+  const protette = new Set(famiglie.filter((f) => f.protetta).map((f) => f.id));
+  const fam = scaduti(famiglie.filter((f) => !f.protetta), ora).map((f) => ({ ...f, figli: figli.filter((s) => s.famiglia_id === f.id).map((s) => s.id) }));
+  const viaConFamiglia = new Set(fam.flatMap((f) => f.figli));
+  const soli = scaduti(figli, ora).filter((s) => !viaConFamiglia.has(s.id) && !protette.has(s.famiglia_id)).map((s) => s.id);
+  const profili = viaConFamiglia.size + soli.length;
+  return { famiglie: fam, figli: soli, profili, troppi: fam.length > SOGLIA_PULIZIA.famiglie || profili > SOGLIA_PULIZIA.profili };
+}
+
+// Azioni del pannello admin che non chiedono il motivo e non guardano la famiglia protetta: solo letture di sintesi.
+export const AZIONI_LETTURA = new Set(["riepilogo", "consumi", "registro"]);

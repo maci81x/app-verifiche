@@ -1,7 +1,7 @@
 // Eliminazione ed export dei dati di un figlio o di una famiglia (issue #14, #30, #35). Usati da `profili` (il genitore),
 // `admin` (l'amministratore) e `pulizia` (cestino oltre 30 giorni): una sola procedura, con il controllo «0 righe».
 import type { admin } from "./http.ts";
-import { esportazione } from "./famiglie.js";
+import { esportazione, pianoPulizia, scaduti } from "./famiglie.js";
 
 type Db = ReturnType<typeof admin>;
 export const BUCKET = "fonti";
@@ -139,4 +139,87 @@ export async function esporta(db: Db, genitore: string) {
     figli.push({ profilo, tabelle, foto: await fotoDi(db, id) });
   }
   return esportazione({ genitore: { email: u.user?.email, nome: fam?.nome, cognome: fam?.cognome, creato: fam?.creato ?? u.user?.created_at }, consensi, invito, figli });
+}
+
+// ---------------------------------------------------------------- cestino (issue #35)
+
+// Ban degli account ricalcolato dalle colonne `cestino` (unica fonte): genitore bannato se la famiglia è nel cestino,
+// figlio se lui o la sua famiglia lo sono. Idempotente: si può ripetere dopo un errore a metà. Prima si scrive la
+// colonna, poi si chiama questa. Il ban ferma nuovo accesso e rinnovo della sessione; le letture le chiude il database.
+async function banna(db: Db, id: string, ban: boolean) {
+  const { error } = await db.auth.admin.updateUserById(id, { ban_duration: ban ? "876000h" : "none" });
+  if (error) throw error;
+}
+export async function allineaAccessi(db: Db, famigliaId: string | null, studenteId?: string) {
+  if (!famigliaId) {
+    // profilo senza famiglia (dati vecchi): conta solo il suo cestino
+    const { data: s, error } = await db.from("studenti").select("cestino").eq("id", studenteId!).single();
+    if (error) throw error;
+    return banna(db, studenteId!, !!s.cestino);
+  }
+  const [{ data: f, error: e1 }, { data: figli, error: e2 }] = await Promise.all([
+    db.from("famiglie").select("genitore_id, cestino").eq("id", famigliaId).single(),
+    db.from("studenti").select("id, cestino").eq("famiglia_id", famigliaId),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+  await banna(db, f.genitore_id, !!f.cestino);
+  for (const s of figli ?? []) await banna(db, s.id, !!(f.cestino || s.cestino));
+}
+
+// Riga del registro per la pulizia automatica: nessun admin, nessun nome, solo gli id (issue #35).
+const NESSUN_ADMIN = "00000000-0000-0000-0000-000000000000";
+async function registraPulizia(db: Db, studente_id: string, famiglia_id: string | null) {
+  const { error } = await db.from("accessi_admin").insert({ admin_id: NESSUN_ADMIN, studente_id, famiglia_id, azione: "pulizia", motivo: "cestino oltre 30 giorni" });
+  if (error) throw error;
+}
+
+const riuscita = (r: { scollegato?: boolean; resti: Record<string, number> | null } | null) =>
+  !!r && (r.scollegato === true || (!!r.resti && Object.values(r.resti).every((n) => n === 0)));
+
+// Cancellazione definitiva di quello che è nel cestino da più di 30 giorni. Un giro alla volta (lucchetto in
+// impostazioni); oltre la soglia non cancella niente. Risponde solo con i conteggi: niente id né nomi (log pubblici).
+// ponytail: riallinea il ban di tutte le famiglie a ogni giro; con decine di famiglie va bene, con migliaia no.
+export async function pulisciCestino(db: Db, ora = Date.now()) {
+  const { data: preso, error: el } = await db.rpc("prendi_pulizia", { minuti: 10 });
+  if (el) throw el;
+  if (!preso) return { ok: true, occupata: true, famiglie: 0, profili: 0, restano: 0 };
+  try {
+    const [{ data: famiglie, error: e1 }, { data: figli, error: e2 }] = await Promise.all([
+      db.from("famiglie").select("id, genitore_id, cestino, protetta"),
+      db.from("studenti").select("id, famiglia_id, cestino"),
+    ]);
+    if (e1) throw e1;
+    if (e2) throw e2;
+    const piano = pianoPulizia({ famiglie: famiglie ?? [], figli: figli ?? [] }, ora);
+    if (piano.troppi) return { ok: false, troppi: true, famiglie: piano.famiglie.length, profili: piano.profili, restano: 0 };
+
+    // «Scaduto» si ricontrolla subito prima di cancellare: un «Ripristina» nel frattempo vince.
+    const ancoraScaduto = async (tabella: string, id: string) => {
+      const { data, error } = await db.from(tabella).select("cestino").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return !!data && scaduti([data], ora).length === 1;
+    };
+    let nf = 0, np = 0, restano = 0;
+    for (const id of piano.figli) {
+      if (!(await ancoraScaduto("studenti", id))) continue;
+      const fam = (figli ?? []).find((s: { id: string }) => s.id === id)?.famiglia_id ?? null;
+      await registraPulizia(db, id, fam);
+      if (riuscita(await elimina(db, id))) np++; else restano++;
+    }
+    for (const f of piano.famiglie) {
+      if (!(await ancoraScaduto("famiglie", f.id))) continue;
+      await registraPulizia(db, f.genitore_id, f.id);
+      let ok = true;
+      for (const id of f.figli) { if (riuscita(await elimina(db, id, f.genitore_id))) np++; else { ok = false; restano++; } }
+      if (!ok) { restano++; continue; }
+      // in cascata vanno via famiglia, consensi e inviti; se resta un figlio il restrict lo impedisce
+      const { error } = await db.auth.admin.deleteUser(f.genitore_id);
+      if (error) { console.error("pulizia: genitore non cancellato:", f.id, error); restano++; } else nf++;
+    }
+    for (const f of famiglie ?? []) if (!piano.famiglie.some((x: { id: string }) => x.id === f.id)) await allineaAccessi(db, f.id);
+    return { ok: restano === 0, famiglie: nf, profili: np, restano };
+  } finally {
+    await db.rpc("lascia_pulizia");
+  }
 }

@@ -34,8 +34,25 @@ SQL
 q -v ON_ERROR_STOP=0 -f "$COPIA/ruoli.sql" > /dev/null 2>&1 || true
 # 3. Auth e storage, poi lo schema dell'app. Le estensioni che esistono solo su Supabase (pg_graphql, vault…)
 #    si saltano: non servono ai dati.
-grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$COPIA/interno.sql" | q -f - > /dev/null
+# Policy e trigger di auth/storage possono usare tabelle e funzioni dell'app (issue #30, #35): si creano dopo lo
+# schema dell'app. Il dump interno si divide in due: prima tutto il resto, poi le CREATE POLICY e i trigger verso app.
+python3 -I -c '
+import sys
+dentro, prima, dopo = None, [], []
+for riga in open(sys.argv[1], encoding="utf-8"):
+    if dentro is None and (riga.startswith("CREATE POLICY ") or (riga.startswith("CREATE TRIGGER ") and "app." in riga)):
+        dentro = []
+    if dentro is not None:
+        dentro.append(riga)
+        if riga.rstrip().endswith(";"):
+            dopo.extend(dentro); dentro = None
+    else:
+        prima.append(riga)
+open(sys.argv[2], "w").writelines(prima); open(sys.argv[3], "w").writelines(dopo)
+' "$COPIA/interno.sql" "$DIR/interno-prima.sql" "$DIR/interno-dopo.sql"
+grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$DIR/interno-prima.sql" | q -f - > /dev/null
 grep -vE '^CREATE EXTENSION IF NOT EXISTS "(pg_graphql|supabase_vault|pgsodium|pg_net|pg_cron)"' "$COPIA/schema.sql" | q -f - > /dev/null
+q -f "$DIR/interno-dopo.sql" > /dev/null
 # 4. I dati (dati.sql mette già session_replication_role = replica: niente trigger durante il caricamento).
 q -f "$COPIA/dati.sql" > /dev/null
 
