@@ -72,7 +72,7 @@ test("service worker: famiglia.js e pagine privacy in cache, il pannello admin m
   const v = sw.match(/app-verifiche-v(\d+)/)[1];
   for (const f of ["famiglia.js?v=" + v, "privacy.html", "condizioni.html"]) assert.ok(sw.includes("/app-verifiche/" + f), f);
   assert.doesNotMatch(sw, /'\/app-verifiche\/admin/);
-  assert.match(sw, /\/admin\\\.\(html\|js\)\$\/\.test\(url\.pathname\)\) return;/);
+  assert.match(sw, /\/\(admin\\\.\(html\|js\)\|nuova-password\\\.html\)\$\/\.test\(url\.pathname\)\) return;/);
 });
 
 test("informativa e condizioni: versione uguale a quella che il server registra, segnaposto del titolare, registro admin 12 mesi", async () => {
@@ -88,4 +88,12 @@ test("informativa e condizioni: versione uguale a quella che il server registra,
   assert.match(p, /In breve, per chi studia/);
   assert.match(p, /accesso tecnico diretto/);
   assert.doesNotMatch(p, /telefono del genitore|numero di telefono del genitore/i);
+});
+
+test("informativa #35: cestino di 30 giorni, cancellazione definitiva, copie di sicurezza di 4 settimane", async () => {
+  const h = readFileSync(new URL("../privacy.html", import.meta.url), "utf8");
+  assert.match(h, /cancellazione definitiva dopo 30 giorni; le copie di sicurezza, conservate 4 settimane, si sovrascrivono da sole/);
+  assert.match(h, /cestino/);
+  const { VERSIONI } = await import("../supabase/functions/_shared/consensi.js");
+  assert.notEqual(VERSIONI.privacy, "2026-11-19", "testo cambiato: versione nuova");
 });
