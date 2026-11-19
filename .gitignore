@@ -11,3 +11,7 @@ docs/
 prototipo/
 # grafo graphify, si rigenera in locale
 graphify-out/
+# skill e impostazioni locali degli agenti: non vanno nel repo pubblico
+.agents/
+.claude/
+skills-lock.json

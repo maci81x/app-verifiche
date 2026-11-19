@@ -20,7 +20,7 @@ Le regole comuni di prodotto (voce, design, accuratezza) sono nella issue #17. V
 - **Ogni comando `supabase`** si lancia con `env -u SUPABASE_ACCESS_TOKEN -u SUPABASE_PROJECT_REF`: nella shell ci sono variabili di un altro progetto.
   - Prima di pubblicare, controlla che `supabase projects list` mostri il progetto giusto.
   - Pubblicazione: `env -u SUPABASE_ACCESS_TOKEN -u SUPABASE_PROJECT_REF supabase functions deploy modello --project-ref <ref> --use-api`.
-- `test/db/rls.test.js` usa le stesse due variabili e, se ci sono, gira sul database remoto. Per i test normali: `env -u SUPABASE_ACCESS_TOKEN -u SUPABASE_PROJECT_REF node --test test/*.test.js`.
+- `test/db/rls.test.js` usa le stesse due variabili e, se ci sono, gira sul database remoto. Con `RLS_PSQL` gira su un Postgres qualsiasi: `bash scripts/prova-migration.sh <copia> <migration>` prova una migration nuova su una copia ripristinata in locale, con i test dei permessi, prima di applicarla. Per i test normali: `env -u SUPABASE_ACCESS_TOKEN -u SUPABASE_PROJECT_REF node --test test/*.test.js`.
 - **Stop prima delle migration**:
   1. solo aggiunte;
   2. RLS come in `supabase/MIGRATION-GUIDE.md`;
@@ -57,7 +57,7 @@ Le regole comuni di prodotto (voce, design, accuratezza) sono nella issue #17. V
 ## Controllo mattutino (avviso guasti)
 - Il workflow `.github/workflows/controllo-mattutino.yml` gira ogni mattina alle 5:30 UTC ed esegue `scripts/sentinella.mjs`. Lo script fa chiamate di prova a:
   - il sito;
-  - `accedi` (elenco);
+  - `accedi` (un nome utente inesistente deve ricevere 401: l'elenco dei profili non c'è più);
   - `modello` (uno smistamento, che non consuma aiuti);
   - `profili` (consumo, con il genitore di prova).
 - Se una chiamata risponde male o supera il suo tempo, il workflow fallisce e GitHub manda la mail.
@@ -98,4 +98,4 @@ Lo script ricrea tutto in un Postgres locale temporaneo, confronta le righe di o
    ```
    supabase storage cp -r foto/ ss:///fonti --experimental --linked
    ```
-3. Ripubblica le funzioni (`modello`, `profili`, `accedi`), rimetti i segreti (`ANTHROPIC_API_KEY`) e aggiorna URL e chiave pubblica in `index.html` e nei Secrets del repo.
+3. Ripubblica le funzioni (`modello`, `profili`, `accedi`, `famiglie`, `admin`), rimetti i segreti (`ANTHROPIC_API_KEY`; `MAIL_PRONTA` solo se lo SMTP è configurato) e aggiorna URL e chiave pubblica in `index.html` e nei Secrets del repo.

@@ -64,8 +64,8 @@
 //      si scartano e i tipi mancanti si chiedono una seconda volta. Conta come un aiuto.
 // POST { azione: "esercizi_genera", modello: { testo, concetto, calcolo }, mirati: true } → fino a 3 esercizi mirati
 //      su un concetto, dal più facile al problema a parole, più quelli in più (extra) per chi sbaglia.
-//      compito e compito_domanda contano come aiuti: al massimo 30 al giorno per profilo (giorno di Roma),
-//      contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
+//      compito e compito_domanda contano come aiuti: al massimo il limite della famiglia al giorno per profilo (giorno di
+//      Roma; 30 per le famiglie esistenti, 10 per quelle esterne, issue #30), contati in app_metadata.aiuti (lo scrive solo il server). Oltre: 429 { errore: "limite_giornaliero" }.
 //      Il risultato lo giudica un calcolo (_shared/correzione.js), mai il modello; il modello
 //      legge solo i passaggi scritti (o fotografati) dalla ragazza e spiega il primo errore.
 // POST { azione: "smista", trascrizioni: [testo], argomenti: [{ id, materia, titolo }], oggi: "YYYY-MM-DD" }
@@ -113,14 +113,17 @@ import { erroreTipicoDi, numeroClasse } from "../_shared/classe.js";
 import { promptPoesia, pulisciPoesia } from "../_shared/poesia.js";
 import { promptInvalsi, pulisciInvalsi, FORMATI_INVALSI, MATERIE_INVALSI } from "../_shared/invalsi.js";
 import { promptEsame, pulisciEsame, argomentiPerEsame, MAX_ARGOMENTI_ESAME } from "../_shared/esame.js";
-import { modelloPer, effortPer, costoUsd, tettoRaggiunto, consumoAggiornato, TETTO_CHIAMATE } from "../_shared/modelli.js";
+import { modelloPer, effortPer, costoUsd } from "../_shared/modelli.js";
+import { righeConsumo, LIMITE_AIUTI_SENZA_FAMIGLIA } from "../_shared/famiglie.js";
 import { dividiPerCache } from "../_shared/prompt.js";
 import { TIPI_STRUMENTO, FORME_SCHEMA, LINGUE, promptStrumento, dateAncorate, vocaboliAncorati, schemaAncorato } from "../_shared/strumenti.js";
 
 // Contesto di una richiesta (AsyncLocalStorage: le richieste in parallelo non si mescolano): quale azione,
 // se l'account è di prova (può chiedere un modello per il confronto) e quanto ha consumato finora.
+// Dalla #30: anche ogni singola chiamata (per le righe di `consumi`), la riga prenotata e il limite degli aiuti della famiglia.
 type Consumo = { azione: string; prova: boolean; richiesto: string; effortRichiesto: string; chiamate: number; input: number; output: number;
-  cache_scritti: number; cache_letti: number; costo: number; modelli: string[] };
+  cache_scritti: number; cache_letti: number; costo: number; modelli: string[];
+  dettaglio: { modello: string; usage: Anthropic.Usage | undefined }[]; riga: number | null; limiteAiuti: number };
 const richiesta = new AsyncLocalStorage<Consumo>();
 function modelloDellaRichiesta() {
   const c = richiesta.getStore();
@@ -138,6 +141,7 @@ function registra(modello: string, u: Anthropic.Usage | undefined) {
   c.cache_scritti += u?.cache_creation_input_tokens ?? 0; c.cache_letti += u?.cache_read_input_tokens ?? 0;
   c.costo += costoUsd(modello, u ?? {});
   if (!c.modelli.includes(modello)) c.modelli.push(modello);
+  c.dettaglio.push({ modello, usage: u });
 }
 const MAX_IMMAGINI = 4;
 const MAX_BASE64 = 6_000_000; // ~4,5 MB per foto: a 2000 px ne bastano molti meno
@@ -154,7 +158,7 @@ const json = (corpo: unknown, status = 200) =>
 // anche la chiave anonima pubblica: qui si pretende una studentessa. Il ruolo sta in
 // app_metadata, che solo il server può scrivere (lo mette la funzione profili):
 // un account nato in qualunque altro modo non consuma la chiave Anthropic.
-function claims(req: Request): { role?: string; sub?: string; app_metadata?: { ruolo?: string } } {
+function claims(req: Request): { role?: string; sub?: string; app_metadata?: { ruolo?: string; prova?: boolean } } {
   try {
     const token = req.headers.get("Authorization")!.replace(/^Bearer /i, "");
     const parte = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -540,7 +544,7 @@ async function prenotaAiuto(sub: string): Promise<boolean> {
   const { data, error } = await db.auth.admin.getUserById(sub);
   if (error || !data?.user) throw error ?? new Error("utente non trovato");
   const am = data.user.app_metadata ?? {};
-  const { permesso, aiuti } = contaAiuti(am, giornoRoma());
+  const { permesso, aiuti } = contaAiuti(am, giornoRoma(), richiesta.getStore()?.limiteAiuti ?? LIMITE_AIUTI_SENZA_FAMIGLIA);
   if (!permesso) return false;
   // Solo la chiave aiuti: il server unisce le chiavi di app_metadata, così non si cancella il consumo scritto nel frattempo.
   const { error: e2 } = await db.auth.admin.updateUserById(sub, { app_metadata: { aiuti } });
@@ -1181,32 +1185,40 @@ async function gestisci(req: Request): Promise<Response> {
   }
 }
 
-// Ogni richiesta: tetto giornaliero su tutte le chiamate al modello del profilo, poi il consumo (chiamate, token,
-// costo stimato) sommato nei metadati dell'account, che il genitore vede nelle Impostazioni (funzione profili).
-// Come per gli aiuti, senza tabella il conteggio non è atomico: due richieste nello stesso istante possono
-// perdere una somma. ponytail: tabella con upsert atomico se servisse un conto esatto.
+// Ogni richiesta (issue #30): prenota_chiamata, sotto un lucchetto per profilo, controlla famiglia sospesa e tetto delle
+// chiamate di oggi (limite della famiglia) e prenota subito una riga in `consumi`: richieste parallele vedono le
+// prenotazioni delle altre, quindi il tetto non si supera (al massimo delle chiamate dell'ultima richiesta accettata).
+// A fine richiesta la riga prenotata diventa la prima chiamata, le altre si aggiungono, nessuna chiamata la cancella.
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 Deno.serve(async (req) => {
   const io = req.method === "POST" ? claims(req) : {};
   if (io.role !== "authenticated" || !io.sub || io.app_metadata?.ruolo !== "studente") return gestisci(req);
   const db = amministratore();
-  const { data, error } = await db.auth.admin.getUserById(io.sub);
-  if (error || !data?.user) return json({ errore: "non autenticato" }, 401);
-  const am = data.user.app_metadata ?? {};
-  if (tettoRaggiunto(am, giornoRoma())) return json({ errore: "tetto_giornaliero", tetto: TETTO_CHIAMATE }, 429);
   const corpo = await req.clone().json().catch(() => null);
-  const c: Consumo = { azione: String(corpo?.azione ?? ""), prova: am.prova === true, richiesto: String(corpo?.modello_prova ?? ""), effortRichiesto: String(corpo?.effort_prova ?? ""),
-    chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0, modelli: [] };
+  const azione = String(corpo?.azione ?? "");
+  const oggi = giornoRoma();
+  const { data: p, error } = await db.rpc("prenota_chiamata", { studente: io.sub, oggi, azione });
+  if (error) { console.error("prenota_chiamata:", error); return json({ errore: "Riprova fra poco." }, 503); }
+  if (p?.errore === "famiglia_sospesa") return json({ errore: "famiglia_sospesa" }, 403);
+  if (p?.errore === "tetto_giornaliero") return json({ errore: "tetto_giornaliero", tetto: p.tetto }, 429);
+  if (!p?.ok) return json({ errore: "Riprova fra poco." }, 503);
+  // prova: account di prova per il confronto dei modelli (app_metadata, scritto solo dal server, arriva nel token)
+  const c: Consumo = { azione, prova: io.app_metadata?.prova === true, richiesto: String(corpo?.modello_prova ?? ""),
+    effortRichiesto: String(corpo?.effort_prova ?? ""), chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0, modelli: [],
+    dettaglio: [], riga: Number(p.id), limiteAiuti: Number(p.limite_aiuti) };
   const risposta = await richiesta.run(c, () => gestisci(req));
-  if (!c.chiamate) return risposta;
   const salva = (async () => {
     try {
-      const { data: fresco } = await db.auth.admin.getUserById(io.sub!);
-      const m = fresco?.user?.app_metadata ?? {};
-      await db.auth.admin.updateUserById(io.sub!, { app_metadata: { consumo: consumoAggiornato(m, giornoRoma(), c) } }); // solo la sua chiave
+      const righe = righeConsumo(c.dettaglio, io.sub!, oggi, azione);
+      if (!righe.length) { await db.from("consumi").delete().eq("id", c.riga!).eq("studente_id", io.sub!); return; }
+      const [prima, ...altre] = righe;
+      const { error: e1 } = await db.from("consumi").update(prima).eq("id", c.riga!).eq("studente_id", io.sub!);
+      if (e1) throw e1;
+      if (altre.length) { const { error: e2 } = await db.from("consumi").insert(altre); if (e2) throw e2; }
     } catch (e) { console.error("consumo:", e); }
   })();
   if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(salva); else await salva;
+  if (!c.chiamate) return risposta;
   // Per il confronto dei modelli: agli account di prova si dice quale modello ha risposto e quanto è costato.
   if (c.prova) risposta.headers.set("x-consumo", JSON.stringify({ modelli: c.modelli, chiamate: c.chiamate, input: c.input,
     output: c.output, cache_scritti: c.cache_scritti, cache_letti: c.cache_letti, costo: c.costo }));

@@ -330,10 +330,11 @@ export function rimborsoAiuti(appMetadata, giorno) {
   const a = appMetadata?.aiuti;
   return a && a.giorno === giorno ? { giorno, n: Math.max(0, (Number(a.n) || 0) - 1) } : null;
 }
-export function contaAiuti(appMetadata, giorno) {
+// limite: quello della famiglia (issue #30); senza, 30 come prima.
+export function contaAiuti(appMetadata, giorno, limite = MAX_AIUTI_GIORNO) {
   const a = appMetadata?.aiuti;
   const n = a && a.giorno === giorno ? Number(a.n) || 0 : 0;
-  return n >= MAX_AIUTI_GIORNO ? { permesso: false, aiuti: { giorno, n } } : { permesso: true, aiuti: { giorno, n: n + 1 } };
+  return n >= limite ? { permesso: false, aiuti: { giorno, n } } : { permesso: true, aiuti: { giorno, n: n + 1 } };
 }
 
 // I dati con il loro significato («1/6» → «la parte spesa per gli anelli»); le stringhe sole valgono ancora.

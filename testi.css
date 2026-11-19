@@ -1,0 +1,23 @@
+/* Pagine di testo (informativa, condizioni, pannello admin): stessi colori e carattere dell'app (issue #17). */
+:root { --carta: #FFFFFF; --inchiostro: #1A1A1E; --grigio: #5B5E66; --bordo: #E6E6E1; --superficie: #F4F4F1; --giallo: #FFE55C; }
+@media (prefers-color-scheme: dark) { :root { --carta: #15151A; --inchiostro: #F1F1EC; --grigio: #A9ACB4; --bordo: #2C2C33; --superficie: #1E1E24; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--carta); color: var(--inchiostro); font: 400 17px/1.5 "Bricolage Grotesque", system-ui, sans-serif; }
+.testo-legale, .admin { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; font-size: 34px; margin: 8px 0; }
+h2 { font-weight: 700; font-size: 20px; margin: 28px 0 8px; }
+a { color: inherit; }
+ul { padding-left: 1.2em; }
+li { margin: 4px 0; }
+.versione { color: var(--grigio); }
+.breve { background: var(--superficie); border-radius: 16px; padding: 4px 16px 8px; }
+mark.segnaposto { background: linear-gradient(transparent 28%, var(--giallo) 28%, var(--giallo) 92%, transparent 92%); color: #1A1A1E; font-weight: 700; }
+input, select, textarea { font: inherit; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bordo); border-radius: 12px; background: var(--carta); color: inherit; }
+button { font: inherit; min-height: 44px; padding: 8px 18px; border-radius: 999px; border: 1px solid var(--inchiostro); background: var(--carta); color: inherit; cursor: pointer; }
+button.azione { background: var(--inchiostro); color: var(--giallo); font-weight: 700; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--giallo); outline-offset: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+.riga { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.errore { color: #B0291A; }
+.tabella { overflow-x: auto; }

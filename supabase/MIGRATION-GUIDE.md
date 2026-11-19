@@ -109,5 +109,10 @@ passano solo dopo che Roby ha applicato la migration.
 ## 8. Dopo l'applicazione
 
 Advisor di sicurezza e prestazioni (`get_advisors` o dashboard): nessun avviso nuovo.
-Avvisi noti e accettati: `pin_profili` senza policy (voluto) e le fk composte coperte da un
-indice che parte da `argomento_id`, `sessione_id` o `domanda_id` (colonna quasi unica, basta).
+Avvisi noti e accettati: `pin_profili`, `impostazioni` e `accessi_admin` senza policy (voluto: le
+leggono e scrivono solo le Edge Function con la service role, issue #30), le fk composte coperte da un
+indice che parte da `argomento_id`, `sessione_id` o `domanda_id` (colonna quasi unica, basta) e gli
+indici appena creati segnati come «non usati» finché non arriva traffico.
+
+Prima di applicare una migration: `bash scripts/prova-migration.sh <copia> <migration>` la prova su una
+copia ripristinata in locale, con i test dei permessi (issue #30).

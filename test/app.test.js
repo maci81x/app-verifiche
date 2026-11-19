@@ -85,24 +85,24 @@ test("domanda guidata: aperta parte dal primo elemento atteso, chiusa rilegge le
 
 test("accesso: la risposta del server decide se entrare, aspettare o riprovare", () => {
   const es = (status, dati) => run(`JSON.stringify(esitoAccesso(${status}, ${JSON.stringify(dati)}))`);
-  assert.equal(es(200, { ok: true, access_token: "a", refresh_token: "r" }),
-    JSON.stringify({ tipo: "dentro", sessione: { access_token: "a", refresh_token: "r" } }));
+  assert.equal(es(200, { ok: true, access_token: "a", refresh_token: "r", id: "s1", nome: "Ada", classe: "2", nome_utente: "ada-k7m" }),
+    JSON.stringify({ tipo: "dentro", sessione: { access_token: "a", refresh_token: "r" }, profilo: { id: "s1", nome: "Ada", classe: "2", nome_utente: "ada-k7m" } }));
   assert.equal(es(401, { ok: false, attendi: 60 }), JSON.stringify({ tipo: "attendi", secondi: 60 }));
   assert.equal(es(401, { ok: false, attendi: 0 }), JSON.stringify({ tipo: "sbagliato" }));
+  assert.equal(es(403, { errore: "famiglia_sospesa" }), JSON.stringify({ tipo: "sospesa" }));
   assert.equal(es(200, { ok: true }), JSON.stringify({ tipo: "errore" })); // senza token non si entra
+  assert.equal(es(200, { ok: true, access_token: "a", refresh_token: "r" }), JSON.stringify({ tipo: "errore" })); // senza profilo nemmeno
   assert.equal(es(502, { errore: "x" }), JSON.stringify({ tipo: "errore" }));
   assert.equal(es(401, null), JSON.stringify({ tipo: "sbagliato" }));
   assert.equal(run("testoAttesa(60)"), "Troppi tentativi. Riprova fra 60 secondi.");
   assert.equal(run("testoAttesa(1)"), "Troppi tentativi. Riprova fra 1 secondo.");
+  assert.equal(run("testoAttesa(3600)"), "Troppi tentativi. Riprova fra 60 minuti.");
+  assert.equal(run("testoAttesa(86400)"), "Troppi tentativi. Riprova fra 24 ore, oppure chiedi al tuo genitore di cambiare il codice.");
 });
 
-test("elenco profili: solo righe valide, ognuna con la sua chiave di sessione; l'ultimo usato in cima", () => {
-  const l = run(`JSON.stringify(profiliDaElenco([{id:"b",nome:"Ada",classe:"2"},{id:"s",nome:"Leo",classe:null},{id:"x",nome:"  "},null,{nome:"senza id"}]))`);
-  assert.deepEqual(JSON.parse(l), [
-    { id: "b", nome: "Ada", classe: "2", chiave: "sb-verifiche-b" },
-    { id: "s", nome: "Leo", classe: "", chiave: "sb-verifiche-s" },
-  ]);
-  assert.equal(run("profiliDaElenco({errore:'x'})"), null);
+test("profili salvati: il nome della v34 diventa il nome utente; l'ultimo usato in cima", () => {
+  assert.equal(run(`nomeUtenteVecchio("  Ada ")`), "ada");
+  assert.equal(run(`nomeUtenteVecchio("Maria Chiara")`), "maria chiara");
   assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], "s").map((p) => p.id).join()`), "s,b");
   assert.equal(run(`ordinaProfili([{id:"b"},{id:"s"}], null).map((p) => p.id).join()`), "b,s");
 });

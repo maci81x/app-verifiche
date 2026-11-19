@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { OPUS, SONNET, HAIKU, MODELLO_PER_AZIONE, modelloPer, costoUsd, TETTO_CHIAMATE, tettoRaggiunto, consumoAggiornato, consumoDelGiorno }
+import { OPUS, SONNET, HAIKU, MODELLO_PER_AZIONE, modelloPer, costoUsd }
   from "../supabase/functions/_shared/modelli.js";
 
 const indice = readFileSync(new URL("../supabase/functions/modello/index.ts", import.meta.url), "utf8");
@@ -38,27 +38,6 @@ test("costo in dollari dai prezzi di platform.claude.com (per milione di token)"
   assert.equal(costoUsd(SONNET, u), 2 + 10 + 2.5 + 0.1);
   assert.equal(Math.round(costoUsd(HAIKU, u) * 1000) / 1000, 0.1 + 0.5 + 0.125 + 0.01);
   assert.equal(costoUsd(OPUS, {}), 0);
-});
-
-test("tetto giornaliero: 150 chiamate, si riparte il giorno dopo", () => {
-  assert.equal(TETTO_CHIAMATE, 150);
-  assert.equal(tettoRaggiunto({}, "2026-11-16"), false);
-  assert.equal(tettoRaggiunto({ consumo: { giorno: "2026-11-16", chiamate: 149 } }, "2026-11-16"), false);
-  assert.equal(tettoRaggiunto({ consumo: { giorno: "2026-11-16", chiamate: 150 } }, "2026-11-16"), true);
-  assert.equal(tettoRaggiunto({ consumo: { giorno: "2026-11-15", chiamate: 999 } }, "2026-11-16"), false);
-});
-
-test("consumo: si somma nello stesso giorno, si azzera il giorno dopo, conta i token e il costo", () => {
-  const delta = { chiamate: 2, input: 1000, output: 500, cache_scritti: 0, cache_letti: 3000, costo: 0.0156 };
-  const primo = consumoAggiornato({}, "2026-11-16", delta);
-  assert.deepEqual(primo, { giorno: "2026-11-16", chiamate: 2, input: 1000, output: 500, cache_scritti: 0, cache_letti: 3000, costo: 0.0156 });
-  const secondo = consumoAggiornato({ consumo: primo }, "2026-11-16", delta);
-  assert.equal(secondo.chiamate, 4);
-  assert.equal(secondo.cache_letti, 6000);
-  assert.equal(secondo.costo, 0.0312);
-  assert.equal(consumoAggiornato({ consumo: secondo }, "2026-11-17", delta).chiamate, 2);
-  assert.deepEqual(consumoDelGiorno({ consumo: secondo }, "2026-11-17"), { giorno: "2026-11-17", chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0 });
-  assert.equal(consumoDelGiorno({ consumo: { giorno: "2026-11-16", chiamate: "x" } }, "2026-11-16").chiamate, 0);
 });
 
 import { FINE_PARTE_FISSA, dividiPerCache, promptDomande, promptCorrezione, promptCompitoDomanda } from "../supabase/functions/_shared/prompt.js";
