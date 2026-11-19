@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 // semaforo.js prima di app.js, libreria.js dopo (disegno dei profili), come in index.html.
-const SORGENTE = ["semaforo.js", "app.js", "libreria.js", "famiglia.js"].map((f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n;\n");
+const SORGENTE = ["soldi.js", "semaforo.js", "app.js", "libreria.js", "famiglia.js"].map((f) => readFileSync(new URL("../" + f, import.meta.url), "utf8")).join("\n;\n");
 
 // Quel tanto di DOM che usano le schermate di accesso.
 function elemento(tag = "div") {
