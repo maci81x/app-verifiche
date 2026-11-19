@@ -31,9 +31,10 @@ test("profili: azioni nuove, massimo figli, consumi contati e cancellati prima d
   const s = leggi("functions/profili/index.ts");
   for (const a of ["crea", "codice", "classe", "nuovo_nome_utente", "elimina", "elimina_famiglia", "esporta", "famiglia", "consumo"])
     assert.match(s, new RegExp(`b\\.azione === "${a}"`), a);
-  assert.match(s, /const TABELLE = \[[^\]]*"consumi"/);
+  const el = leggi("functions/_shared/eliminazione.ts");
+  assert.match(el, /const TABELLE = \[[^\]]*"consumi"/);
   assert.match(s, /MAX_FIGLI/);
-  const elimina = s.slice(s.indexOf("async function elimina("));
+  const elimina = el.slice(el.indexOf("async function elimina("));
   assert.ok(elimina.indexOf('"consumi"') > -1 && elimina.indexOf('"consumi"') < elimina.indexOf("deleteUser"), "consumi cancellati prima dell'account");
   assert.match(s, /from\("consumi"\)/, "il consumo si legge dalla tabella");
   assert.doesNotMatch(s, /consumoDelGiorno/);
@@ -59,7 +60,7 @@ test("modello: il tetto lo decide prenota_chiamata e il consumo va in tabella, n
 
 test("revisione del branch: consumi archiviati prima di eliminare, famiglia di ripiego solo per gli account vecchi, cancellazioni controllate", () => {
   const p = leggi("functions/profili/index.ts");
-  const elimina = p.slice(p.indexOf("async function elimina("));
+  const elimina = leggi("functions/_shared/eliminazione.ts").slice(leggi("functions/_shared/eliminazione.ts").indexOf("async function elimina("));
   assert.ok(elimina.indexOf('rpc("archivia_consumi"') > -1 && elimina.indexOf('rpc("archivia_consumi"') < elimina.indexOf('"consumi"]'), "il consumo si archivia prima di cancellarlo");
   assert.match(p, /senza_famiglia/);
   assert.match(p, /PRIMA_DELLA_30/);
