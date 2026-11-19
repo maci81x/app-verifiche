@@ -626,7 +626,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
   do $t$ declare f regprocedure; r text; begin
     for f in select p.oid::regprocedure from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public' and p.proname in
-                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata') loop
+                ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni') loop
       foreach r in array array['anon', 'authenticated'] loop
         if has_function_privilege(r, f, 'execute') then raise exception '% può eseguire %', r, f; end if;
       end loop;
@@ -637,7 +637,7 @@ prova('tabelle e funzioni nuove: anonimo e utenti non arrivano dove non devono',
       raise exception 'la service role non scrive in tutte le tabelle nuove';
     end if;
     if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in
-         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata')) <> 6 then
+         ('accesso_con_nome', 'posti_occupati', 'invito_valido', 'stato_invito', 'iscrivi_famiglia', 'prenota_chiamata', 'pulisci_iscrizioni')) <> 7 then
       raise exception 'mancano funzioni nuove';
     end if;
   end $t$;
@@ -715,11 +715,16 @@ prova('iscrizione: tetto dei posti, codici, prova monouso, consensi, chi ha invi
   ${esitoIscrizione(P[1], 'aaaaaaaa', 'posti_esauriti', 'la terza famiglia supera il tetto di 2')}
   ${verifica(`(stato_invito('aaaaaaaa') ->> 'posti_liberi')::boolean = false`, 'stato_invito non vede i posti pieni')}
   ${esitoIscrizione(P[1], 'zzzzzzzz', 'invito_non_valido', 'un codice inesistente iscrive')}
-  -- passano 25 ore senza conferma: il posto di P1 si libera
+  -- passano 25 ore senza conferma: il posto resta contato finché la pulizia (alla prossima iscrizione) non cancella P1
   ${BASE}; update public.famiglie set creato = now() - interval '25 hours' where genitore_id = '${P[0]}';
   ${comeServizio}
-  ${verifica(`posti_occupati() = 1`, "un'iscrizione mai confermata occupa il posto dopo 24 ore")}
-  ${esitoIscrizione(P[1], 'aaaaaaaa', 'ok', 'P2 non entra quando il posto si libera')}
+  ${verifica(`posti_occupati() = 2`, 'il tetto non conta tutte le famiglie esterne attive non di prova')}
+  ${esitoIscrizione(P[1], 'aaaaaaaa', 'ok', 'P2 non entra quando il posto di un iscritto mai confermato si libera')}
+  ${BASE};
+  ${verifica(`(select count(*) from auth.users where id = '${P[0]}') = 0 and (select count(*) from public.famiglie where genitore_id = '${P[0]}') = 0`,
+    "l'iscrizione mai confermata non è stata cancellata (utente e famiglia)")}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 2`, 'dopo la pulizia i posti non sono B e P2')}
   ${verifica(`(select invitata_da = '${GENITORE}' and esterna and not prova and limite_aiuti = 10 and limite_chiamate = 60
                  and codice_invito_usato = 'aaaaaaaa' from famiglie where genitore_id = '${P[1]}')`, 'la famiglia di P2 ha valori sbagliati')}
   ${verifica(`(select count(*) from consensi where genitore_id = '${P[1]}' and versione = '2026-11-19') = 3`, 'i tre consensi non sono registrati con la versione')}
@@ -730,6 +735,29 @@ prova('iscrizione: tetto dei posti, codici, prova monouso, consensi, chi ha invi
   ${BASE}; update public.famiglie set stato = 'sospesa' where id = '${FAM_B}';
   ${comeServizio}
   ${verifica(`posti_occupati() = 1`, 'una famiglia sospesa occupa un posto')}
+`, FAMIGLIE + ISCRIZIONI);
+
+prova("iscrizione non confermata: entro 24 ore si conferma, dopo è rifiutata e la pulizia libera il posto", `
+  ${BASE}; update public.impostazioni set posti_esterni = 3;
+  ${comeServizio}
+  ${esitoIscrizione(P[0], 'bbbbbbbb', 'ok', 'P1 non si iscrive')}
+  ${esitoIscrizione(P[1], 'aaaaaaaa', 'ok', 'P2 non si iscrive')}
+  ${verifica(`posti_occupati() = 3`, 'le iscrizioni non confermate di oggi non occupano un posto')}
+  ${esitoIscrizione(P[2], 'dddddddd', 'ok', 'il codice di prova non entra a posti pieni')}
+  ${BASE};
+  update auth.users set email_confirmed_at = now() where id = '${P[0]}';
+  ${verifica(`(select email_confirmed_at is not null from auth.users where id = '${P[0]}')`, 'entro 24 ore la conferma non riesce')}
+  update public.famiglie set creato = now() - interval '25 hours' where genitore_id = '${P[1]}';
+  ${vieta(`update auth.users set email_confirmed_at = now() where id = '${P[1]}'`, 'raise_exception', 'dopo 24 ore la conferma riesce ancora')}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 3`, 'prima della pulizia il posto di P2 non è più contato')}
+  ${verifica(`(stato_invito('bbbbbbbb') ->> 'posti_liberi')::boolean`, 'controllare un invito non libera il posto di chi non ha confermato')}
+  ${BASE};
+  ${verifica(`(select count(*) from auth.users where id = '${P[1]}') = 0`, "l'utente non confermato non è stato cancellato")}
+  ${comeServizio}
+  ${verifica(`posti_occupati() = 2`, 'la pulizia non libera il posto')}
+  ${verifica(`pulisci_iscrizioni() = 0`, 'la pulizia cancella anche chi ha confermato o è di prova')}
+  ${verifica(`(select count(*) from famiglie where genitore_id in ('${P[0]}', '${P[2]}')) = 2`, 'la pulizia ha toccato famiglie confermate o di prova')}
 `, FAMIGLIE + ISCRIZIONI);
 
 prova('prenota_chiamata: tetto atomico della famiglia, sospensione, limiti senza famiglia', `
