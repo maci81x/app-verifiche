@@ -36,17 +36,19 @@ function righeFamiglie(r) {
 
 // Conferma scritta nella pagina, mai un popup: il primo tocco cambia il testo del pulsante, il secondo entro `ms`
 // esegue una volta sola e rimette il testo; scaduto il tempo si torna al primo tocco.
-function confermaInPagina(btn, testo, fn, ms = 4000) {
+function confermaInPagina(btn, testo, fn, ms = 6000) {
   if (btn.dataset.inConferma === "1") {
     clearTimeout(btn._timer);
     btn.dataset.inConferma = "";
     btn.textContent = btn.dataset.testo;
+    btn.disabled = true; // niente seconda chiamata mentre l'azione parte (il ridisegno crea pulsanti nuovi)
     fn();
     return;
   }
   btn.dataset.testo = btn.textContent;
   btn.dataset.inConferma = "1";
   btn.textContent = testo;
+  if (typeof annuncia === "function") annuncia(testo); // anche nella riga di stato, letta dai lettori di schermo
   btn._timer = setTimeout(() => { btn.dataset.inConferma = ""; btn.textContent = btn.dataset.testo; }, ms);
 }
 
@@ -57,6 +59,7 @@ const meseIt = () => new Date().toLocaleDateString("it-IT", { month: "long", tim
 
 let sb = null, fattore = null, sfida = null, nomi = {};
 const $ = (id) => document.getElementById(id);
+const annuncia = (t) => { if (typeof document !== "undefined") msg(t); };
 const msg = (t, e) => { $("a-msg").textContent = t || ""; $("a-msg").className = e ? "errore" : ""; };
 // Piccolo costruttore di elementi: solo textContent, mai HTML da dati.
 function el(tag, prop, ...figli) {
@@ -108,7 +111,8 @@ async function verifica() {
   $("a-codice").value = "";
   if (error) { msg("Codice non giusto. Riprova con quello nuovo.", true); const { data: c } = await sb.auth.mfa.challenge({ factorId: fattore.id }); sfida = c; return; }
   $("a-totp").hidden = true; $("a-nuovo").hidden = true;
-  try { await disegna(); $("a-pannello").hidden = false; $("a-esci").hidden = false; }
+  $("a-segreto").textContent = ""; $("a-qr-totp").replaceChildren(); // il segreto TOTP non resta nella pagina
+  try { await disegna(); $("a-pannello").hidden = false; $("a-esci").hidden = false; $("a-esci").focus(); }
   catch (e) { msg(/amministratore/.test(e.message) ? "Verifica fatta. Il ruolo di amministratore non c'è ancora: va assegnato con SQL, poi esci e rientra." : "Non riesco a leggere i dati: " + e.message, true); }
 }
 

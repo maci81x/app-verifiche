@@ -69,6 +69,7 @@ button:disabled { opacity: .4; cursor: default; }
 table.dati { width: 100%; border-collapse: collapse; font-size: 15px; }
 table.dati th { text-align: left; font-weight: 700; color: var(--inchiostro-2); font-size: 14px; padding: 8px 6px; border-bottom: 1.5px solid var(--bordo); }
 table.dati td { padding: 10px 6px; border-bottom: 1px solid var(--bordo); vertical-align: top; }
+details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
 pre.contenuti { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--superficie); border-radius: 12px; padding: 12px; font-size: 13px; max-height: 50vh; overflow: auto; }
 /* Su schermo stretto le tabelle diventano schede: una per riga, con l'etichetta prima di ogni valore. */
 @media (max-width: 719px) {

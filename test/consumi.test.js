@@ -20,7 +20,7 @@ test("dollari: sotto 1 centesimo 4 decimali, altrimenti 2; zero è zero", () => 
   assert.equal(dollari(12345.5), "12.345,50 $"); // in italiano i numeri di 4 cifre non si raggruppano
   assert.equal(dollari(0), "0,00 $");
   assert.equal(dollari(null), "0,00 $");
-  assert.equal(dollari(0.00004), "0,0000 $"); // sotto il decimo di centesimo resta piccolo, non 0,00
+  assert.equal(dollari(0.00004), "0,0000 $"); // sotto il mezzo decimillesimo resta 0,0000 $: si vede comunque che è sotto il centesimo
 });
 
 const righe = [

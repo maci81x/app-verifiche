@@ -40,7 +40,7 @@ test("famiglie con i figli annidati; i profili senza famiglia restano visibili a
   assert.equal(r.famiglie[0].tipo, "esistente");
 });
 
-test("conferma scritta nella pagina: il primo tocco chiede conferma, il secondo esegue, dopo 4 secondi si torna indietro", async () => {
+test("conferma scritta nella pagina: il primo tocco chiede conferma, il secondo esegue, scaduto il tempo si torna indietro", async () => {
   const b = { textContent: "Sospendi", dataset: {}, attivo: false };
   run("chiamate = 0");
   ctx.btn = b;
