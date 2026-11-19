@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const ctx = vm.createContext({ console, Math, Date, JSON, Promise, URL, setTimeout, clearTimeout, setInterval, clearInterval });
+vm.runInContext(readFileSync(new URL("../soldi.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../semaforo.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../app.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(readFileSync(new URL("../libreria.js", import.meta.url), "utf8"), ctx);
@@ -661,11 +662,13 @@ test("ottimizzazione: tetto giornaliero delle richieste con un messaggio chiaro"
   assert.match(readFileSync(new URL("../app.js", import.meta.url), "utf8"), /json\.errore === "tetto_giornaliero"/);
 });
 
-test("ottimizzazione: consumo di oggi per il genitore, token e costo con al massimo 2 decimali", () => {
+test("consumo di oggi per il genitore: token e costo, 4 decimali sotto il centesimo (issue #34)", () => {
   assert.equal(run(`testoConsumo({ chiamate: 23, input: 60000, output: 25000, cache_scritti: 0, cache_letti: 4000, costo: 0.7412 }, 150)`),
     "Oggi: 23 richieste su 150 · 89.000 token · circa 0,74 $");
   assert.equal(run(`testoConsumo({ chiamate: 0, input: 0, output: 0, cache_scritti: 0, cache_letti: 0, costo: 0 }, 150)`),
     "Oggi: nessuna richiesta (massimo 150)");
+  assert.equal(run(`testoConsumo({ chiamate: 4, input: 5284, output: 280, cache_scritti: 0, cache_letti: 0, costo: 0.000668 }, 150)`),
+    "Oggi: 4 richieste su 150 · 5564 token · circa 0,0007 $");
 });
 
 // Foto veloci: foto più leggere, lettura una foto per chiamata con al massimo 3 chiamate insieme, ordine tenuto.

@@ -6,6 +6,7 @@ const ASSETS = [
   '/app-verifiche/',
   '/app-verifiche/index.html',
   '/app-verifiche/style.css?v=35',
+  '/app-verifiche/soldi.js?v=35',
   '/app-verifiche/semaforo.js?v=35',
   '/app-verifiche/app.js?v=35',
   '/app-verifiche/libreria.js?v=35',

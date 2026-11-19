@@ -647,8 +647,7 @@ function testoConsumo(c, tetto) {
   const t = (c && c.tetto) || tetto;
   if (!c || !c.chiamate) return "Oggi: nessuna richiesta (massimo " + t + ")";
   const token = (c.input || 0) + (c.output || 0) + (c.cache_scritti || 0) + (c.cache_letti || 0);
-  return "Oggi: " + c.chiamate + " richieste su " + t + " · " + token.toLocaleString("it-IT") + " token · circa " +
-    (c.costo || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
+  return "Oggi: " + c.chiamate + " richieste su " + t + " · " + token.toLocaleString("it-IT") + " token · circa " + dollari(c.costo);
 }
 const bottone = (testo, classe, fn, etichetta) => {
   const b = document.createElement("button"); b.type = "button"; b.className = classe; b.textContent = testo;

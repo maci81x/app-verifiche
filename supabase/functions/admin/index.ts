@@ -2,7 +2,8 @@
 // passaggi fatta (aal2, TOTP di Supabase Auth): lo controlla autorizzaAdmin prima di ogni azione. Tutto con la service role.
 //
 // POST { azione: "riepilogo" }   → { posti_esterni, posti_occupati, famiglie: [...], figli: [...], invito }
-// POST { azione: "consumi", giorni? }  → { righe: [{ studente_id, giorno, chiamate, costo }] }   ultimi 30 giorni di default
+// POST { azione: "consumi", giorni? }  → { righe: [{ studente_id, giorno, chiamate, costo }], oggi: { chiamate, costo }, mese: { chiamate, costo } }
+//      ultimi 30 giorni di default, sempre dal primo del mese
 // POST { azione: "imposta", posti_esterni } | { azione: "imposta", famiglia_id, limite_aiuti, limite_chiamate } → { ok }
 // POST { azione: "stato", famiglia_id, stato: "attiva" | "sospesa" } → { ok } · 409 posti_esauriti (riattivare rispetta il tetto)
 // POST { azione: "elimina_famiglia", famiglia_id } → { ok }   solo famiglie esterne con la mail mai confermata
@@ -14,6 +15,7 @@ import { admin, json, CORS, UUID, claims } from "../_shared/http.ts";
 import { autorizzaAdmin } from "../_shared/famiglie.js";
 import { codicePersonale } from "../_shared/inviti.ts";
 import { giornoRoma } from "../_shared/compito.js";
+import { sommeConsumi, inizioFinestra } from "../_shared/consumi.js";
 
 
 const intero = (v: unknown, max: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : null);
@@ -69,31 +71,21 @@ Deno.serve(async (req) => {
     }
 
     if (b.azione === "consumi") {
-      const giorni = intero(b.giorni, 365) ?? 30;
-      const dal = new Date(Date.parse(giornoRoma() + "T12:00:00Z") - giorni * 86400000).toISOString().slice(0, 10);
+      // Ultimi `giorni` (30), ma sempre dal primo del mese: il totale del mese è completo (issue #34).
+      const oggi = giornoRoma();
+      const dal = inizioFinestra(oggi, intero(b.giorni, 365) ?? 30);
       // PostgREST restituisce al massimo 1000 righe per richiesta: si legge a pagine fino all'ultima.
-      const data: { studente_id: string; giorno: string; costo: number }[] = [];
+      const righe: { studente_id: string; giorno: string; costo: number }[] = [];
       for (let da = 0; ; da += 1000) {
         const { data: pagina, error } = await db.from("consumi").select("studente_id, giorno, costo").gte("giorno", dal).neq("modello", "prenotata").order("id").range(da, da + 999);
         if (error) throw error;
-        data.push(...(pagina ?? []));
+        righe.push(...(pagina ?? []));
         if (!pagina || pagina.length < 1000) break;
       }
       // Le chiamate dei figli eliminati restano per famiglia (consumi_archiviati): si mostrano come «profilo eliminato».
       const { data: archivio, error: ea } = await db.from("consumi_archiviati").select("famiglia_id, giorno, chiamate, costo").gte("giorno", dal);
       if (ea) throw ea;
-      const somme: Record<string, { studente_id: string; giorno: string; chiamate: number; costo: number }> = {};
-      for (const a of archivio ?? []) {
-        const k = "eliminato:" + a.famiglia_id + "|" + a.giorno;
-        const s = (somme[k] ??= { studente_id: "profilo eliminato", giorno: a.giorno, chiamate: 0, costo: 0 });
-        s.chiamate += a.chiamate; s.costo = Math.round((s.costo + Number(a.costo)) * 1e6) / 1e6;
-      }
-      for (const r of data) {
-        const k = r.studente_id + "|" + r.giorno;
-        const s = (somme[k] ??= { studente_id: r.studente_id, giorno: r.giorno, chiamate: 0, costo: 0 });
-        s.chiamate++; s.costo = Math.round((s.costo + Number(r.costo)) * 1e6) / 1e6;
-      }
-      return json({ righe: Object.values(somme).sort((a, c) => (a.giorno < c.giorno ? 1 : -1)) });
+      return json(sommeConsumi(righe, archivio ?? [], oggi));
     }
 
     if (b.azione === "imposta") {
