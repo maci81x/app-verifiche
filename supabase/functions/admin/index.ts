@@ -55,6 +55,9 @@ Deno.serve(async (req) => {
 
   try {
     if (b.azione === "riepilogo") {
+      // Prima si cancellano le iscrizioni esterne mai confermate dopo 24 ore (liberano il posto).
+      const { error: ep } = await db.rpc("pulisci_iscrizioni");
+      if (ep) throw ep;
       const [u, { data: famiglie, error: e1 }, { data: figli, error: e2 }, { data: imp, error: e3 }] = await Promise.all([
         utenti(db),
         db.from("famiglie").select("id, genitore_id, nome, cognome, esterna, prova, stato, limite_aiuti, limite_chiamate, invitata_da, codice_invito_usato, creato").order("creato"),

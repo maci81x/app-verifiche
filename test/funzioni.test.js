@@ -43,6 +43,7 @@ test("admin: ogni azione passa prima da autorizzaAdmin, e i contenuti scrivono i
   const s = leggi("functions/admin/index.ts");
   const controllo = s.indexOf("autorizzaAdmin(");
   assert.ok(controllo > -1 && controllo < s.indexOf('b.azione ==='), "autorizzaAdmin prima delle azioni");
+  assert.match(s, /rpc\("pulisci_iscrizioni"\)/, "il riepilogo non pulisce le iscrizioni scadute");
   const contenuti = s.slice(s.indexOf('b.azione === "contenuti"'));
   assert.ok(contenuti.indexOf('from("accessi_admin").insert') > -1, "manca il registro");
   assert.ok(contenuti.indexOf('from("accessi_admin").insert') < contenuti.indexOf('from("argomenti")'), "il registro si scrive prima di leggere i contenuti");
