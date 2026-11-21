@@ -149,3 +149,10 @@ test("pulizia #37: registro oltre 12 mesi, conteggio e soglia prima di cancellar
   assert.match(r, /\.lt\("creato", limite\)/);
   assert.match(e.slice(e.indexOf("export async function pulisciCestino")), /pulisciRegistro\(db, ora\)/);
 });
+
+test("pulizia #37: con il cestino oltre la soglia l'esito resta ok: false anche se il registro va bene", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  const riga = e.split("\n").find((l) => l.includes("if (piano.troppi) return"));
+  assert.match(riga, /ok: false/);
+  assert.doesNotMatch(riga, /\.\.\.reg/, "lo spread di reg sovrascriverebbe ok");
+});

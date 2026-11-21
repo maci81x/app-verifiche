@@ -210,7 +210,7 @@ export async function pulisciCestino(db: Db, ora = Date.now()) {
     if (e1) throw e1;
     if (e2) throw e2;
     const piano = pianoPulizia({ famiglie: famiglie ?? [], figli: figli ?? [] }, ora);
-    if (piano.troppi) return { ok: false, troppi: true, famiglie: piano.famiglie.length, profili: piano.profili, restano: 0, ...reg, ok_registro: reg.ok };
+    if (piano.troppi) return { ok: false, troppi: true, famiglie: piano.famiglie.length, profili: piano.profili, restano: 0, registro: reg.registro, registro_troppi: reg.registro_troppi };
 
     // «Scaduto» si ricontrolla subito prima di cancellare: un «Ripristina» nel frattempo vince.
     const ancoraScaduto = async (tabella: string, id: string) => {
