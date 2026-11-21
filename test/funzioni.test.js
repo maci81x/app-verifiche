@@ -161,3 +161,7 @@ test("pulizia #37: un errore del registro non ferma il cestino, ma fa fallire il
   const e = leggi("functions/_shared/eliminazione.ts");
   assert.match(e, /await pulisciRegistro\(db, ora\)\.catch\(/);
 });
+
+test("pulizia #37: riga riassuntiva al singolare con una riga sola", () => {
+  assert.match(leggi("functions/_shared/eliminazione.ts"), /=== 1 \? "1 riga" :/);
+});

@@ -185,7 +185,7 @@ export async function pulisciRegistro(db: Db, ora = Date.now()) {
   if (!piano.cancella) return { ok: !piano.troppi, registro: 0, registro_troppi: piano.troppi };
   const { error: e2, count: via } = await db.from("accessi_admin").delete({ count: "exact" }).lt("creato", limite);
   if (e2) throw e2;
-  const { error: e3 } = await db.from("accessi_admin").insert({ admin_id: NESSUN_ADMIN, studente_id: NESSUN_ADMIN, azione: "pulizia del registro", motivo: (via ?? n) + " righe oltre 12 mesi" });
+  const { error: e3 } = await db.from("accessi_admin").insert({ admin_id: NESSUN_ADMIN, studente_id: NESSUN_ADMIN, azione: "pulizia del registro", motivo: ((via ?? n) === 1 ? "1 riga" : (via ?? n) + " righe") + " oltre 12 mesi" });
   if (e3) throw e3;
   return { ok: true, registro: via ?? n, registro_troppi: false };
 }
