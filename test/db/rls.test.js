@@ -889,3 +889,11 @@ prova('cestino: profilo_attivo per la policy delle foto (authenticated sì, anon
   select lascia_pulizia();
   ${verifica(`prendi_pulizia(10)`, 'lasciato il lucchetto, il giro dopo non lo prende')}
 `, FAMIGLIE);
+
+// ---------------------------------------------------------------- doppio salvataggio (issue #33)
+prova('una prova salvata due volte con lo stesso id non crea una seconda riga', `
+  ${come(ANNA)}
+  insert into sessioni (id, titolo, materia, livello, tipo, modalita) values ('00000000-0000-4000-8000-000000000033', 'Prova doppia', 'storia', 'medio', 'miste', 'scritta');
+  ${vieta(`insert into sessioni (id, titolo, materia, livello, tipo, modalita) values ('00000000-0000-4000-8000-000000000033', 'Prova doppia', 'storia', 'medio', 'miste', 'scritta')`, 'unique_violation', 'la stessa prova salvata due volte')}
+  ${verifica(`(select count(*) from sessioni where id = '00000000-0000-4000-8000-000000000033') = 1`, 'più di una riga per la stessa prova')}
+`);

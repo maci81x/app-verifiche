@@ -349,6 +349,11 @@ let livello = "medio", tipo = "miste", modalita = "scritta";
 let titoloProva = "", materiaProva = "", timer = null;
 let dettaglio = [], soloErrori = false;
 let corrette = {}; // verifica in linea (issue #26): { [domanda_id]: { punti, commento, rubrica } }
+// Una consegna per prova (issue #33): un doppio tocco su «Avanti» salvava la verifica due volte. consegnata blocca la
+// seconda consegna nell'app; idProva è l'id della riga in `sessioni`, così un secondo insert uguale fallisce (chiave
+// primaria) invece di creare un doppione.
+let consegnata = false, idProva = null;
+function nuovaProva() { consegnata = false; idProva = crypto.randomUUID(); }
 // Ultimo "Cosa studiare" e ultimo esito mostrati: li riusa la stampa (stampa.js).
 let listaStudiare = [], esitoMostrato = null;
 let libreriaCaricata = false; // false se l'ultima lettura della libreria è fallita
@@ -1638,7 +1643,7 @@ async function preparaVerifica(args, btn, elStato, elErr, extra = {}) {
     domande = r.domande; scartate = r.scartate || 0; argsProva = args;
     const pesi = {}; args.forEach((a) => a.concetti.forEach((c) => { pesi[c.id] = c.peso; }));
     domande.forEach((d) => { d.peso = pesi[d.concetto_id] || 1; });
-    idx = 0; risposte = {}; corrette = {};
+    idx = 0; risposte = {}; corrette = {}; nuovaProva();
     attesa(elStato, null); btn.disabled = false;
     vai("verifica", modo === "ripasso" ? null : args[0].materia);
     mostraDomanda();
@@ -1954,6 +1959,8 @@ async function avviaOrale() {
 /* =================================================================== correzione ed esito */
 
 async function correggi() {
+  if (consegnata) return; // secondo tocco mentre la prima consegna è in corso (o già fatta)
+  consegnata = true;
   fermaVoce();
   $("btn-avanti").disabled = true; $("btn-nonso").disabled = true;
   attesa($("stato-ver"), ["Correggo le risposte", "Guardo se hai detto tutto, se è giusto e come l'hai detto", "Salvo la prova nello storico"]);
@@ -1963,6 +1970,7 @@ async function correggi() {
   try {
     if (pacchetto.length) val = (await conRiprova(() => modello({ azione: "correggi", modalita, pacchetto }))).valutazioni || [];
   } catch (e) {
+    consegnata = false; // niente è stato salvato: il nuovo tocco riprova
     attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
     errore($("err-ver"), messaggioModello(e, "La correzione delle risposte aperte non è riuscita. Tocca di nuovo il pulsante qui sotto fra un momento."));
     return;
@@ -1975,8 +1983,11 @@ async function correggi() {
     else if (!r.testo) per[d.id] = { punti: 0, commento: "Non hai risposto." };
     else per[d.id] = esitoAperta(d, r.testo, val.find((x) => x.id === d.id));
   });
-  attesa($("stato-ver"), null); $("btn-avanti").disabled = false; $("btn-nonso").disabled = false;
-  await mostraEsito(per);
+  attesa($("stato-ver"), null);
+  // I pulsanti tornano attivi solo dopo il salvataggio: prima, un secondo tocco ripartiva da capo.
+  // Se l'esito non si disegna, la consegna si sblocca: un secondo salvataggio lo ferma comunque la chiave primaria.
+  try { await mostraEsito(per); } catch (e) { consegnata = false; throw e; }
+  finally { $("btn-avanti").disabled = false; $("btn-nonso").disabled = false; }
 }
 
 // Anello di prontezza: l'arco dice quanto manca, il voto al centro lo dice in numero.
@@ -2101,10 +2112,12 @@ function ripassaIRossi() {
 // Prova nello storico: sessione, domande e risposte, e stato aggiornato di ogni concetto.
 async function salvaProva(es, per) {
   const nErrori = domande.filter((d) => per[d.id].punti < 8).length;
-  const { data: s, error } = await sb.from("sessioni").insert({
+  const { data: s, error } = await sb.from("sessioni").insert({ id: idProva,
     argomento_id: modo === "ripasso" ? null : argsProva[0].id, titolo: titoloProva, materia: materiaProva,
     livello, tipo, modalita, indice: es.indice, voto: es.voto, n_domande: domande.length, n_errori: nErrori, scartate,
   }).select("*").single();
+  // Stessa prova già salvata (chiave primaria): niente doppione, né di domande né di risposte (issue #33).
+  if (error && error.code === "23505") return;
   if (error) throw error;
   const { data: ds, error: e2 } = await sb.from("domande").insert(domande.map((d, i) => ({
     sessione_id: s.id, argomento_id: d.argomento_id, concetto_id: d.concetto_id, concetto_titolo: d.concetto_titolo,
