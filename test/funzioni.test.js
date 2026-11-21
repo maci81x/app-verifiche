@@ -141,3 +141,27 @@ test("admin #35 (revisione): studente_id e famiglia_id insieme rifiutati; le azi
   for (const a of ["stato", "elimina_famiglia"]) assert.doesNotMatch(blocco(s, `b.azione === "${a}"`), /\.eq\("id", b\.famiglia_id\)/, a);
   assert.doesNotMatch(blocco(s, 'b.azione === "imposta"'), /\.eq\("id", b\.famiglia_id\)/);
 });
+
+test("pulizia #37: registro oltre 12 mesi, conteggio e soglia prima di cancellare", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  const r = e.slice(e.indexOf("export async function pulisciRegistro"));
+  assert.ok(r.indexOf("pianoRegistro(") > -1 && r.indexOf("pianoRegistro(") < r.indexOf(".delete("), "la soglia prima di cancellare");
+  assert.match(r, /\.lt\("creato", limite\)/);
+  assert.match(e.slice(e.indexOf("export async function pulisciCestino")), /pulisciRegistro\(db, ora\)/);
+});
+
+test("pulizia #37: con il cestino oltre la soglia l'esito resta ok: false anche se il registro va bene", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  const riga = e.split("\n").find((l) => l.includes("if (piano.troppi) return"));
+  assert.match(riga, /ok: false/);
+  assert.doesNotMatch(riga, /\.\.\.reg/, "lo spread di reg sovrascriverebbe ok");
+});
+
+test("pulizia #37: un errore del registro non ferma il cestino, ma fa fallire il giro", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  assert.match(e, /await pulisciRegistro\(db, ora\)\.catch\(/);
+});
+
+test("pulizia #37: riga riassuntiva al singolare con una riga sola", () => {
+  assert.match(leggi("functions/_shared/eliminazione.ts"), /=== 1 \? "1 riga" :/);
+});

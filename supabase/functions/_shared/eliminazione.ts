@@ -1,7 +1,7 @@
 // Eliminazione ed export dei dati di un figlio o di una famiglia (issue #14, #30, #35). Usati da `profili` (il genitore),
 // `admin` (l'amministratore) e `pulizia` (cestino oltre 30 giorni): una sola procedura, con il controllo «0 righe».
 import type { admin } from "./http.ts";
-import { esportazione, pianoPulizia, scaduti } from "./famiglie.js";
+import { esportazione, pianoPulizia, scaduti, limiteRegistro, pianoRegistro } from "./famiglie.js";
 
 type Db = ReturnType<typeof admin>;
 export const BUCKET = "fonti";
@@ -174,6 +174,22 @@ async function registraPulizia(db: Db, studente_id: string, famiglia_id: string 
   if (error) throw error;
 }
 
+// Registro oltre 12 mesi (issue #37): prima si contano le righe, poi si cancellano solo se sono entro la soglia.
+// Una riga sola nel registro dice quante ne sono andate via (senza nomi).
+export async function pulisciRegistro(db: Db, ora = Date.now()) {
+  const limite = limiteRegistro(ora);
+  const { count, error } = await db.from("accessi_admin").select("*", { count: "exact", head: true }).lt("creato", limite);
+  if (error) throw error;
+  const n = count ?? 0;
+  const piano = pianoRegistro(n);
+  if (!piano.cancella) return { ok: !piano.troppi, registro: 0, registro_troppi: piano.troppi };
+  const { error: e2, count: via } = await db.from("accessi_admin").delete({ count: "exact" }).lt("creato", limite);
+  if (e2) throw e2;
+  const { error: e3 } = await db.from("accessi_admin").insert({ admin_id: NESSUN_ADMIN, studente_id: NESSUN_ADMIN, azione: "pulizia del registro", motivo: ((via ?? n) === 1 ? "1 riga" : (via ?? n) + " righe") + " oltre 12 mesi" });
+  if (e3) throw e3;
+  return { ok: true, registro: via ?? n, registro_troppi: false };
+}
+
 const riuscita = (r: { scollegato?: boolean; resti: Record<string, number> | null } | null) =>
   !!r && (r.scollegato === true || (!!r.resti && Object.values(r.resti).every((n) => n === 0)));
 
@@ -185,6 +201,12 @@ export async function pulisciCestino(db: Db, ora = Date.now()) {
   if (el) throw el;
   if (!preso) return { ok: true, occupata: true, famiglie: 0, profili: 0, restano: 0 };
   try {
+    // Prima il registro: gira anche nei giorni in cui il cestino supera la sua soglia.
+    // Un errore qui non ferma il cestino, ma il giro fallisce (workflow rosso).
+    const reg = await pulisciRegistro(db, ora).catch((e) => {
+      console.error("pulizia: registro non pulito:", e);
+      return { ok: false, registro: 0, registro_troppi: false };
+    });
     const [{ data: famiglie, error: e1 }, { data: figli, error: e2 }] = await Promise.all([
       db.from("famiglie").select("id, genitore_id, cestino, protetta"),
       db.from("studenti").select("id, famiglia_id, cestino"),
@@ -192,7 +214,7 @@ export async function pulisciCestino(db: Db, ora = Date.now()) {
     if (e1) throw e1;
     if (e2) throw e2;
     const piano = pianoPulizia({ famiglie: famiglie ?? [], figli: figli ?? [] }, ora);
-    if (piano.troppi) return { ok: false, troppi: true, famiglie: piano.famiglie.length, profili: piano.profili, restano: 0 };
+    if (piano.troppi) return { ok: false, troppi: true, famiglie: piano.famiglie.length, profili: piano.profili, restano: 0, registro: reg.registro, registro_troppi: reg.registro_troppi };
 
     // «Scaduto» si ricontrolla subito prima di cancellare: un «Ripristina» nel frattempo vince.
     const ancoraScaduto = async (tabella: string, id: string) => {
@@ -218,7 +240,7 @@ export async function pulisciCestino(db: Db, ora = Date.now()) {
       if (error) { console.error("pulizia: genitore non cancellato:", f.id, error); restano++; } else nf++;
     }
     for (const f of famiglie ?? []) if (!piano.famiglie.some((x: { id: string }) => x.id === f.id)) await allineaAccessi(db, f.id);
-    return { ok: restano === 0, famiglie: nf, profili: np, restano };
+    return { ok: restano === 0 && reg.ok, famiglie: nf, profili: np, restano, registro: reg.registro, registro_troppi: reg.registro_troppi };
   } finally {
     await db.rpc("lascia_pulizia");
   }
