@@ -202,7 +202,8 @@ export function promptMappa(argomento, sottoPunti, classe) {
     "Non ripetere il titolo del concetto nei suoi sotto-punti.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
-    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+    // "sintesi" vuoto: stesso schema della sintesi, così le due chiamate condividono la cache (issue #36)
+    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}],"sintesi":[]}',
   ].join("\n\n");
 }
 
@@ -215,7 +216,7 @@ export function promptSintesi(argomento, classe) {
     "Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti: il server controlla che ci siano e toglie la sintesi se non le trova.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
-    'Rispondi solo con JSON: {"sintesi":[{"concetto_id":"c1","testo":""}]}',
+    'Rispondi solo con JSON: {"nodi":[],"sintesi":[{"concetto_id":"c1","testo":""}]}',
   ].join("\n\n");
 }
 

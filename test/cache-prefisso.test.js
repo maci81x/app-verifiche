@@ -31,3 +31,23 @@ test("un altro argomento ha un'altra parte fissa", () => {
   const altro = { ...ARG, trascrizione: ARG.trascrizione + " Altro." };
   assert.notEqual(dividiPerCache(promptMappa(altro, 4, "1")).fisso, dividiPerCache(promptMappa(ARG, 4, "1")).fisso);
 });
+
+// Prova vera del 21/11: con schemi diversi la sintesi riscriveva la cache (2342 token scritti, 0 letti). Lo schema di
+// output_config.format entra nel prefisso prima dei messaggi: mappa e sintesi devono mandare lo stesso schema e lo stesso effort.
+import { readFileSync } from "node:fs";
+test("mappa e sintesi chiamano il modello con lo stesso schema e lo stesso effort (stesso prefisso in cache)", () => {
+  const s = readFileSync(new URL("../supabase/functions/modello/index.ts", import.meta.url), "utf8");
+  const chiamata = (azione) => {
+    const i = s.indexOf(`if (b.azione === "${azione}")`);
+    const m = s.slice(i, s.indexOf("\n    if (b.azione ===", i + 10)).match(/chiedi\(prompt\w+\([^;]*?\),\s*(\w+),\s*\[\],\s*"(\w+)"\)/);
+    assert.ok(m, "chiamata di " + azione + " non trovata");
+    return m.slice(1);
+  };
+  assert.deepEqual(chiamata("mappa"), chiamata("sintesi"));
+  assert.match(s, /const SCHEMA_ARGOMENTO = \{[\s\S]*?nodi:[\s\S]*?sintesi:/);
+});
+
+test("mappa e sintesi chiedono tutti e due i campi, con quello che non serve vuoto", () => {
+  assert.match(promptMappa(ARG, 4, "1"), /"sintesi":\[\]\}'?$/m);
+  assert.match(promptSintesi(ARG, "1"), /\{"nodi":\[\],"sintesi":/);
+});

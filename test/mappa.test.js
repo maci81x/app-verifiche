@@ -195,7 +195,9 @@ test("«in breve» a parte (issue #13): la sintesi resta se regge sugli appunti,
 
 test("prompt: la mappa non chiede più la sintesi, la chiede promptSintesi per la classe (senza classe: 10-14 anni) e solo dal materiale", async () => {
   const { promptSintesi } = await import("../supabase/functions/_shared/prompt.js");
-  assert.doesNotMatch(promptMappa(ARGOMENTO, 10), /sintesi/);
+  // la mappa lascia vuoto il campo sintesi (stesso schema della sintesi per la cache, issue #36)
+  assert.doesNotMatch(promptMappa(ARGOMENTO, 10), /"sintesi":\[\{/);
+  assert.match(promptMappa(ARGOMENTO, 10), /"sintesi":\[\]/);
   const p = promptSintesi(ARGOMENTO);
   assert.match(p, /10-14 anni/); // issue #28: senza classe la regola generale
   assert.match(promptSintesi(ARGOMENTO, "2"), /Classe: 2ª media/);
