@@ -141,3 +141,11 @@ test("admin #35 (revisione): studente_id e famiglia_id insieme rifiutati; le azi
   for (const a of ["stato", "elimina_famiglia"]) assert.doesNotMatch(blocco(s, `b.azione === "${a}"`), /\.eq\("id", b\.famiglia_id\)/, a);
   assert.doesNotMatch(blocco(s, 'b.azione === "imposta"'), /\.eq\("id", b\.famiglia_id\)/);
 });
+
+test("pulizia #37: registro oltre 12 mesi, conteggio e soglia prima di cancellare", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  const r = e.slice(e.indexOf("export async function pulisciRegistro"));
+  assert.ok(r.indexOf("pianoRegistro(") > -1 && r.indexOf("pianoRegistro(") < r.indexOf(".delete("), "la soglia prima di cancellare");
+  assert.match(r, /\.lt\("creato", limite\)/);
+  assert.match(e.slice(e.indexOf("export async function pulisciCestino")), /pulisciRegistro\(db, ora\)/);
+});

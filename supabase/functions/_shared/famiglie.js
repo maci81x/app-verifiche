@@ -108,3 +108,13 @@ export function pianoPulizia({ famiglie, figli }, ora = Date.now()) {
 
 // Azioni del pannello admin che non chiedono il motivo e non guardano la famiglia protetta: solo letture di sintesi.
 export const AZIONI_LETTURA = new Set(["riepilogo", "consumi", "registro"]);
+
+// Registro dell'amministratore (issue #37): si tiene 12 mesi di calendario (informativa), poi la pulizia del mattino
+// lo cancella. Oltre SOGLIA_REGISTRO righe in un giro non si cancella niente: più probabilmente è un errore.
+export const SOGLIA_REGISTRO = 500;
+export function limiteRegistro(ora = Date.now()) {
+  const d = new Date(ora);
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.toISOString();
+}
+export const pianoRegistro = (n) => ({ cancella: n > 0 && n <= SOGLIA_REGISTRO, troppi: n > SOGLIA_REGISTRO });

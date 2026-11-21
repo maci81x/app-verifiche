@@ -193,3 +193,22 @@ test("pulizia: una famiglia protetta non si cancella mai", () => {
 test("admin: solo riepilogo, consumi e registro senza motivo", () => {
   assert.deepEqual([...AZIONI_LETTURA].sort(), ["consumi", "registro", "riepilogo"]);
 });
+
+// ---------------------------------------------------------------- registro dopo 12 mesi (issue #37)
+import { limiteRegistro, pianoRegistro, SOGLIA_REGISTRO } from "../supabase/functions/_shared/famiglie.js";
+
+test("registro: si tiene 12 mesi di calendario; la riga a 11 mesi resta, quella a 13 va via", () => {
+  const ora = Date.parse("2027-11-21T05:30:00Z");
+  const limite = limiteRegistro(ora);
+  assert.equal(limite, "2026-11-21T05:30:00.000Z");
+  const undici = "2026-12-21T05:30:00Z", tredici = "2026-10-21T05:30:00Z";
+  assert.ok(undici >= limite, "a 11 mesi resta");
+  assert.ok(tredici < limite, "a 13 mesi va via");
+});
+
+test("registro: oltre 500 righe in un giro non si cancella niente", () => {
+  assert.equal(SOGLIA_REGISTRO, 500);
+  assert.deepEqual(pianoRegistro(0), { cancella: false, troppi: false });
+  assert.deepEqual(pianoRegistro(500), { cancella: true, troppi: false });
+  assert.deepEqual(pianoRegistro(501), { cancella: false, troppi: true });
+});
