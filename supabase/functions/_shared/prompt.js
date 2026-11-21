@@ -183,8 +183,10 @@ export function promptCorrezione(modalita, pacchetto, classe, materia = "") {
 // Mappa concettuale (ticket #2, 30 ottobre 2026). Nuovo, non viene dal prototipo:
 // da tarare sulla prova vera. I concetti sono già i rami; il modello aggiunge solo
 // sotto-punti, ognuno con la sua ancora, e il filtro di ancoraggio scarta quelli che non reggono.
-// Prompt caching: mappa, sintesi e punti chiave dello stesso argomento (stesso modello) iniziano con lo stesso
-// blocco, il materiale, e lo leggono dalla cache. Il blocco deve restare identico fra le tre: non cambiarlo da solo.
+// Prompt caching (issue #36): mappa e sintesi dello stesso argomento (Opus, stesso schema, stesso effort) iniziano con
+// lo stesso blocco, il materiale, e la sintesi lo legge dalla cache scritta dalla mappa. Il blocco deve restare
+// identico fra le due: non cambiarlo da solo. I punti chiave usano Sonnet (altra cache): niente segno, niente
+// scrittura in cache pagata per niente.
 const materialeFisso = (argomento) =>
   "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE) + FINE_PARTE_FISSA;
 
@@ -202,7 +204,8 @@ export function promptMappa(argomento, sottoPunti, classe) {
     "Non ripetere il titolo del concetto nei suoi sotto-punti.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
-    'Rispondi solo con JSON: {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}]}',
+    // "sintesi" vuoto: stesso schema della sintesi, così le due chiamate condividono la cache (issue #36)
+    'Rispondi solo con JSON, con "sintesi" vuoto (la sintesi arriva dopo): {"nodi":[{"concetto_id":"c1","figli":[{"titolo":"","ancora":"","figli":[{"titolo":"","ancora":""}]}]}],"sintesi":[]}',
   ].join("\n\n");
 }
 
@@ -215,7 +218,7 @@ export function promptSintesi(argomento, classe) {
     "Solo quello che dice il materiale: niente numeri, date, nomi o fatti che nel materiale non ci sono. Usa le parole del materiale per le cose importanti: il server controlla che ci siano e toglie la sintesi se non le trova.",
     "Argomento: " + argomento.titolo + (argomento.materia ? " (" + argomento.materia + ")" : ""),
     "Concetti:\n" + JSON.stringify(concetti),
-    'Rispondi solo con JSON: {"sintesi":[{"concetto_id":"c1","testo":""}]}',
+    'Rispondi solo con JSON: {"nodi":[],"sintesi":[{"concetto_id":"c1","testo":""}]}',
   ].join("\n\n");
 }
 
@@ -225,7 +228,7 @@ export function promptPuntiChiave(argomento, classe) {
   const concetti = concettiInOrdine(argomento.concetti).map((c, i) => ({
     id: idBreve(i), titolo: c.titolo, descrizione: c.descrizione || "", ancora: c.ancora, peso: c.peso || 2,
   }));
-  return materialeFisso(argomento) + [
+  return "Materiale trascritto:\n" + String(argomento.trascrizione || "").slice(0, MAX_MATERIALE) + "\n\n" + [
     "Sei un insegnante di scuola media italiana. Prepari «Le 5 cose da sapere» di un argomento per " + chiStudia(classe) + ": la pagina da rileggere prima della verifica, per ragionare e non solo ricordare.",
     perLaClasse(classe, argomento.materia, argomento.titolo + " " + (argomento.trascrizione || "")),
     "Punti: i 5 punti più importanti, in ordine di importanza (il primo è quello che non si può non sapere). Ognuno ha un'etichetta fra «Chi», «Quando», «Che cosa» e «Perché conta»; un testo di al massimo quindici parole che lo dice con parole semplici; la chiave, cioè la frase esatta del materiale che lo contiene, copiata parola per parola e intera, dalla maiuscola al punto (mai un pezzo che comincia a metà frase); e l'id del concetto da cui nasce.",

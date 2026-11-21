@@ -270,6 +270,14 @@ const SCHEMA_SINTESI = {
   },
   required: ["sintesi"], additionalProperties: false,
 } as const;
+// Mappa e sintesi mandano LO STESSO schema (issue #36): lo schema di output_config.format entra nel prefisso della
+// cache prima dei messaggi, e con due schemi diversi la sintesi non leggeva mai il materiale dalla cache (prova del
+// 21/11: 0 token letti). Ognuna riempie il suo campo e lascia l'altro vuoto.
+const SCHEMA_ARGOMENTO = {
+  type: "object",
+  properties: { nodi: SCHEMA_MAPPA.properties.nodi, sintesi: SCHEMA_SINTESI.properties.sintesi },
+  required: ["nodi", "sintesi"], additionalProperties: false,
+} as const;
 // «Le 5 cose da sapere» e il racconto (issue #22).
 const ANCORATO = { type: "object", properties: { testo: { type: "string" }, ancora: { type: "string" } }, required: ["testo", "ancora"], additionalProperties: false } as const;
 const SCHEMA_PUNTI = {
@@ -1055,7 +1063,7 @@ async function gestisci(req: Request): Promise<Response> {
       // Solo l'albero, il più in fretta possibile: le sintesi arrivano dopo con l'azione `sintesi`
       // (issue #13). Con 25 concetti o più la mappa è già piena: niente modello.
       const posti = MAX_NODI - a.concetti.length;
-      const r = posti > 0 ? await chiedi(promptMappa(a, posti, await classeDi(req, io.sub)), SCHEMA_MAPPA, [], "low") : { nodi: [] };
+      const r = posti > 0 ? await chiedi(promptMappa(a, posti, await classeDi(req, io.sub)), SCHEMA_ARGOMENTO, [], "low") : { nodi: [] };
       return json(costruisciMappa(a, r));
     }
 
@@ -1067,7 +1075,7 @@ async function gestisci(req: Request): Promise<Response> {
       if (error) throw error;
       if (!a) return json({ errore: "argomento non trovato" }, 404);
       if (!a.concetti?.length) return json({ errore: "nessun_concetto" }, 422);
-      const r = await chiedi(promptSintesi(a, await classeDi(req, io.sub)), SCHEMA_SINTESI, [], "low");
+      const r = await chiedi(promptSintesi(a, await classeDi(req, io.sub)), SCHEMA_ARGOMENTO, [], "low");
       return json(sintesiDaRisposta(a, r));
     }
 
