@@ -114,7 +114,9 @@ export const AZIONI_LETTURA = new Set(["riepilogo", "consumi", "registro"]);
 export const SOGLIA_REGISTRO = 500;
 export function limiteRegistro(ora = Date.now()) {
   const d = new Date(ora);
+  const mese = d.getUTCMonth();
   d.setUTCFullYear(d.getUTCFullYear() - 1);
+  if (d.getUTCMonth() !== mese) d.setUTCDate(0); // 29 febbraio: torna al 28, non al 1° marzo
   return d.toISOString();
 }
 export const pianoRegistro = (n) => ({ cancella: n > 0 && n <= SOGLIA_REGISTRO, troppi: n > SOGLIA_REGISTRO });

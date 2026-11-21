@@ -156,3 +156,8 @@ test("pulizia #37: con il cestino oltre la soglia l'esito resta ok: false anche 
   assert.match(riga, /ok: false/);
   assert.doesNotMatch(riga, /\.\.\.reg/, "lo spread di reg sovrascriverebbe ok");
 });
+
+test("pulizia #37: un errore del registro non ferma il cestino, ma fa fallire il giro", () => {
+  const e = leggi("functions/_shared/eliminazione.ts");
+  assert.match(e, /await pulisciRegistro\(db, ora\)\.catch\(/);
+});

@@ -212,3 +212,7 @@ test("registro: oltre 500 righe in un giro non si cancella niente", () => {
   assert.deepEqual(pianoRegistro(500), { cancella: true, troppi: false });
   assert.deepEqual(pianoRegistro(501), { cancella: false, troppi: true });
 });
+
+test("registro: il 29 febbraio il limite è il 28 febbraio dell'anno prima (mai un giorno in più)", () => {
+  assert.equal(limiteRegistro(Date.parse("2028-02-29T05:30:00Z")), "2027-02-28T05:30:00.000Z");
+});

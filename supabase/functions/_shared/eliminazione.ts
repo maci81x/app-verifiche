@@ -202,7 +202,11 @@ export async function pulisciCestino(db: Db, ora = Date.now()) {
   if (!preso) return { ok: true, occupata: true, famiglie: 0, profili: 0, restano: 0 };
   try {
     // Prima il registro: gira anche nei giorni in cui il cestino supera la sua soglia.
-    const reg = await pulisciRegistro(db, ora);
+    // Un errore qui non ferma il cestino, ma il giro fallisce (workflow rosso).
+    const reg = await pulisciRegistro(db, ora).catch((e) => {
+      console.error("pulizia: registro non pulito:", e);
+      return { ok: false, registro: 0, registro_troppi: false };
+    });
     const [{ data: famiglie, error: e1 }, { data: figli, error: e2 }] = await Promise.all([
       db.from("famiglie").select("id, genitore_id, cestino, protetta"),
       db.from("studenti").select("id, famiglia_id, cestino"),
